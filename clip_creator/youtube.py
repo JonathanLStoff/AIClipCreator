@@ -77,18 +77,18 @@ def get_video_info(video_id):
         return None
 
 def get_transcript(video_id):
-  """Gets the transcript of a YouTube video."""
-  try:
-      transcript = youtube_transcript_api.YouTubeTranscriptApi.get_transcript(video_id)
-      # Format transcript as a string:
-      transcript_text = " ".join([entry['text'] for entry in transcript])
-      return transcript_text
-  except youtube_transcript_api.TranscriptsDisabled:
-      return "Transcripts are disabled for this video."
-  except youtube_transcript_api.NoTranscriptFound:
-      return "No transcript found for this video."
-  except Exception as e:
-      return f"Error getting transcript: {e}"
+    """Gets the transcript of a YouTube video."""
+    try:
+        transcript = youtube_transcript_api.YouTubeTranscriptApi.get_transcript(video_id)
+        # Format transcript as a string:
+        transcript_text = " ".join([entry['text'] for entry in transcript])
+        return transcript_text
+    except youtube_transcript_api.TranscriptsDisabled:
+        return "Transcripts are disabled for this video."
+    except youtube_transcript_api.NoTranscriptFound:
+        return "No transcript found for this video."
+    except Exception as e:
+        return f"Error getting transcript: {e}"
 
 
 def get_comments(video_id, max_comments=50):  # Added max_comments

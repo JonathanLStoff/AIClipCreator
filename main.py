@@ -7,7 +7,6 @@ def main():
     type_phases = "funny moments"
     sections = find_sections(script, type_phases)
     print(sections)
-    print(f"Found {len(sections)} sections in the script.")
     
 if __name__ == '__main__':
     main()
