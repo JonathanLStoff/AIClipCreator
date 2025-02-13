@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "clip-creator"
+version = "0.1.0"
+description = ""
+authors = ["Jonathan Stoff <jonathanlstoff@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.14"
+google-api-python-client = "^2.160.0"
+youtube-transcript-api = "^0.6.3"
+isodate = "^0.7.2"
+ollama = "^0.4.7"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
