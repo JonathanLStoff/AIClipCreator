@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import isodate
 import youtube_transcript_api
@@ -9,18 +9,20 @@ from clip_creator.conf import API_KEY
 
 YOUTUBE = build('youtube', 'v3', developerKey=API_KEY)
 
+from datetime import datetime, timedelta, timezone
+
 def search_videos(query, time_range=7):
     """Searches YouTube videos within a specified time range."""
-    now = datetime.now(datetime.timezone.utc)
-    published_after = (now - timedelta(days=time_range)).isoformat() + 'Z'
+    now = datetime.now(timezone.utc)
+    published_after = (now - timedelta(days=time_range)).isoformat().replace('+00:00', 'Z')
 
     request = YOUTUBE.search().list(
         q=query,
         part='snippet',
         type='video',
         publishedAfter=published_after,
-        order='relevance',  # You can change to 'viewCount' or 'rating' if needed
-        maxResults=50 #You can increase this if needed
+        order='relevance',
+        maxResults=50
     )
     response = request.execute()
     return response.get('items', [])
@@ -81,8 +83,8 @@ def get_transcript(video_id):
     try:
         transcript = youtube_transcript_api.YouTubeTranscriptApi.get_transcript(video_id)
         # Format transcript as a string:
-        transcript_text = " ".join([entry['text'] for entry in transcript])
-        return transcript_text
+        #transcript_text = " ".join([entry['text'] for entry in transcript])
+        return transcript
     except youtube_transcript_api.TranscriptsDisabled:
         return "Transcripts are disabled for this video."
     except youtube_transcript_api.NoTranscriptFound:
@@ -90,6 +92,9 @@ def get_transcript(video_id):
     except Exception as e:
         return f"Error getting transcript: {e}"
 
+def join_transcript(transcript):
+    """Join the transcript into a single string."""
+    return " ".join([entry['text'] for entry in transcript])
 
 def get_comments(video_id, max_comments=50):  # Added max_comments
     """Gets comments for a video."""
