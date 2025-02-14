@@ -1,5 +1,7 @@
 import os
 from datetime import datetime, timedelta, timezone
+from pytube import YouTube
+from clip_creator.conf import LOGGER
 
 import isodate
 import youtube_transcript_api
@@ -9,7 +11,18 @@ from clip_creator.conf import API_KEY
 
 YOUTUBE = build('youtube', 'v3', developerKey=API_KEY)
 
-from datetime import datetime, timedelta, timezone
+
+
+
+def Download(video_id:str):
+    link = f"https://www.youtube.com/watch?v={video_id}"
+    youtubeObject = YouTube(link)
+    youtubeObject = youtubeObject.streams.get_highest_resolution()
+    try:
+        youtubeObject.download()
+    except:
+        LOGGER.info("An error has occurred")
+    LOGGER.info("Download is completed successfully")
 
 def search_videos(query, time_range=7):
     """Searches YouTube videos within a specified time range."""
@@ -58,7 +71,7 @@ def is_trending(video_id):
         else:
             return False
     except Exception as e:
-        print(f"Error checking trending status: {e}")
+        LOGGER.info(f"Error checking trending status: {e}")
         return False
 
 
@@ -75,7 +88,7 @@ def get_video_info(video_id):
             "comments": comments
         }
     except Exception as e:
-        print(f"Error getting video info: {e}")
+        LOGGER.info(f"Error getting video info: {e}")
         return None
 
 def get_transcript(video_id):
@@ -119,7 +132,7 @@ def get_comments(video_id, max_comments=50):  # Added max_comments
                 request = None  # No more pages
         return comments
     except Exception as e:
-        print(f"Error getting comments: {e}")
+        LOGGER.info(f"Error getting comments: {e}")
         return []
 
 
@@ -131,8 +144,8 @@ for item in search_results:
   if is_trending(video_id):
         video_info = get_video_info(video_id)
         if video_info:
-            print(f"Trending Video: {item['snippet']['title']}")
-            print(f"Link: {video_info['link']}")
-            print("Transcript:", video_info['transcript'][:500] + "...") # Print a snippet
-            print("Comments:", video_info['comments'][:5])  #Print a few comments
-            print("-" * 20)
+            LOGGER.info(f"Trending Video: {item['snippet']['title']}")
+            LOGGER.info(f"Link: {video_info['link']}")
+            LOGGER.info("Transcript:", video_info['transcript'][:500] + "...") # Print a snippet
+            LOGGER.info("Comments:", video_info['comments'][:5])  #Print a few comments
+            LOGGER.info("-" * 20)

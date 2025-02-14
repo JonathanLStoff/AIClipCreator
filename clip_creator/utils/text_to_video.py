@@ -1,4 +1,5 @@
 
+from clip_creator.conf import LOGGER
 def find_text_sec(og_transcript:dict[str], sections:list[str], accuracy:float=70):
     '''
         Translate the sections that ai found into the timestamp of the original transcript.

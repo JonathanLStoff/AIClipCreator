@@ -1,4 +1,5 @@
 from moviepy.editor import VideoFileClip, CompositeVideoClip, ColorClip
+from clip_creator.conf import LOGGER
 
 def edit_video(input_file, output_file, zoom=1.0, target_size=(720, 1280)):
     """

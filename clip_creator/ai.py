@@ -1,5 +1,5 @@
 import math
-
+from clip_creator.conf import LOGGER
 from ollama import ChatResponse, chat
 import base64
 
