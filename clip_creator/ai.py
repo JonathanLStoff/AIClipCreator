@@ -2,6 +2,7 @@ import math
 from clip_creator.conf import LOGGER
 from ollama import ChatResponse, chat
 import base64
+import cv2
 
 
 def find_sections(script:str, type_phases:str, wp_min:int=50, wp_max:int=200) -> list[str]:
@@ -84,47 +85,36 @@ def find_sections(script:str, type_phases:str, wp_min:int=50, wp_max:int=200) ->
 
 def find_faces(image_path: str) -> list[list[float]]:
     """
-    Analyze an image for face detection using ai.
-    
-    The function reads an image file, converts it to a Base64-encoded string,
-    and sends it to an AI model for face detection. The AI is expected to return
-    a slash-separated string of detected face bounding boxes in the format:
-    "x,y,w,h,confidence". If no faces are found, it should respond with "No faces found."
-    
-    Returns a list of bounding boxes where each box is represented as
-    [x, y, w, h, confidence]. If no faces are detected, returns an empty list.
+    Detects faces in an image and returns the x, y coordinates of the top-left corner
+    of the bounding box around each face.
+
+    Args:
+        image_path: The path to the image file.
+
+    Returns:
+        A list of tuples, where each tuple contains the (x, y) coordinates of a face.
+        Returns an empty list if no faces are detected.  Returns None if the image
+        cannot be read.
     """
-    
-    with open(image_path, "rb") as image_file:
-        encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
-    
-    response = chat(model='face-detection-model', messages=[
-        {
-            'role': 'system',
-            'content': (
-                'Analyze the following image (encoded in Base64) and detect faces. '
-                'For each detected face, provide the bounding box as a comma-separated list: x,y,w,h,confidence. '
-                'Separate multiple results with a slash ("/"). '
-                'If no faces are found, respond with "No faces found."'
-            ),
-        },
-        {
-            'role': 'user',
-            'content': encoded_image,
-        },
-    ])
-    
-    content = response.message.content.strip()
-    if content == "No faces found.":
-        return []
-    
-    boxes = []
-    for entry in content.split('/'):
-        parts = entry.split(',')
-        if len(parts) == 5:
-            try:
-                box = [float(p) for p in parts]
-                boxes.append(box)
-            except ValueError:
-                continue
-    return boxes
+
+    # Load the pre-trained face detection model (Haar cascade)
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+
+    # Read the image
+    img = cv2.imread(image_path)
+
+    if img is None: #check for successful image read
+        return None
+
+    # Convert the image to grayscale (face detection works better on grayscale)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Detect faces
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+
+    face_coordinates = []
+    for (x, y, w, h) in faces:
+        face_coordinates.append((x, y, w, h))  # Append the top-left corner coordinates
+
+
+    return face_coordinates

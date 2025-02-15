@@ -1,4 +1,4 @@
-from moviepy.editor import VideoFileClip, CompositeVideoClip, ColorClip
+from moviepy.editor import VideoFileClip, CompositeVideoClip, ColorClip, TextClip
 from clip_creator.conf import LOGGER
 
 def edit_video(input_file, output_file, zoom=1.0, target_size=(720, 1280)):
@@ -105,7 +105,46 @@ def crop_video_into_another(background_file, overlay_file, output_file, zoom=1.0
     composite_clip = CompositeVideoClip([bg_clip, cropped_overlay.set_position(position)], size=bg_clip.size)
     composite_clip.write_videofile(output_file, codec="libx264")
 
+def add_text_to_video(video_path, text, font, fontsize, color, outline_color, outline_width, position, rotation):
+    """
+    Adds text to a video with customizable rotation, position, outline, and font.
 
+    Args:
+        video_path: Path to the video file.
+        text: The text to be added.
+        font: The font to use (e.g., "Arial", "Impact", path to a .ttf file).
+        fontsize: The font size.
+        color: The text color (e.g., "white", "red", "#00FF00").
+        outline_color: The color of the text outline.
+        outline_width: The width of the text outline.
+        position: The position of the text (e.g., "center", ("left", "top"), (x,y) coordinates).
+        rotation: The rotation angle in degrees (e.g., 0, 90, 180).
+    """
+
+    try:
+        clip = VideoFileClip(video_path)
+    except Exception as e:
+        print(f"Error opening video: {e}")
+        return
+
+    txt_clip = TextClip(text,
+                        font=font,
+                        fontsize=fontsize,
+                        color=color,
+                        stroke_color=outline_color,  # Outline color
+                        stroke_width=outline_width)   # Outline width
+
+    txt_clip = txt_clip.set_pos(position).set_duration(clip.duration).rotate(rotation)
+
+    final_clip = CompositeVideoClip([clip, txt_clip])
+
+    # You can choose the output video codec and quality
+    output_path = "output_video.mp4" # or any other name/path
+    final_clip.write_videofile(output_path, codec="libx264", fps=clip.fps, audio_codec="aac") # Adjust codec if needed
+
+    clip.close()  # Close the video clip to release resources
+    final_clip.close() # Close the final clip
+    print(f"Video with text saved to {output_path}")
 
 # Example usage:
 if __name__ == "__main__":

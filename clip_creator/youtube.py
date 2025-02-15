@@ -1,28 +1,40 @@
 import os
 from datetime import datetime, timedelta, timezone
-from pytube import YouTube
 from clip_creator.conf import LOGGER
+from y2mate_api import session
+import subprocess
 
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import isodate
 import youtube_transcript_api
 from googleapiclient.discovery import build
 
 from clip_creator.conf import API_KEY
-
+from yt_dlp import YoutubeDL
 YOUTUBE = build('youtube', 'v3', developerKey=API_KEY)
 
 
-
-
-def Download(video_id:str):
+def Download(video_id:str, path:str="videos", filename:str=None):
     link = f"https://www.youtube.com/watch?v={video_id}"
-    youtubeObject = YouTube(link)
-    youtubeObject = youtubeObject.streams.get_highest_resolution()
-    try:
-        youtubeObject.download()
-    except:
-        LOGGER.info("An error has occurred")
+    with YoutubeDL() as ydl:
+        ydl.download([link])
+    for file in os.listdir("./"):
+        if video_id in file:
+            os.rename(file, f"{path}/{filename}.{file.split('.')[-1]}")
+    
     LOGGER.info("Download is completed successfully")
+
+def subscriptions():
+    request = YOUTUBE.subscriptions().list(
+        part='snippet',
+        mine=True,
+        maxResults=50
+    )
+    response = request.execute()
+    return response.get('items', [])
 
 def search_videos(query, time_range=7):
     """Searches YouTube videos within a specified time range."""
@@ -109,7 +121,7 @@ def join_transcript(transcript):
     """Join the transcript into a single string."""
     return " ".join([entry['text'] for entry in transcript])
 
-def get_comments(video_id, max_comments=50):  # Added max_comments
+def get_comments(video_id, max_comments=100):  # Added max_comments
     """Gets comments for a video."""
     try:
         comments = []
@@ -135,17 +147,5 @@ def get_comments(video_id, max_comments=50):  # Added max_comments
         LOGGER.info(f"Error getting comments: {e}")
         return []
 
-
-# Example usage:
-search_results = search_videos("Python programming tutorial")
-
-for item in search_results:
-  video_id = item['id']['videoId']
-  if is_trending(video_id):
-        video_info = get_video_info(video_id)
-        if video_info:
-            LOGGER.info(f"Trending Video: {item['snippet']['title']}")
-            LOGGER.info(f"Link: {video_info['link']}")
-            LOGGER.info("Transcript:", video_info['transcript'][:500] + "...") # Print a snippet
-            LOGGER.info("Comments:", video_info['comments'][:5])  #Print a few comments
-            LOGGER.info("-" * 20)
+if __name__ == "__main__":
+    Download("Rivbvb2JDCw")
