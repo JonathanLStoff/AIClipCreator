@@ -42,13 +42,13 @@ def edit_video(input_file, output_file, zoom=1.0, target_size=(720, 1280), start
     
     cropped = Crop(x1=x1, y1=y1, x2=x2, y2=y2)
     cropped_clip = cropped.apply(clip)
-    cropped_clip.with_effects([Resize(0.3)])
     
+    tw, th = target_size
     # Create a black background and composite the result on it.
     #background = ColorClip(size=target_size, color=(0, 0, 0), duration=cropped_clip.duration).with_fps(cropped_clip.fps)
     #final_clip = background.overlay(cropped_clip, position=("center", "center"))
-    text_commm = TextClip(font="Vercetti Regular/Vercetti-Regular.ttf", text=text, font_size=70, color='white', duration=cropped_clip.duration, stroke_color='black', stroke_width=5).with_position("top").rotated(randint(-10, 10))
-    final_clip = CompositeVideoClip([cropped_clip.with_position("center"), text_commm], size=target_size, bg_color=(0, 0, 0))
+    text_commm = TextClip(font="Vercetti Regular/Vercetti-Regular.ttf", text=text, font_size=70, bg_color='white', color=(0, 0, 0), duration=cropped_clip.duration, stroke_color='black', stroke_width=5).with_position((int(tw/50), int(th/3))).rotated(randint(-10, 10), expand=True)
+    final_clip = CompositeVideoClip([cropped_clip.with_position("center").with_effects([Resize(0.7)]), text_commm], size=target_size, bg_color=(0, 0, 0))
     
     final_clip.write_videofile(output_file.replace(".mp4", "_final.mp4"), codec="libx264")
 

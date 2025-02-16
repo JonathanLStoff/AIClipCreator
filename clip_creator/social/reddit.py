@@ -15,7 +15,7 @@ def search_reddit(videoid:str)->list[dict]:
                      None if an error occurs.
     """
     try:
-        response = requests.get(f'reddit.com/search/?q={videoid}&type=posts&sort=relevance')
+        response = requests.get(f' https://www.reddit.com/search/?q={videoid}&type=posts&sort=relevance')
         response.raise_for_status()
         soup = BeautifulSoup(response.content, "html.parser")
         results = []
@@ -94,7 +94,7 @@ def check_top_comment(search_results: List[Dict], max_words: int) -> Tuple[Optio
     comments:list[dict] = []
     for result in search_results:
         try:
-            comment_url = f'www.reddit.com/svc/shreddit/comments/r/playstation/t3_{result["url"].split("comments/")[-1].split("/")[0]}?render-mode=partial&is_lit_ssr=false&force_seo=1'
+            comment_url = f' https://www.reddit.com/svc/shreddit/comments/r/playstation/t3_{result["url"].split("comments/")[-1].split("/")[0]}?render-mode=partial&is_lit_ssr=false&force_seo=1'
             response = requests.get(comment_url)
             soup = BeautifulSoup(response.content, "html.parser")
             

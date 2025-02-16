@@ -81,3 +81,17 @@ def find_timestamp_clips(raw_transcript: list, timestamp:int)->list[dict]:
         if i >= item_index and section['start'] < timestamp + 61:
             clip.append(section)
     return clip
+
+def clean_text(text: str) -> str:
+    """
+    Remove all substrings that match the regex pattern from text and trim off white spaces.
+
+    Args:
+        text: The text to be cleaned.
+        pattern: The regex pattern whose matches will be removed from the text.
+
+    Returns:
+        The cleaned text.
+    """
+    cleaned = re.sub(TIMESTAMP_REGEX, "", text)
+    return cleaned.strip()

@@ -1,6 +1,6 @@
 import json
 import os
-from clip_creator.db.db import create_database, add_video_entry
+from clip_creator.db.db import create_database, add_video_entry, create_or_update_clip, find_clip
 from clip_creator.utils.path_setup import check_and_create_dirs
 from clip_creator.video_edit import edit_video
 from clip_creator.conf import SECTIONS_TYPES, LOGGER
@@ -9,7 +9,7 @@ from clip_creator.social.reddit import check_top_comment, search_reddit
 from clip_creator.ai import find_sections, ask_if_comment_in_transcript
 from clip_creator.utils.text_to_video import find_text_sec
 from clip_creator.utils.video_tools import convert_webm_to_mp4
-from clip_creator.utils.scan_text import most_common_ngrams, find_timestamps, convert_timestamp_to_seconds, find_timestamp_clips
+from clip_creator.utils.scan_text import most_common_ngrams, find_timestamps, convert_timestamp_to_seconds, find_timestamp_clips, clean_text
 import argparse
 
 
@@ -39,13 +39,18 @@ def main():
     videos = []
     if not args.noretrieve:
         # get hot videos
-        #videos.extend(search_videos("gaming", time_range=1))
-        videos.extend(get_subscriptions_videos())
-        LOGGER.info("Videos: %s", videos)
-        if args.numvid:
-            videos = videos[:args.numvid]
+        
+        if args.inputvideoid:
+            videos.append({"id": {"videoId":args.inputvideoid}})
+        else:
+            #videos.extend(search_videos("gaming", time_range=1))
+            videos.extend(get_subscriptions_videos())
+            LOGGER.info("Videos: %s", videos)
+            if args.numvid:
+                videos = videos[:args.numvid]
         # filter out non trending videos
         #videos = [video for video in videos if is_trending(video['id']['videoId'])]
+        
         raw_transcripts = {}
         formated_transcripts = {}
         for video in videos:
@@ -139,6 +144,7 @@ def main():
     for id, script in formated_transcripts.items():
         timestamps[id] = find_timestamps(top_yt_comment[id])
         if timestamps[id]:
+            top_yt_comment[id] = clean_text(top_yt_comment[id])
             timestamps[id] = convert_timestamp_to_seconds(timestamps[id])
             LOGGER.info("Timestamp in sec: %s", timestamps[id])
         
@@ -201,15 +207,32 @@ def main():
     clips_chunks = {}
     for id, clip in clips.items():
         if clip:
-            clips_chunks[id] = {"start":float(clip[0]['start']), "end":float(clip[-1]['start'])+float(clip[0]['duration'])}
+            if not find_clip(id, int(float(clip[0]['start']))):
+                clips_chunks[id] = {"start":float(clip[0]['start']), "end":float(clip[-1]['start'])+float(clip[0]['duration'])}
+            else:
+                clips_chunks[id] = None
         else:
             clips_chunks[id] = None
     ######################################
     # Edit Videos
     ######################################
     for id, clip in clips.items():
-        if clip:
+        if clip and clips_chunks[id]:
             edit_video(f"tmp/raw/{id}.mp4", f"tmp/clips/{id}.mp4", target_size=(1080, 1920), start_time=clips_chunks[id]['start'], end_time=clips_chunks[id]['end'], text=top_yt_comment[id])
-    
+            clip_dict = {
+                "video_id": id,
+                "start_time": int(clips_chunks[id]['start']),
+                "end_time": int(clips_chunks[id]['end']),
+                "clip_transcript": json.dumps(clip),
+                
+            }
+            create_or_update_clip(clip_dict)
+    ######################################
+    # Compile Description
+    ######################################
+    descriptions = {}
+    for id, script in formated_transcripts.items():
+        descriptions[id] = f"#fyp #gaming #clip #fyppppppppppppp \n credit {video_info[id]["creator"]}'s {video_info[id]['video_name']}"
+    LOGGER.info("Descriptions: %s", descriptions)
 if __name__ == '__main__':
     main()

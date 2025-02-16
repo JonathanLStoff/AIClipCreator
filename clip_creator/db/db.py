@@ -171,3 +171,126 @@ def add_video_entry(video_data, db_name="aiclipcreator.db"):
     finally:
         if conn:
             conn.close()
+            
+def create_or_update_clip(clip_data, db_path="aiclipcreator.db"):
+    """
+    Creates a new clip record or updates an existing one.
+
+    Args:
+        clip_data: A dictionary containing the clip data.  Must include 'video_id', 'start_time', 'end_time', and 'clip_transcript'.
+            May optionally include 'post_tiktok', 'tiktok_url', 'post_instagram', 'instagram_url', 'post_youtube', 'youtube_url', and 'id'.
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        The ID of the created or updated clip. Returns None on error.
+    """
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        required_keys = ['video_id', 'start_time', 'end_time', 'clip_transcript']
+        if not all(key in clip_data for key in required_keys):
+            raise ValueError("clip_data must contain 'video_id', 'start_time', 'end_time', and 'clip_transcript'")
+
+        video_id = clip_data['video_id']
+        start_time = clip_data['start_time']
+        end_time = clip_data['end_time']
+        clip_transcript = clip_data['clip_transcript']
+
+        # Construct the SET and VALUES parts of the SQL query dynamically
+        set_values = []
+        values = []
+        data_to_execute = []
+
+        for key, value in clip_data.items():
+            if key not in ('id', 'video_id', 'start_time', 'end_time'):  # Exclude these from SET/VALUES
+                set_values.append(f"{key} = ?")
+                values.append(key)
+                data_to_execute.append(value)
+        
+        data_to_execute.extend([clip_transcript, None, None, None, None, None, None]) # Fill out the rest of the values in the correct order
+        set_values_string = ", ".join(set_values)
+
+        # Check if an ID is provided. If so, it's an update.
+        if 'id' in clip_data:
+            clip_id = clip_data['id']
+            cursor.execute(f"""
+                UPDATE clips SET {set_values_string}
+                WHERE id = ?
+            """, (*data_to_execute[:-7], clip_id)) # Exclude transcript and social media fields from set_values
+        else:
+            # Check if a clip with the given video_id, start_time, and end_time already exists
+            cursor.execute("""
+                SELECT id FROM clips 
+                WHERE video_id = ? AND start_time = ? AND end_time = ?
+            """, (video_id, start_time, end_time))
+            existing_clip = cursor.fetchone()
+
+            if existing_clip:
+                clip_id = existing_clip[0]  # Get the existing clip ID
+                cursor.execute(f"""
+                    UPDATE clips SET {set_values_string}
+                    WHERE id = ?
+                """, (*data_to_execute[:-7], clip_id))  # Exclude transcript and social media fields from set_values
+            else:
+                # Create a new clip
+                columns = ", ".join(clip_data.keys())
+                placeholders = ", ".join(["?"] * len(clip_data))
+                cursor.execute(f"""
+                    INSERT INTO clips ({columns})
+                    VALUES ({placeholders})
+                """, tuple(clip_data.values()))
+                clip_id = cursor.lastrowid  # Get the ID of the newly inserted row
+
+        conn.commit()
+        conn.close()
+        return clip_id
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        if conn:
+            conn.close()  # Close connection in case of error
+        return None
+    except ValueError as e:
+        print(f"Value Error: {e}")
+        return None
+    
+def find_clip(video_id, start_time, db_path="aiclipcreator.db"):
+    """
+    Finds a clip in the database based on video_id and start_time.
+
+    Args:
+        video_id: The video ID to search for.
+        start_time: The start time to search for.
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        A dictionary containing the clip data if found, or None if not found.
+    """
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT * FROM clips
+            WHERE video_id = ? AND start_time = ?
+        """, (video_id, start_time))
+
+        clip_data = cursor.fetchone()
+        conn.close()
+
+        if clip_data:
+            # Get column names from the cursor description
+            column_names = [description[0] for description in cursor.description]
+
+            # Create a dictionary mapping column names to values
+            clip_dict = dict(zip(column_names, clip_data))
+            return clip_dict
+        else:
+            return None
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        if conn:
+            conn.close()
+        return None
