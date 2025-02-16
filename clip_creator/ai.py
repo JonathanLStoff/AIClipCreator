@@ -118,3 +118,53 @@ def find_faces(image_path: str) -> list[list[float]]:
 
 
     return face_coordinates
+
+def ask_if_comment_in_transcript(transcript:str, comment:str) -> str|None:
+    '''
+        Ask ai if a comment is in a transcript.
+    '''
+    responses: list[ChatResponse] = []
+    script = script.replace('\n', ' ')
+    if len(script.split(' ')) > 1000:
+        
+        script_runs = math.ceil(len(script.split(' ')) / 1000)
+        for i in range(script_runs):
+            if i == script_runs - 1:
+                tmp_script = script.split(' ')[i*1000:]
+            else:
+                tmp_script = script.split(' ')[i*1000:(i+1)*1000]
+            responses.append(chat(model='llama3.2', messages=[
+                {
+                    'role': 'system',
+                    'content': f'''**"Analyze the following transcript and determine if the section this comment '{comment}' is talking about is present in the text. Respond with the section of text or 'no, not in' DO NOT RESPOND WITH ANYTHING ELSE."**''',
+                },
+                {
+                    'role': 'user',
+                    'content': tmp_script,
+                },
+            ]
+        ))
+    else:
+        responses.append(chat(model='llama3.2', messages=[
+                {
+                    'role': 'system',
+                    'content': f'''**"Analyze the following transcript and determine if the section this comment '{comment}' is talking about is present in the text. Respond with the section of text or 'no, not in' DO NOT RESPOND WITH ANYTHING ELSE."**''',
+                },
+                {
+                    'role': 'user',
+                    'content': transcript,
+                },
+            ]
+            )
+        )
+    
+    messages = []
+    for response in responses:
+        messages.extend(response.message.content.split('|'))
+    true_response = None
+    for response in responses:
+        if not "no, not in" in str(response.message.content).lower():
+            true_response = response.message.content
+            break
+    return None if not true_response else true_response
+    

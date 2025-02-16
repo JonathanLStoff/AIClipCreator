@@ -1,7 +1,9 @@
-from moviepy.editor import VideoFileClip, CompositeVideoClip, ColorClip, TextClip
+from moviepy import VideoFileClip, CompositeVideoClip, ColorClip, TextClip
+from moviepy.video.fx import Crop, Resize
+from random import randint
 from clip_creator.conf import LOGGER
 
-def edit_video(input_file, output_file, zoom=1.0, target_size=(720, 1280)):
+def edit_video(input_file, output_file, zoom=1.0, target_size=(720, 1280), start_time=0, end_time=60, text:str=""):
     """
     Crops a landscape video to a portrait orientation and “zooms in” on the center portion.
     The final video has a black background. Parameters:
@@ -10,9 +12,10 @@ def edit_video(input_file, output_file, zoom=1.0, target_size=(720, 1280)):
       • zoom         : zoom factor (>1 zooms in more on a smaller crop area).
       • target_size  : tuple (width, height) for the portrait video.
     """
-    clip = VideoFileClip(input_file)
+    clip = VideoFileClip(input_file).subclipped(start_time, end_time)
+    LOGGER.info(f"Video duration: {end_time-start_time} seconds")
     iw, ih = clip.size
-    target_w, target_h = target_size
+    target_h, target_w = target_size
     target_aspect = target_w / target_h
 
     # Determine the maximum crop that fits the input with the target aspect.
@@ -35,16 +38,19 @@ def edit_video(input_file, output_file, zoom=1.0, target_size=(720, 1280)):
     y1 = center_y - crop_h / 2
     x2 = center_x + crop_w / 2
     y2 = center_y + crop_h / 2
-
-    # Crop and resize.
-    cropped_clip = clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
-    resized_clip = cropped_clip.resize(newsize=target_size)
-
-    # Create a black background and composite the result on it.
-    background = ColorClip(size=target_size, color=(0, 0, 0), duration=resized_clip.duration)
-    final_clip = CompositeVideoClip([background, resized_clip.set_pos("center")], size=target_size)
     
-    final_clip.write_videofile(output_file, codec="libx264")
+    
+    cropped = Crop(x1=x1, y1=y1, x2=x2, y2=y2)
+    cropped_clip = cropped.apply(clip)
+    cropped_clip.with_effects([Resize(0.3)])
+    
+    # Create a black background and composite the result on it.
+    #background = ColorClip(size=target_size, color=(0, 0, 0), duration=cropped_clip.duration).with_fps(cropped_clip.fps)
+    #final_clip = background.overlay(cropped_clip, position=("center", "center"))
+    text_commm = TextClip(text, font_size=70, color='white', duration=cropped_clip.duration, stroke_color='black', stroke_width=5).with_position("top").rotate(randint(-10, 10))
+    final_clip = CompositeVideoClip([cropped_clip.with_position("center"), text_commm], size=target_size, bg_color=(0, 0, 0))
+    
+    final_clip.write_videofile(output_file.replace(".mp4", "_final.mp4"), codec="libx264")
 
 def get_first_frame_screenshot(input_file, screenshot_path):
     """
@@ -95,8 +101,8 @@ def crop_video_into_another(background_file, overlay_file, output_file, zoom=1.0
     x2 = center_x + crop_w / 2
     y2 = center_y + crop_h / 2
 
-    # Crop the overlay video.
-    cropped_overlay = ov_clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
+    cropped_overlay = ov_clip.fx(vfx.crop, x1=x1, y1=y1, x2=x2, y2=y2)
+    #cropped_overlay = ov_clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
 
     # Ensure the overlay duration matches the background's.
     cropped_overlay = cropped_overlay.set_duration(bg_clip.duration)

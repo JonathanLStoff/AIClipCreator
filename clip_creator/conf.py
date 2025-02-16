@@ -1,7 +1,7 @@
 import os
 import logging
 
-API_KEY = os.environ.get("YOUTUBE_API_KEY")
+API_KEY = os.environ.get("YOUTUBE_API_KEY_3")
 
 SECTIONS_TYPES = ["funny moments"]
 
@@ -16,3 +16,5 @@ LOGGER.addHandler(console_handler)
 
 TIKTOK_USERNAME = os.environ.get("TIKTOK_USERNAME")
 TIKTOK_PASSWORD = os.environ.get("TIKTOK_PASSWORD")
+
+TIMESTAMP_REGEX = r'^(?:[0-9]|1[0-2]):[0-5][0-9](?::[0-5][0-9])?\b(?:\s.*)?$'
