@@ -1,9 +1,10 @@
 import json
 import os
+import shutil
 from clip_creator.db.db import create_database, add_video_entry, create_or_update_clip, find_clip
 from clip_creator.utils.path_setup import check_and_create_dirs
 from clip_creator.video_edit import edit_video
-from clip_creator.conf import SECTIONS_TYPES, LOGGER
+from clip_creator.conf import SECTIONS_TYPES, LOGGER, DOWNLOAD_FOLDER, CLIPS_FOLDER, TMP_DOWNLOAD_FOLDER, TMP_CLIPS_FOLDER
 from clip_creator.youtube import search_videos, get_transcript, join_transcript, Download, is_trending, get_comments, get_top_comment, get_video_info, get_subscriptions_videos
 from clip_creator.social.reddit import check_top_comment, search_reddit
 from clip_creator.ai import find_sections, ask_if_comment_in_transcript
@@ -190,16 +191,19 @@ def main():
     if not args.inputvideoid:
         for id, script in formated_transcripts.items():
             if clips[id]:
-                if not os.path.exists(f"tmp/raw/{id}.mp4"):
-                    Download(id, path='tmp/raw', filename=id)
+                if not os.path.exists(f"{DOWNLOAD_FOLDER}/{id}.mp4"):
+                    LOGGER.info("not found: %s", f"{DOWNLOAD_FOLDER}/{id}.mp4")
+                    Download(id, path=TMP_DOWNLOAD_FOLDER, filename=id)
                     # Convert webm to mp4
-                    convert_webm_to_mp4(f"tmp/raw/{id}.webm", f"tmp/raw/{id}.mp4")
-                    os.remove(f"tmp/raw/{id}.webm")
+                    convert_webm_to_mp4(f"{TMP_DOWNLOAD_FOLDER}/{id}.webm", f"{DOWNLOAD_FOLDER}/{id}.mp4")
+                    os.remove(f"{TMP_DOWNLOAD_FOLDER}/{id}.webm")
     else:
-        if not os.path.exists(f"tmp/raw/{args.inputvideoid}.mp4"):
-            Download(args.inputvideoid, path='tmp/raw', filename=args.inputvideoid)
+        if not os.path.exists(f"{DOWNLOAD_FOLDER}/{args.inputvideoid}.mp4"):
+            LOGGER.info("not found: %s", f"{DOWNLOAD_FOLDER}/{args.inputvideoid}.mp4")
+            Download(args.inputvideoid, path=TMP_DOWNLOAD_FOLDER, filename=args.inputvideoid)
             # Convert webm to mp4
-            convert_webm_to_mp4(f"tmp/raw/{args.inputvideoid}.webm", f"tmp/raw/{args.inputvideoid}.mp4")
+            convert_webm_to_mp4(f"{TMP_DOWNLOAD_FOLDER}/{args.inputvideoid}.webm", f"{DOWNLOAD_FOLDER}/{args.inputvideoid}.mp4")
+            os.remove(f"{TMP_DOWNLOAD_FOLDER}/{args.inputvideoid}.webm")
     
     ######################################
     # Format Clips into chunks
@@ -218,13 +222,16 @@ def main():
     ######################################
     for id, clip in clips.items():
         if clip and clips_chunks[id]:
-            edit_video(f"tmp/raw/{id}.mp4", f"tmp/clips/{id}.mp4", target_size=(1080, 1920), start_time=clips_chunks[id]['start'], end_time=clips_chunks[id]['end'], text=top_yt_comment[id])
+            LOGGER.info("FOLDERS: %s %s", f"{DOWNLOAD_FOLDER}/{id}.mp4", f"{CLIPS_FOLDER}/{id}.mp4")
+            shutil.move(f"{DOWNLOAD_FOLDER}/{id}.mp4", f"{TMP_DOWNLOAD_FOLDER}/{id}.mp4")
+            edit_video(f"{TMP_DOWNLOAD_FOLDER}/{id}.mp4", f"{TMP_CLIPS_FOLDER}/{id}.mp4", target_size=(1080, 1920), start_time=clips_chunks[id]['start'], end_time=clips_chunks[id]['end'], text=top_yt_comment[id], transcript=clips[id])
+            os.remove(f"{TMP_DOWNLOAD_FOLDER}/{id}.mp4")
+            shutil.move(f"{TMP_CLIPS_FOLDER}/{id}.mp4", f"{CLIPS_FOLDER}/{id}.mp4")
             clip_dict = {
                 "video_id": id,
                 "start_time": int(clips_chunks[id]['start']),
                 "end_time": int(clips_chunks[id]['end']),
                 "clip_transcript": json.dumps(clip),
-                
             }
             create_or_update_clip(clip_dict)
     ######################################

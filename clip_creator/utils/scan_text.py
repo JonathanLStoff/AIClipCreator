@@ -1,5 +1,5 @@
 import re
-from clip_creator.conf import LOGGER, TIMESTAMP_REGEX
+from clip_creator.conf import LOGGER, TIMESTAMP_REGEX, RM_TIMESTAMP_REGEX
 from collections import Counter
 def most_common_ngrams(text, n=3):
     """
@@ -93,5 +93,6 @@ def clean_text(text: str) -> str:
     Returns:
         The cleaned text.
     """
-    cleaned = re.sub(TIMESTAMP_REGEX, "", text)
+    cleaned = re.sub(RM_TIMESTAMP_REGEX, "", text)
+    LOGGER.info("Cleaned text: %s", cleaned.strip())
     return cleaned.strip()

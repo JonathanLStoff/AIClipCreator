@@ -1,9 +1,11 @@
-from moviepy import VideoFileClip, CompositeVideoClip, ColorClip, TextClip
+from moviepy import VideoFileClip, CompositeVideoClip, ColorClip, TextClip, ImageClip
 from moviepy.video.fx import Crop, Resize
+from clip_creator.utils.caption_img import create_caption_images
 from random import randint
+import os
 from clip_creator.conf import LOGGER
 
-def edit_video(input_file, output_file, zoom=1.0, target_size=(720, 1280), start_time=0, end_time=60, text:str=""):
+def edit_video(input_file, output_file, zoom=1.0, target_size=(720, 1280), start_time=0, end_time=60, text:str="", transcript: list=None):
     """
     Crops a landscape video to a portrait orientation and “zooms in” on the center portion.
     The final video has a black background. Parameters:
@@ -47,11 +49,66 @@ def edit_video(input_file, output_file, zoom=1.0, target_size=(720, 1280), start
     # Create a black background and composite the result on it.
     #background = ColorClip(size=target_size, color=(0, 0, 0), duration=cropped_clip.duration).with_fps(cropped_clip.fps)
     #final_clip = background.overlay(cropped_clip, position=("center", "center"))
-    text_commm = TextClip(font="Vercetti Regular/Vercetti-Regular.ttf", text=text, font_size=70, bg_color='white', color=(0, 0, 0), duration=cropped_clip.duration, stroke_color='black', stroke_width=5).with_position((int(tw/50), int(th/3))).rotated(randint(-10, 10), expand=True)
-    final_clip = CompositeVideoClip([cropped_clip.with_position("center").with_effects([Resize(0.7)]), text_commm], size=target_size, bg_color=(0, 0, 0))
+    # 3 words per line unless the total of those words is less than 19
+    pixels_per_char = 90
+    lines_total = 0
+    chars_in_line = 0
+    max_chars = 19
+    for i, chared in enumerate(text):
+        chars_in_line += 1
+        if chars_in_line > max_chars:
+            lines_total += 1
+            chars_in_line = 0
+        if lines_total > 6:
+            text = text[:i] + "..."
+            break
+    text_commm = TextClip(font="Vercetti Regular/Vercetti-Regular.ttf", method="caption", size=(int(target_h*0.93) if lines_total > 1 else int(((target_h/max_chars)*len(text))/2), int(lines_total*pixels_per_char if lines_total > 1 else int(pixels_per_char*1.2))), text=text, margin=(5,30), font_size=90, bg_color='white', color=(0, 0, 0), duration=cropped_clip.duration).rotated(randint(-10, 10), expand=True)
+    pos_x = (cropped_clip.w/2 - (int(target_h*0.93) if lines_total > 1 else int(((target_h/max_chars)*len(text))/2)))/3
+    text_commm_pos = text_commm.with_position((pos_x, int(th/7)))
+    final_clip = CompositeVideoClip([cropped_clip.with_position("center").with_effects([Resize(0.7)]), text_commm_pos], size=target_size, bg_color=(0, 0, 0))
+    create_captions(transcript, final_clip)
+    final_clip.write_videofile(output_file, codec="libx264")
     
-    final_clip.write_videofile(output_file.replace(".mp4", "_final.mp4"), codec="libx264")
+def create_captions(transcript:list[dict], video_obj:VideoFileClip, output_dir:str="./tmp/caps_img"):
+    """
+    Creates caption image clips from a transcript and overlays them onto a video clip.
+    This function generates caption images for each section in the transcript (by calling
+    an external function 'create_caption_images'), then creates individual image clips for
+    each word in the section. Each image clip is placed at a fixed vertical position on the
+    video (6/7th of the video height, centered horizontally) and is composited over the
+    existing video clip. The duration of each caption clip is evenly divided among the words
+    in the section's text.
+    Args:
+        transcript (list[dict]): A list of dictionaries where each dictionary represents a
+            segment of the transcript. Each dictionary should contain:
+                - 'text' (str): The caption text for the segment.
+                - 'start' (str): The start time of the segment, used for naming image files.
+                - 'duration' (float): The duration of the caption segment.
+        video_obj (VideoFileClip): The video clip (from moviepy) onto which the caption images
+            will be overlaid.
+        output_dir (str, optional): The directory path where the generated caption images are
+            saved. Defaults to "./tmp/caps_img".
+    Returns:
+        VideoFileClip: The modified video clip with the caption image clips composited on top.
+    """
+    
+    create_caption_images(transcript, video_obj.size[0], output_dir)
+    for i, section in enumerate(transcript):
+        for word in section['text'].split():
+            file_name = f"{section['start'].replace('.', '-')}_word{i}.png"
+            file_path = os.path.join(output_dir, file_name)
+            duration = section['duration']/len(section['text'].split())
+            # Create an image clip from the generated file with duration matching the video.
+            caption_clip = ImageClip(file_path, duration=duration)
 
+            # Position the image so that its center is at 6/7th of the video’s height.
+            pos_y = int(video_obj.h * 6 / 7 - caption_clip.h / 2)
+            caption_clip = caption_clip.with_position(("center", pos_y))
+
+            # Composite the caption image onto the video.
+            video_obj = CompositeVideoClip([video_obj, caption_clip])
+    return video_obj
+        
 def get_first_frame_screenshot(input_file, screenshot_path):
     """
     Extracts the first frame from the video and saves it as an image.

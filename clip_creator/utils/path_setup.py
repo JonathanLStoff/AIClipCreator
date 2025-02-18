@@ -11,7 +11,8 @@ def check_and_create_dirs(base_dir='tmp'):
     required_paths = [
         base_dir,
         os.path.join(base_dir, 'clips'),
-        os.path.join(base_dir, 'raw')
+        os.path.join(base_dir, 'raw'),
+        os.path.join(base_dir, 'caps_img')
     ]
     
     for path in required_paths:
@@ -20,4 +21,5 @@ def check_and_create_dirs(base_dir='tmp'):
             print(f"Created directory: {path}")
         else:
             print(f"Directory already exists: {path}")
+    
 
