@@ -3,6 +3,7 @@ import os
 
 def create_caption_images(captions, max_width, output_dir="."):
     """Creates one image *per line* of wrapped text, highlighting current word."""
+    #TODO: Make this parralel
     os.makedirs(output_dir, exist_ok=True)
     try:
         font = ImageFont.truetype("Vercetti Regular/Vercetti-Regular.ttf", size=100)  # Your font path
@@ -19,7 +20,7 @@ def create_caption_images(captions, max_width, output_dir="."):
     outline_width = 7
 
     for caption in captions:
-        start = caption.get("start").replace(".", "-")
+        start = str(caption.get("start")).replace(".", "-")
         text = caption.get("text", "")
         words = text.split()
 
@@ -29,6 +30,7 @@ def create_caption_images(captions, max_width, output_dir="."):
 
             while current_word_index < len(words):
                 current_line = []
+                current_line_indices = [] # Keep track of word indices in the line
 
                 # Create a dummy image and draw context for calculations
                 dummy_img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
@@ -38,13 +40,14 @@ def create_caption_images(captions, max_width, output_dir="."):
                 temp_x = padding
                 while current_word_index < len(words):
                     word = words[current_word_index]
-                    bbox = dummy_draw.textbbox((0, 0), word, font=font)
+                    bbox = dummy_draw.textbbox((0, padding), word, font=font, align="center")
                     word_width = bbox[2] - bbox[0]
 
                     if temp_x + word_width + word_spacing > max_width - padding and len(current_line) > 0:
                         break  # Line is full
 
                     current_line.append(word)
+                    current_line_indices.append(current_word_index) # Add index
                     temp_x += word_width + word_spacing
                     current_word_index += 1
 
@@ -54,12 +57,15 @@ def create_caption_images(captions, max_width, output_dir="."):
                     img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
                     draw = ImageDraw.Draw(img)
 
-                    total_height = 0
+                    max_ascent = 0
+                    max_descent = 0
                     for word in current_line:
                         bbox = draw.textbbox((0, padding), word, font=font, align="center")
-                        word_height = bbox[3] - bbox[1]
-                        total_height = max(total_height, word_height)
-
+                        ascent = padding - bbox[1]  # Distance from baseline (padding) to top
+                        descent = bbox[3] - padding  # Distance from baseline to bottom
+                        max_ascent = max(max_ascent, ascent)
+                        max_descent = max(max_descent, descent)
+                    total_height = max_ascent + max_descent
                     # Create final image based on calculated total_height
                     new_width = max_width
                     new_height = total_height + 2 * padding
@@ -84,18 +90,20 @@ def create_caption_images(captions, max_width, output_dir="."):
 
                     # Draw each word with outline and fill (highlighted word in red)
                     for idx, word in enumerate(current_line):
-                        color = "red" if word == current_word else "white"
+                        color = "red" if current_line_indices[idx] == i else "white" # Use index for comparison
                         # Outline
                         for dx in range(-outline_width, outline_width + 1):
                             for dy in range(-outline_width, outline_width + 1):
-                                final_draw.text((x + dx, current_y + dy), word, font=font, fill="black")
+                                final_draw.text((x + dx, current_y + dy), word, font=font, fill="black", align="center")
+                                
+                                
                         # Text
-                        final_draw.text((x, current_y), word, font=font, fill=color)
+                        final_draw.text((x, current_y), word, font=font, fill=color, align="center")
                         x += word_widths[idx] + word_spacing
 
-                    filename = f"{start}_word{i}.png"  # Unique filename
+                    filename = f"{start}_word{i}.jpg"  # Unique filename
                     file_path = os.path.join(output_dir, filename)
-                    final_img.save(file_path)
+                    final_img.convert("RGB").save(file_path, "JPEG", quality=70)
                     print(f"Saved {file_path}")
 
                     line_index += 1
@@ -103,8 +111,8 @@ def create_caption_images(captions, max_width, output_dir="."):
 
 if __name__ == "__main__":
     caption_list = [
-        {"start": "3764.4", "text": "This is a sample caption that is very long and needs to wrap"},
-        {"start": "23.8", "text": "Another caption for testing with even more words"}
+        {"start": 3764.4, "text": "This is a sample caption that is very long and needs to wrap"},
+        {"start": 23.8, "text": "Another caption for testing with even more words"}
     ]
     max_width = 1080  # Set maximum width for wrapping
     output_directory = "./caption_images"

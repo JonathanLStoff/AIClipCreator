@@ -211,7 +211,7 @@ def main():
     clips_chunks = {}
     for id, clip in clips.items():
         if clip:
-            if not find_clip(id, int(float(clip[0]['start']))):
+            if (not find_clip(id, int(float(clip[0]['start'])))) or args.inputvideoid:
                 clips_chunks[id] = {"start":float(clip[0]['start']), "end":float(clip[-1]['start'])+float(clip[0]['duration'])}
             else:
                 clips_chunks[id] = None
@@ -223,7 +223,7 @@ def main():
     for id, clip in clips.items():
         if clip and clips_chunks[id]:
             LOGGER.info("FOLDERS: %s %s", f"{DOWNLOAD_FOLDER}/{id}.mp4", f"{CLIPS_FOLDER}/{id}.mp4")
-            shutil.move(f"{DOWNLOAD_FOLDER}/{id}.mp4", f"{TMP_DOWNLOAD_FOLDER}/{id}.mp4")
+            shutil.copy(f"{DOWNLOAD_FOLDER}/{id}.mp4", f"{TMP_DOWNLOAD_FOLDER}/{id}.mp4")
             edit_video(f"{TMP_DOWNLOAD_FOLDER}/{id}.mp4", f"{TMP_CLIPS_FOLDER}/{id}.mp4", target_size=(1080, 1920), start_time=clips_chunks[id]['start'], end_time=clips_chunks[id]['end'], text=top_yt_comment[id], transcript=clips[id])
             os.remove(f"{TMP_DOWNLOAD_FOLDER}/{id}.mp4")
             shutil.move(f"{TMP_CLIPS_FOLDER}/{id}.mp4", f"{CLIPS_FOLDER}/{id}.mp4")

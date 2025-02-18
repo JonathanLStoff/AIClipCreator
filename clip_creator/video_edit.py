@@ -14,6 +14,8 @@ def edit_video(input_file, output_file, zoom=1.0, target_size=(720, 1280), start
       • zoom         : zoom factor (>1 zooms in more on a smaller crop area).
       • target_size  : tuple (width, height) for the portrait video.
     """
+    ffmpeg_params = ["-c:v", "h264_videotoolbox"]
+    
     clip = VideoFileClip(input_file).subclipped(start_time, end_time)
     LOGGER.info(f"Video duration: {end_time-start_time} seconds")
     iw, ih = clip.size
@@ -65,11 +67,18 @@ def edit_video(input_file, output_file, zoom=1.0, target_size=(720, 1280), start
     text_commm = TextClip(font="Vercetti Regular/Vercetti-Regular.ttf", method="caption", size=(int(target_h*0.93) if lines_total > 1 else int(((target_h/max_chars)*len(text))/2), int(lines_total*pixels_per_char if lines_total > 1 else int(pixels_per_char*1.2))), text=text, margin=(5,30), font_size=90, bg_color='white', color=(0, 0, 0), duration=cropped_clip.duration).rotated(randint(-10, 10), expand=True)
     pos_x = (cropped_clip.w/2 - (int(target_h*0.93) if lines_total > 1 else int(((target_h/max_chars)*len(text))/2)))/3
     text_commm_pos = text_commm.with_position((pos_x, int(th/7)))
-    final_clip = CompositeVideoClip([cropped_clip.with_position("center").with_effects([Resize(0.7)]), text_commm_pos], size=target_size, bg_color=(0, 0, 0))
-    create_captions(transcript, final_clip)
-    final_clip.write_videofile(output_file, codec="libx264")
     
-def create_captions(transcript:list[dict], video_obj:VideoFileClip, output_dir:str="./tmp/caps_img"):
+    final_clip = CompositeVideoClip([cropped_clip.with_position("center").with_effects([Resize(0.7)]), text_commm_pos], size=target_size)
+    output_dir_img, tmp_output_dir = create_captions(transcript, final_clip, ffmpeg_params=ffmpeg_params)
+    caption_vid = VideoFileClip(tmp_output_dir)
+    final_clip = CompositeVideoClip([final_clip.with_layer_index(2), caption_vid.with_layer_index(1)], bg_color=(0,0,0))
+    final_clip.write_videofile(output_file, codec="libx264", ffmpeg_params=ffmpeg_params)
+    # Remove caption images
+    for img in os.listdir(output_dir_img):
+        os.remove(os.path.join(output_dir_img, img))
+    os.remove(tmp_output_dir)
+    
+def create_captions(transcript:list[dict], video_obj:VideoFileClip, output_dir:str="./tmp/caps_img", ffmpeg_params:list=["-c:v", "h264_videotoolbox"]):
     """
     Creates caption image clips from a transcript and overlays them onto a video clip.
     This function generates caption images for each section in the transcript (by calling
@@ -91,11 +100,13 @@ def create_captions(transcript:list[dict], video_obj:VideoFileClip, output_dir:s
     Returns:
         VideoFileClip: The modified video clip with the caption image clips composited on top.
     """
-    
+    tmp_output_dir = output_dir.replace("/caps_img", "/tmp_cap_video.mp4")
     create_caption_images(transcript, video_obj.size[0], output_dir)
+    bg_image = ColorClip(size=video_obj.size, color=(0,0,0), duration=video_obj.duration)
     for i, section in enumerate(transcript):
-        for word in section['text'].split():
-            file_name = f"{section['start'].replace('.', '-')}_word{i}.png"
+        for j in range(len(section['text'].split())):
+            file_name = f"{str(section['start']).replace('.', '-')}_word{j}.jpg"
+            
             file_path = os.path.join(output_dir, file_name)
             duration = section['duration']/len(section['text'].split())
             # Create an image clip from the generated file with duration matching the video.
@@ -106,8 +117,9 @@ def create_captions(transcript:list[dict], video_obj:VideoFileClip, output_dir:s
             caption_clip = caption_clip.with_position(("center", pos_y))
 
             # Composite the caption image onto the video.
-            video_obj = CompositeVideoClip([video_obj, caption_clip])
-    return video_obj
+            bg_image = CompositeVideoClip([bg_image, caption_clip])
+    bg_image.write_videofile(tmp_output_dir, fps=1, codec="libx264", ffmpeg_params=ffmpeg_params)
+    return output_dir, tmp_output_dir
         
 def get_first_frame_screenshot(input_file, screenshot_path):
     """
