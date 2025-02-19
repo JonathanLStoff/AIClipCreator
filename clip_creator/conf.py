@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 import sys
 
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -18,15 +18,23 @@ LOGGER.addHandler(console_handler)
 TIKTOK_USERNAME = os.environ.get("TIKTOK_USERNAME")
 TIKTOK_PASSWORD = os.environ.get("TIKTOK_PASSWORD")
 
-TIMESTAMP_REGEX = r'^(?:[0-9]|1[0-2]):[0-5][0-9](?::[0-5][0-9])?\b(?:\s.*)?$'
-RM_TIMESTAMP_REGEX = r'(?:[0-9]|1[0-2]):[0-5][0-9](?::[0-5][0-9])?'
+TIMESTAMP_REGEX = r"^(?:[0-9]|1[0-2]):[0-5][0-9](?::[0-5][0-9])?\b(?:\s.*)?$"
+RM_TIMESTAMP_REGEX = r"(?:[0-9]|1[0-2]):[0-5][0-9](?::[0-5][0-9])?"
 
+NUM_CORES = os.cpu_count() or 1
+LOGGER.info("Available CPU cores/threads: %d", NUM_CORES)
 
 if sys.platform.startswith("win"):
-    DOWNLOAD_FOLDER = os.path.join(os.environ.get("USERPROFILE", "C:\\"), "Downloads")
-    CLIPS_FOLDER = os.path.join(os.environ.get("USERPROFILE", "C:\\"), "Videos")
+    FFMPEG_PARAMS = ["-cq", "28"]
+    CODEC = "h264_nvenc"
+    DOWNLOAD_FOLDER = "D:/tmp/raw"
+    TMP_DOWNLOAD_FOLDER = "tmp/raw"
+    TMP_CLIPS_FOLDER = "tmp/clips"
+    CLIPS_FOLDER = "D:/tmp/clips"
     LOGGER.info("Running on Windows")
 elif sys.platform.startswith("darwin"):
+    FFMPEG_PARAMS = ["-c:v", "h264_videotoolbox"]
+    CODEC = "libx264"
     DOWNLOAD_FOLDER = "/Volumes/externalSSD/tmp/raw"
     TMP_DOWNLOAD_FOLDER = "tmp/raw"
     TMP_CLIPS_FOLDER = "tmp/clips"

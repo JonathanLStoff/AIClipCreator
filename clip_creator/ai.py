@@ -1,28 +1,31 @@
 import math
-from clip_creator.conf import LOGGER
-from ollama import ChatResponse, chat
-import base64
+
 import cv2
+from ollama import ChatResponse, chat
 
 
-def find_sections(script:str, type_phases:str, wp_min:int=50, wp_max:int=200) -> list[str]:
-    '''
-        Find sections in a script based on a list of type phases using ai.
-    '''
+def find_sections(
+    script: str, type_phases: str, wp_min: int = 50, wp_max: int = 200
+) -> list[str]:
+    """
+    Find sections in a script based on a list of type phases using ai.
+    """
     responses: list[ChatResponse] = []
-    script = script.replace('\n', ' ')
-    if len(script.split(' ')) > 1000:
-        
-        script_runs = math.ceil(len(script.split(' ')) / 1000)
+    script = script.replace("\n", " ")
+    if len(script.split(" ")) > 1000:
+        script_runs = math.ceil(len(script.split(" ")) / 1000)
         for i in range(script_runs):
             if i == script_runs - 1:
-                tmp_script = script.split(' ')[i*1000:]
+                tmp_script = script.split(" ")[i * 1000 :]
             else:
-                tmp_script = script.split(' ')[i*1000:(i+1)*1000]
-            responses.append(chat(model='llama3.2', messages=[
-                {
-                    'role': 'system',
-                    'content': f'''**"Analyze the following transcript and extract only the sections that contain {type_phases}. Each extracted section must:
+                tmp_script = script.split(" ")[i * 1000 : (i + 1) * 1000]
+            responses.append(
+                chat(
+                    model="llama3.2",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": f"""**"Analyze the following transcript and extract only the sections that contain {type_phases}. Each extracted section must:
 
                                 Be between {wp_min}-{wp_max} words
 
@@ -39,19 +42,23 @@ def find_sections(script:str, type_phases:str, wp_min:int=50, wp_max:int=200) ->
                                 No commentary or explanations
 
                                 If no content meets these criteria, respond with 'No humorous segments found.'
-                                Respond ONLY with the formatted extracts or the specified default message."**''',
-                },
-                {
-                    'role': 'user',
-                    'content': str(" ".join(tmp_script)),
-                },
-            ]
-        ))
+                                Respond ONLY with the formatted extracts or the specified default message."**""",
+                        },
+                        {
+                            "role": "user",
+                            "content": str(" ".join(tmp_script)),
+                        },
+                    ],
+                )
+            )
     else:
-        responses.append(chat(model='llama3.2', messages=[
-                {
-                    'role': 'system',
-                    'content': f'''**"Analyze the following transcript and extract only the sections that contain {type_phases}. Each extracted section must:
+        responses.append(
+            chat(
+                model="llama3.2",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"""**"Analyze the following transcript and extract only the sections that contain {type_phases}. Each extracted section must:
 
                                 Be between {wp_min}-{wp_max} words
 
@@ -68,20 +75,21 @@ def find_sections(script:str, type_phases:str, wp_min:int=50, wp_max:int=200) ->
                                 No commentary or explanations
 
                                 If no content meets these criteria, respond with 'No humorous segments found.'
-                                Respond ONLY with the formatted extracts or the specified default message."**''',
-                },
-                {
-                    'role': 'user',
-                    'content': script,
-                },
-            ]
+                                Respond ONLY with the formatted extracts or the specified default message."**""",
+                    },
+                    {
+                        "role": "user",
+                        "content": script,
+                    },
+                ],
             )
         )
-    
+
     messages = []
     for response in responses:
-        messages.extend(response.message.content.split('|'))
+        messages.extend(response.message.content.split("|"))
     return messages
+
 
 def find_faces(image_path: str) -> list[list[float]]:
     """
@@ -98,12 +106,14 @@ def find_faces(image_path: str) -> list[list[float]]:
     """
 
     # Load the pre-trained face detection model (Haar cascade)
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    face_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
 
     # Read the image
     img = cv2.imread(image_path)
 
-    if img is None: #check for successful image read
+    if img is None:  # check for successful image read
         return None
 
     # Convert the image to grayscale (face detection works better on grayscale)
@@ -113,58 +123,63 @@ def find_faces(image_path: str) -> list[list[float]]:
     faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
 
     face_coordinates = []
-    for (x, y, w, h) in faces:
+    for x, y, w, h in faces:
         face_coordinates.append((x, y, w, h))  # Append the top-left corner coordinates
-
 
     return face_coordinates
 
-def ask_if_comment_in_transcript(transcript:str, comment:str) -> str|None:
-    '''
-        Ask ai if a comment is in a transcript.
-    '''
+
+def ask_if_comment_in_transcript(transcript: str, comment: str) -> str | None:
+    """
+    Ask ai if a comment is in a transcript.
+    """
     responses: list[ChatResponse] = []
-    script = script.replace('\n', ' ')
-    if len(script.split(' ')) > 1000:
-        
-        script_runs = math.ceil(len(script.split(' ')) / 1000)
+    script = script.replace("\n", " ")
+    if len(script.split(" ")) > 1000:
+        script_runs = math.ceil(len(script.split(" ")) / 1000)
         for i in range(script_runs):
             if i == script_runs - 1:
-                tmp_script = script.split(' ')[i*1000:]
+                tmp_script = script.split(" ")[i * 1000 :]
             else:
-                tmp_script = script.split(' ')[i*1000:(i+1)*1000]
-            responses.append(chat(model='llama3.2', messages=[
-                {
-                    'role': 'system',
-                    'content': f'''**"Analyze the following transcript and determine if the section this comment '{comment}' is talking about is present in the text. Respond with the section of text or 'no, not in' DO NOT RESPOND WITH ANYTHING ELSE."**''',
-                },
-                {
-                    'role': 'user',
-                    'content': tmp_script,
-                },
-            ]
-        ))
+                tmp_script = script.split(" ")[i * 1000 : (i + 1) * 1000]
+            responses.append(
+                chat(
+                    model="llama3.2",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": f"""**"Analyze the following transcript and determine if the section this comment '{comment}' is talking about is present in the text. Respond with the section of text or 'no, not in' DO NOT RESPOND WITH ANYTHING ELSE."**""",
+                        },
+                        {
+                            "role": "user",
+                            "content": tmp_script,
+                        },
+                    ],
+                )
+            )
     else:
-        responses.append(chat(model='llama3.2', messages=[
-                {
-                    'role': 'system',
-                    'content': f'''**"Analyze the following transcript and determine if the section this comment '{comment}' is talking about is present in the text. Respond with the section of text or 'no, not in' DO NOT RESPOND WITH ANYTHING ELSE."**''',
-                },
-                {
-                    'role': 'user',
-                    'content': transcript,
-                },
-            ]
+        responses.append(
+            chat(
+                model="llama3.2",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"""**"Analyze the following transcript and determine if the section this comment '{comment}' is talking about is present in the text. Respond with the section of text or 'no, not in' DO NOT RESPOND WITH ANYTHING ELSE."**""",
+                    },
+                    {
+                        "role": "user",
+                        "content": transcript,
+                    },
+                ],
             )
         )
-    
+
     messages = []
     for response in responses:
-        messages.extend(response.message.content.split('|'))
+        messages.extend(response.message.content.split("|"))
     true_response = None
     for response in responses:
-        if not "no, not in" in str(response.message.content).lower():
+        if "no, not in" not in str(response.message.content).lower():
             true_response = response.message.content
             break
     return None if not true_response else true_response
-    

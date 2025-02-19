@@ -1,0 +1,111 @@
+---
+#
+# Over all strategy
+# Mutators here... eg black, pypugrade  and other things
+# that change code.
+#
+# ci probably only applies to Github Actions?
+ci:
+    autofix_commit_msg: 🎨 [pre-commit.ci] Auto format from pre-commit.com hooks
+    autoupdate_commit_msg: ⬆ [pre-commit.ci] pre-commit autoupdate
+default_language_version:
+  python: python3
+exclude: ^(dead_code|vendor|whitelist.py)
+repos:
+    -   repo: https://github.com/pre-commit/pre-commit-hooks
+        rev: v4.5.0
+        hooks:
+            # each hook takes about 1s to run. These are expensive-ish checks
+            -   id: check-added-large-files
+            -   id: check-yaml
+            -   id: check-builtin-literals
+            -   id: check-byte-order-marker
+            -   id: check-case-conflict
+            -   id: check-merge-conflict
+            -   id: check-symlinks
+            -   id: check-toml
+            -   id: debug-statements
+            -   id: detect-private-key
+            -   id: fix-encoding-pragma
+                args: [ --remove ]
+            -   id: forbid-new-submodules
+
+    
+    -   repo: https://github.com/netromdk/vermin
+        rev: v1.6.0
+        hooks:
+            -   id: vermin
+                args: ['-t=3.12-', '--violations']
+#    -   repo: https://github.com/myint/autoflake
+#        rev: v2.0.0
+#        hooks:
+#            -   id: autoflake
+#                args:
+#                    - --in-place
+#                    - --recursive
+#                    - --expand-star-imports
+#                    - --remove-all-unused-imports
+#                    - --remove-duplicate-keys
+#                    - --remove-unused-variables
+    -   repo: https://github.com/psf/black
+        rev: 23.11.0
+        hooks:
+            -   id: black
+                language_version: python3.12
+#    -   repo: https://github.com/pycqa/isort
+#        rev: 5.11.4
+#        hooks:
+#            -   id: isort
+#                name: isort
+#                args:
+#                    - --profile black
+    -   repo: https://github.com/charliermarsh/ruff-pre-commit
+        rev: v0.1.7
+        hooks:
+            -   id: ruff
+                exclude: licensing_pr_service/tests/
+                args: [
+                    "--fix",
+                ]
+    -   repo: https://github.com/pre-commit/pygrep-hooks
+        rev: v1.10.0  # Use the ref you want to point at
+        hooks:
+            -   id: python-use-type-annotations
+            -   id: python-no-eval
+            -   id: python-no-log-warn
+            -   id: text-unicode-replacement-char
+    -   repo: https://github.com/executablebooks/mdformat
+        rev: 0.7.17
+        hooks:
+            -   id: mdformat
+    -   repo: local
+        hooks:
+        - id: requirements
+          name: Run Pip freeze
+          entry: bash
+          args: ["-c", "poetry export --without-hashes --without dev -o requirements.txt || true"]
+          language: system
+          pass_filenames: false
+    -   repo: https://github.com/psf/black
+        rev: 23.11.0
+        hooks:
+            -   id: black
+                language_version: python3.12
+                args:
+                    - --line-length=88
+                    - --target-version=py312
+                    - --preview
+    -   repo: https://github.com/charliermarsh/ruff-pre-commit
+        rev: v0.1.7
+        hooks:
+            -   id: ruff
+                exclude: licensing_pr_service/tests/
+                args: [
+                    "--fix",
+                    "--line-length=88",
+                    "--target-version=py312",
+                    "--select=A,B,C,DTZ,E,F,I,N,Q,S,T,W,UP,RUF",
+                    "--ignore=E501,S101",
+                    "--unfixable=F841",
+                    "--unsafe-fixes"
+                ]      

@@ -1,6 +1,5 @@
 # AIClipCreator
 
-
 ## DB Format
 
 Database Name: `aiclipcreator`
@@ -8,7 +7,6 @@ Tables:
 
 - `videos`
 - `clips`
-
 
 ### `videos` Table
 
@@ -34,7 +32,6 @@ columns:
 - `top_reddit_comment` (TextField)
 - `reddit_url` (str)
 - `video_creator` (str)
-
 
 ### `clips` Table
 

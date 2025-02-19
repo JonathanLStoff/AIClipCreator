@@ -1,5 +1,6 @@
 import subprocess
 
+
 def convert_webm_to_mp4(webm_path: str, mp4_path: str) -> None:
     """
     Convert a WEBM video file to MP4 format using ffmpeg.
@@ -13,10 +14,14 @@ def convert_webm_to_mp4(webm_path: str, mp4_path: str) -> None:
     """
     command = [
         "ffmpeg",
-        "-i", webm_path,
-        "-c:v", "libx264",
-        "-preset", "veryfast",
-        "-c:a", "aac",
-        mp4_path
+        "-i",
+        webm_path,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-c:a",
+        "aac",
+        mp4_path,
     ]
     subprocess.run(command, check=True)

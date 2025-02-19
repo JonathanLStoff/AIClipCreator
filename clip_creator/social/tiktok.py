@@ -1,16 +1,23 @@
-import requests
-import time
 from datetime import datetime
-import os
-import json
-from tiktok_uploader.auth import AuthBackend
-from tiktok_uploader.upload import upload_video
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from tiktok_uploader.upload import upload_video
 
-def post_to_tiktok(access_token, video_path, title, schedule:datetime|None=None, privacy_level="PUBLIC_TO_EVERYONE", disable_duet=False, disable_comment=False, disable_stitch=False, video_cover_timestamp_ms=1000):
+
+def post_to_tiktok(
+    access_token,
+    video_path,
+    title,
+    schedule: datetime | None = None,
+    privacy_level="PUBLIC_TO_EVERYONE",
+    disable_duet=False,
+    disable_comment=False,
+    disable_stitch=False,
+    video_cover_timestamp_ms=1000,
+):
     """
     Posts a video to TikTok using the TikTok Open API.
 
@@ -32,7 +39,8 @@ def post_to_tiktok(access_token, video_path, title, schedule:datetime|None=None,
         upload_video(video_path, title, cookies_list=cookies_list, schedule=schedule)
     else:
         upload_video(video_path, title, cookies_list=cookies_list)
-    
+
+
 def get_tiktok_cookies(url="https://www.tiktok.com"):
     """
     Opens TikTok in a Selenium WebDriver and retrieves all cookies as a list of dictionaries.
@@ -53,18 +61,22 @@ def get_tiktok_cookies(url="https://www.tiktok.com"):
 
         try:
             WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.TAG_NAME, "video"))  # Example: wait for a video element
+                EC.presence_of_element_located(
+                    (By.TAG_NAME, "video")
+                )  # Example: wait for a video element
             )
         except:
             print("Timeout waiting for page to load. Cookies might not be available.")
 
-        cookies_list = driver.get_cookies()  # Selenium already returns a list of dictionaries
+        cookies_list = (
+            driver.get_cookies()
+        )  # Selenium already returns a list of dictionaries
 
         driver.quit()
         return cookies_list
 
     except Exception as e:
         print(f"An error occurred: {e}")
-        if 'driver' in locals():
+        if "driver" in locals():
             driver.quit()
         return None

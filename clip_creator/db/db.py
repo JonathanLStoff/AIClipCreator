@@ -1,5 +1,6 @@
-import sqlite3
 import datetime
+import sqlite3
+
 
 def create_database(db_name="aiclipcreator.db"):
     """Creates the aiclipcreator database with videos and clips tables."""
@@ -60,6 +61,7 @@ def create_database(db_name="aiclipcreator.db"):
     finally:
         conn.close()
 
+
 def add_video_entry(video_data, db_name="aiclipcreator.db"):
     """Adds a new video entry to the database.
 
@@ -93,10 +95,26 @@ def add_video_entry(video_data, db_name="aiclipcreator.db"):
         cursor = conn.cursor()
 
         # Get current datetime in ISO 8601 format
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
 
         # Ensure all required keys are present (you might want more thorough validation)
-        required_keys = ["id", "name", "transcript", "one_word_most_used", "one_word_count", "two_word_most_used", "two_word_count", "three_word_most_used", "three_word_count", "views", "likes", "top_yt_comment", "top_reddit_comment", "reddit_url", "video_creator"]
+        required_keys = [
+            "id",
+            "name",
+            "transcript",
+            "one_word_most_used",
+            "one_word_count",
+            "two_word_most_used",
+            "two_word_count",
+            "three_word_most_used",
+            "three_word_count",
+            "views",
+            "likes",
+            "top_yt_comment",
+            "top_reddit_comment",
+            "reddit_url",
+            "video_creator",
+        ]
         if not all(key in video_data for key in required_keys):
             raise ValueError("Missing required keys in video_data")
 
@@ -106,55 +124,61 @@ def add_video_entry(video_data, db_name="aiclipcreator.db"):
 
         if exists:
             # Update the existing video entry (keeping created_at unchanged)
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE videos
                 SET name = ?, updated_at = ?, transcript = ?, one_word_most_used = ?, one_word_count = ?,
                     two_word_most_used = ?, two_word_count = ?, three_word_most_used = ?, three_word_count = ?,
                     views = ?, likes = ?, top_yt_comment = ?, top_reddit_comment = ?, reddit_url = ?, video_creator = ?
                 WHERE id = ?
-            """, (
-                video_data["name"],
-                now,  # updated_at
-                video_data["transcript"],
-                video_data["one_word_most_used"],
-                video_data["one_word_count"],
-                video_data["two_word_most_used"],
-                video_data["two_word_count"],
-                video_data["three_word_most_used"],
-                video_data["three_word_count"],
-                video_data["views"],
-                video_data["likes"],
-                video_data["top_yt_comment"],
-                video_data["top_reddit_comment"],
-                video_data["reddit_url"],
-                video_data["video_creator"],
-                video_data["id"],
-            ))
+            """,
+                (
+                    video_data["name"],
+                    now,  # updated_at
+                    video_data["transcript"],
+                    video_data["one_word_most_used"],
+                    video_data["one_word_count"],
+                    video_data["two_word_most_used"],
+                    video_data["two_word_count"],
+                    video_data["three_word_most_used"],
+                    video_data["three_word_count"],
+                    video_data["views"],
+                    video_data["likes"],
+                    video_data["top_yt_comment"],
+                    video_data["top_reddit_comment"],
+                    video_data["reddit_url"],
+                    video_data["video_creator"],
+                    video_data["id"],
+                ),
+            )
         else:
             # Insert new video entry
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO videos (id, name, created_at, updated_at, uploaded_at, transcript, one_word_most_used, one_word_count, two_word_most_used, two_word_count, three_word_most_used, three_word_count, views, likes, top_yt_comment, top_reddit_comment, reddit_url, video_creator)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                video_data["id"],
-                video_data["name"],
-                now,  # created_at
-                now,  # updated_at (initially same as created_at)
-                None, # uploaded_at (can be set later)
-                video_data["transcript"],
-                video_data["one_word_most_used"],
-                video_data["one_word_count"],
-                video_data["two_word_most_used"],
-                video_data["two_word_count"],
-                video_data["three_word_most_used"],
-                video_data["three_word_count"],
-                video_data["views"],
-                video_data["likes"],
-                video_data["top_yt_comment"],
-                video_data["top_reddit_comment"],
-                video_data["reddit_url"],
-                video_data["video_creator"],
-            ))
+            """,
+                (
+                    video_data["id"],
+                    video_data["name"],
+                    now,  # created_at
+                    now,  # updated_at (initially same as created_at)
+                    None,  # uploaded_at (can be set later)
+                    video_data["transcript"],
+                    video_data["one_word_most_used"],
+                    video_data["one_word_count"],
+                    video_data["two_word_most_used"],
+                    video_data["two_word_count"],
+                    video_data["three_word_most_used"],
+                    video_data["three_word_count"],
+                    video_data["views"],
+                    video_data["likes"],
+                    video_data["top_yt_comment"],
+                    video_data["top_reddit_comment"],
+                    video_data["reddit_url"],
+                    video_data["video_creator"],
+                ),
+            )
 
         conn.commit()
         return True
@@ -171,7 +195,8 @@ def add_video_entry(video_data, db_name="aiclipcreator.db"):
     finally:
         if conn:
             conn.close()
-            
+
+
 def create_or_update_clip(clip_data, db_path="aiclipcreator.db"):
     """
     Creates a new clip record or updates an existing one.
@@ -188,14 +213,17 @@ def create_or_update_clip(clip_data, db_path="aiclipcreator.db"):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        required_keys = ['video_id', 'start_time', 'end_time', 'clip_transcript']
+        required_keys = ["video_id", "start_time", "end_time", "clip_transcript"]
         if not all(key in clip_data for key in required_keys):
-            raise ValueError("clip_data must contain 'video_id', 'start_time', 'end_time', and 'clip_transcript'")
+            raise ValueError(
+                "clip_data must contain 'video_id', 'start_time', 'end_time', and"
+                " 'clip_transcript'"
+            )
 
-        video_id = clip_data['video_id']
-        start_time = clip_data['start_time']
-        end_time = clip_data['end_time']
-        clip_transcript = clip_data['clip_transcript']
+        video_id = clip_data["video_id"]
+        start_time = clip_data["start_time"]
+        end_time = clip_data["end_time"]
+        clip_transcript = clip_data["clip_transcript"]
 
         # Construct the SET and VALUES parts of the SQL query dynamically
         set_values = []
@@ -203,43 +231,62 @@ def create_or_update_clip(clip_data, db_path="aiclipcreator.db"):
         data_to_execute = []
 
         for key, value in clip_data.items():
-            if key not in ('id', 'video_id', 'start_time', 'end_time'):  # Exclude these from SET/VALUES
+            if key not in (
+                "id",
+                "video_id",
+                "start_time",
+                "end_time",
+            ):  # Exclude these from SET/VALUES
                 set_values.append(f"{key} = ?")
                 values.append(key)
                 data_to_execute.append(value)
-        
-        data_to_execute.extend([clip_transcript, None, None, None, None, None, None]) # Fill out the rest of the values in the correct order
+
+        data_to_execute.extend([
+            clip_transcript, None, None, None, None, None, None
+        ])  # Fill out the rest of the values in the correct order
         set_values_string = ", ".join(set_values)
 
         # Check if an ID is provided. If so, it's an update.
-        if 'id' in clip_data:
-            clip_id = clip_data['id']
-            cursor.execute(f"""
+        if "id" in clip_data:
+            clip_id = clip_data["id"]
+            cursor.execute(
+                f"""
                 UPDATE clips SET {set_values_string}
                 WHERE id = ?
-            """, (*data_to_execute[:-7], clip_id)) # Exclude transcript and social media fields from set_values
+            """,
+                (*data_to_execute[:-7], clip_id),
+            )  # Exclude transcript and social media fields from set_values
         else:
             # Check if a clip with the given video_id, start_time, and end_time already exists
-            cursor.execute("""
-                SELECT id FROM clips 
+            cursor.execute(
+                """
+                SELECT id FROM clips
                 WHERE video_id = ? AND start_time = ? AND end_time = ?
-            """, (video_id, start_time, end_time))
+            """,
+                (video_id, start_time, end_time),
+            )
             existing_clip = cursor.fetchone()
 
             if existing_clip:
                 clip_id = existing_clip[0]  # Get the existing clip ID
-                cursor.execute(f"""
+                cursor.execute(
+                    f"""
                     UPDATE clips SET {set_values_string}
                     WHERE id = ?
-                """, (*data_to_execute[:-7], clip_id))  # Exclude transcript and social media fields from set_values
+                """,
+                    (*data_to_execute[:-7], clip_id),
+                )  # Exclude transcript and social media fields from set_values
             else:
                 # Create a new clip
                 columns = ", ".join(clip_data.keys())
                 placeholders = ", ".join(["?"] * len(clip_data))
-                cursor.execute(f"""
+                cursor.execute(
+                    f"""
                     INSERT INTO clips ({columns})
                     VALUES ({placeholders})
-                """, tuple(clip_data.values()))
+                """,
+                    tuple(clip_data.values()),
+                )
                 clip_id = cursor.lastrowid  # Get the ID of the newly inserted row
 
         conn.commit()
@@ -254,7 +301,8 @@ def create_or_update_clip(clip_data, db_path="aiclipcreator.db"):
     except ValueError as e:
         print(f"Value Error: {e}")
         return None
-    
+
+
 def find_clip(video_id, start_time, db_path="aiclipcreator.db"):
     """
     Finds a clip in the database based on video_id and start_time.
@@ -271,10 +319,13 @@ def find_clip(video_id, start_time, db_path="aiclipcreator.db"):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT * FROM clips
             WHERE video_id = ? AND start_time = ?
-        """, (video_id, start_time))
+        """,
+            (video_id, start_time),
+        )
 
         clip_data = cursor.fetchone()
         conn.close()
