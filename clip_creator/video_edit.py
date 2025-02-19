@@ -340,14 +340,15 @@ def get_word_timestamps(audio_path, model_name="medium", device="cuda"):  # Use 
     """
     try:
         # 1. Load audio
+        LOGGER.info(f"Loading audio from {audio_path}")
         audio, sr = librosa.load(audio_path)  # librosa handles various audio formats
 
         # 2. Load WhisperX model
         model = whisperx.load_model(model_name, device)
-
+        LOGGER.info(f"Transcribing audio using {model_name} model")
         # 3. Transcribe the audio
         result = model.transcribe(audio, batch_size=8)  # Adjust batch_size if needed
-
+        LOGGER.info("Transcription complete")
         # 4. Align the transcript to the audio (important for accurate timestamps)
         model_align, metadata = whisperx.load_align_model(model_name, device)
         result = whisperx.align(result["segments"], model_align, metadata, audio, device, return_metadata=False)
