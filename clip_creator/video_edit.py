@@ -1,11 +1,12 @@
 import os
 from random import randint
-
-from moviepy import ColorClip, CompositeVideoClip, ImageClip, TextClip, VideoFileClip
+import librosa
+import whisperx
+from moviepy import ColorClip, CompositeVideoClip, ImageClip, TextClip, VideoFileClip, AudioFileClip
 from moviepy.video.fx import Crop, Resize
 
-from clip_creator.conf import CODEC, FFMPEG_PARAMS, LOGGER, NUM_CORES
-from clip_creator.utils.caption_img import create_caption_images
+from clip_creator.conf import CODEC, FFMPEG_PARAMS, LOGGER, NUM_CORES, FONT_PATH
+from clip_creator.utils.caption_img import create_caption_images, create_caption_images_thread
 
 
 def edit_video(
@@ -17,7 +18,7 @@ def edit_video(
     start_time=0,
     end_time=60,
     text: str = "",
-    transcript: list | None = None,
+    transcript: list[dict] | None = None,
 ):
     """
     Crops a landscape video to a portrait orientation and “zooms in” on the center portion.
@@ -27,7 +28,7 @@ def edit_video(
       • zoom         : zoom factor (>1 zooms in more on a smaller crop area).
       • target_size  : tuple (width, height) for the portrait video.
     """
-
+    audio_file = f"./tmp/audio_{prefix}.mp3"
     clip = VideoFileClip(input_file).subclipped(start_time, end_time)
     LOGGER.info(f"Video duration: {end_time-start_time} seconds")
     iw, ih = clip.size
@@ -76,7 +77,7 @@ def edit_video(
             text = text[:i] + "..."
             break
     text_commm = TextClip(
-        font="Vercetti Regular/Vercetti-Regular.ttf",
+        font=FONT_PATH,
         method="caption",
         size=(
             (
@@ -106,7 +107,16 @@ def edit_video(
         )
     ) / 3
     text_commm_pos = text_commm.with_position((pos_x, int(th / 7)))
-
+    cropped_clip.audio.write_audiofile(
+        audio_file, codec="libmp3lame"
+    )
+    
+    ######################################
+    # Make my own transcription for captions
+    ######################################
+    true_transcript = get_word_timestamps(audio_file, device="cpu")
+    LOGGER.info(f"Transcript: {true_transcript}")
+    exit()
     final_clip = CompositeVideoClip(
         [
             cropped_clip.with_position("center").with_effects([Resize(0.7)]),
@@ -114,22 +124,23 @@ def edit_video(
         ],
         size=target_size,
     )
-    output_dir_img, tmp_output_dir = create_captions(
-        prefix, transcript, final_clip, ffmpeg_params=FFMPEG_PARAMS
+    output_dir_img, clip_list = create_captions(
+        prefix, true_transcript, final_clip, ffmpeg_params=FFMPEG_PARAMS
     )
-    caption_vid = VideoFileClip(tmp_output_dir)
+    
     final_clip = CompositeVideoClip(
-        [final_clip.with_layer_index(2), caption_vid.with_layer_index(1)],
+        [final_clip.with_layer_index(2), *clip_list],
         bg_color=(0, 0, 0),
     )
+    final_clip = final_clip.with_audio(AudioFileClip(audio_file))
     final_clip.write_videofile(
-        output_file, codec=CODEC, preset="fast", ffmpeg_params=FFMPEG_PARAMS
+        output_file, codec=CODEC, preset="fast", ffmpeg_params=FFMPEG_PARAMS, threads=NUM_CORES
     )
     # Remove caption images
     for img in os.listdir(output_dir_img):
         if prefix in str(img):
             os.remove(os.path.join(output_dir_img, img))
-    os.remove(tmp_output_dir)
+    os.remove(audio_file)
 
 
 def create_captions(
@@ -162,13 +173,13 @@ def create_captions(
     """
     if ffmpeg_params is None:
         ffmpeg_params = ["-c:v", "h264_videotoolbox"]
-    tmp_output_dir = output_dir.replace("/caps_img", "/tmp_cap_video.mp4")
     create_caption_images(prefix, transcript, video_obj.size[0], output_dir)
-    bg_image = ColorClip(
-        size=video_obj.size, color=(0, 0, 0), duration=video_obj.duration
-    )
     clip_list = []
+    clip_start_time = 0
+    first_start_time = transcript[0]["start"]
+    
     for _i, section in enumerate(transcript):
+        clip_start_time = section["start"] - first_start_time
         for j in range(len(section["text"].split())):
             file_name = f"{prefix}{str(section['start']).replace('.', '-')}_word{j}.jpg"
 
@@ -180,27 +191,13 @@ def create_captions(
             caption_clip = caption_clip.with_effects([Resize(2)])
             # Position the image so that its center is at 6/7th of the video’s height.
             pos_y = int(video_obj.h * 6 / 7 - caption_clip.h / 2)
-            caption_clip = caption_clip.with_position(("center", pos_y))
+            caption_clip = caption_clip.with_start(clip_start_time).with_position(("center", pos_y)).with_layer_index(1)
 
             # Composite the caption image onto the video.
             clip_list.append(caption_clip)
+            clip_start_time += duration
 
-    bg_image = CompositeVideoClip([bg_image, *clip_list])
-    LOGGER.info(
-        "Writing video with captions using : %s, %s, %s",
-        CODEC,
-        NUM_CORES,
-        ffmpeg_params,
-    )
-    bg_image.write_videofile(
-        tmp_output_dir,
-        fps=1,
-        codec=CODEC,
-        preset="fast",
-        threads=NUM_CORES,
-        ffmpeg_params=ffmpeg_params,
-    )
-    return output_dir, tmp_output_dir
+    return output_dir, clip_list
 
 
 def get_first_frame_screenshot(input_file, screenshot_path):
@@ -325,6 +322,54 @@ def add_text_to_video(
     print(f"Video with text saved to {output_path}")
 
 
+def get_word_timestamps(audio_path, model_name="medium", device="cuda"):  # Use "cpu" if no GPU
+    """
+    Gets word-level timestamps from an audio clip using WhisperX.
+
+    Args:
+        audio_path: Path to the audio file.
+        model_name: The Whisper model size to use ("tiny", "base", "small", "medium", "large-v1", "large-v2").
+        device: "cuda" for GPU or "cpu" for CPU.
+
+    Returns:
+        A list of dictionaries, where each dictionary contains:
+            "word": The word.
+            "start": Start time of the word in seconds (float).
+            "end": End time of the word in seconds (float).
+        Returns an empty list if there's an error.
+    """
+    try:
+        # 1. Load audio
+        audio, sr = librosa.load(audio_path)  # librosa handles various audio formats
+
+        # 2. Load WhisperX model
+        model = whisperx.load_model(model_name, device)
+
+        # 3. Transcribe the audio
+        result = model.transcribe(audio, batch_size=8)  # Adjust batch_size if needed
+
+        # 4. Align the transcript to the audio (important for accurate timestamps)
+        model_align, metadata = whisperx.load_align_model(model_name, device)
+        result = whisperx.align(result["segments"], model_align, metadata, audio, device, return_metadata=False)
+
+        word_timestamps = []
+        for segment in result["segments"]:
+            for word_info in segment["words"]:
+                word = word_info["word"]
+                start = word_info["start"]
+                end = word_info["end"]
+                word_timestamps.append({
+                    "text": word,
+                    "start": start,
+                    "end": end,
+                    "duration": end - start,
+                })
+
+        return word_timestamps
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return []
 # Example usage:
 if __name__ == "__main__":
     input_video_path = "input_video.mp4"  # Replace with your landscape video file

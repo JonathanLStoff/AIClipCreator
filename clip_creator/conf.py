@@ -42,3 +42,6 @@ elif sys.platform.startswith("darwin"):
     LOGGER.info("Running on macOS")
 else:
     DOWNLOAD_FOLDER = os.path.expanduser("~/Downloads")
+
+
+FONT_PATH = "Vercetti Regular/Vercetti-Regular.ttf"

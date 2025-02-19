@@ -223,6 +223,9 @@ def main():
 
     ######################################
     # Find Videos based on conditions
+    # 1. Comment in transcript
+    # 2. Timestamp
+    # 3. AI
     ######################################
 
     ######################################
@@ -281,6 +284,8 @@ def main():
                 clips_chunks[id] = None
         else:
             clips_chunks[id] = None
+            
+    
     ######################################
     # Edit Videos
     ######################################
@@ -307,8 +312,8 @@ def main():
             save_space(
                 f"{DOWNLOAD_FOLDER}/{id}.mp4",
                 f"{TMP_DOWNLOAD_FOLDER}/{id}.mp4",
-                f"{TMP_CLIPS_FOLDER}/{id}.mp4",
                 f"{CLIPS_FOLDER}/{id}.mp4",
+                f"{TMP_CLIPS_FOLDER}/{id}.mp4",
             )
 
             clip_dict = {

@@ -4,6 +4,8 @@ import cv2
 from ollama import ChatResponse, chat
 
 
+
+
 def find_sections(
     script: str, type_phases: str, wp_min: int = 50, wp_max: int = 200
 ) -> list[str]:

@@ -1,16 +1,15 @@
 import os
-
+from queue import Queue
+from tqdm import tqdm
+from threading import Thread
+from clip_creator.conf import FONT_PATH
 from PIL import Image, ImageDraw, ImageFont
 
 
 def create_caption_images(prefix: str, captions, max_width, output_dir="."):
     """Creates one image *per line* of wrapped text, highlighting current word."""
-    # TODO: Make this parralel
-    os.makedirs(output_dir, exist_ok=True)
     try:
-        font = ImageFont.truetype(
-            "Vercetti Regular/Vercetti-Regular.ttf", size=100
-        )  # Your font path
+        font = ImageFont.truetype(FONT_PATH, size=100)
     except Exception as e:
         print(f"Error loading font: {e}. Trying default.")
         try:
@@ -23,14 +22,12 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
     word_spacing = 20
     outline_width = 7
 
-    for caption in captions:
+    for caption in tqdm(captions, desc="Captions"):
         start = str(caption.get("start")).replace(".", "-")
         text = caption.get("text", "")
         words = text.split()
 
-        for i, current_word in enumerate(
-            words
-        ):  # Iterate through words for highlighting
+        for i, current_word in tqdm(enumerate(words), total=len(words), desc="Words", leave=False):
             line_index = 0
             current_word_index = 0
 
@@ -39,24 +36,17 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
                 current_line_indices = []  # Keep track of word indices in the line
 
                 # Create a dummy image and draw context for calculations
-                dummy_img = Image.new(
-                    "RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0)
-                )
+                dummy_img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
                 dummy_draw = ImageDraw.Draw(dummy_img)
 
                 # Build up the current line using dummy context
                 temp_x = padding
                 while current_word_index < len(words):
                     word = words[current_word_index]
-                    bbox = dummy_draw.textbbox(
-                        (0, padding), word, font=font, align="center"
-                    )
+                    bbox = dummy_draw.textbbox((0, padding), word, font=font, align="center")
                     word_width = bbox[2] - bbox[0]
 
-                    if (
-                        temp_x + word_width + word_spacing > max_width - padding
-                        and len(current_line) > 0
-                    ):
+                    if temp_x + word_width + word_spacing > max_width - padding and len(current_line) > 0:
                         break  # Line is full
 
                     current_line.append(word)
@@ -67,39 +57,30 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
                 # Check if the current highlighted word is in this line
                 if current_word in current_line:
                     # Create an image to measure text height
-                    img = Image.new(
-                        "RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0)
-                    )
+                    img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
                     draw = ImageDraw.Draw(img)
 
                     max_ascent = 0
                     max_descent = 0
                     for word in current_line:
-                        bbox = draw.textbbox(
-                            (0, padding), word, font=font, align="center"
-                        )
-                        ascent = (
-                            padding - bbox[1]
-                        )  # Distance from baseline (padding) to top
+                        bbox = draw.textbbox((0, padding), word, font=font, align="center")
+                        ascent = padding - bbox[1]  # Distance from baseline (padding) to top
                         descent = bbox[3] - padding  # Distance from baseline to bottom
                         max_ascent = max(max_ascent, ascent)
                         max_descent = max(max_descent, descent)
                     total_height = max_ascent + max_descent
+
                     # Create final image based on calculated total_height
                     new_width = max_width
                     new_height = total_height + 2 * padding
-                    final_img = Image.new(
-                        "RGBA", (new_width, new_height), color=(0, 0, 0, 0)
-                    )
+                    final_img = Image.new("RGBA", (new_width, new_height), color=(0, 0, 0, 0))
                     final_draw = ImageDraw.Draw(final_img)
 
                     # Calculate total width of the current line
                     total_line_width = 0
                     word_widths = []
                     for word in current_line:
-                        bbox = final_draw.textbbox(
-                            (0, padding), word, font=font, align="center"
-                        )
+                        bbox = final_draw.textbbox((0, padding), word, font=font, align="center")
                         w = bbox[2] - bbox[0]
                         word_widths.append(w)
                         total_line_width += w
@@ -113,33 +94,20 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
 
                     # Draw each word with outline and fill (highlighted word in red)
                     for idx, word in enumerate(current_line):
-                        color = (
-                            "red" if current_line_indices[idx] == i else "white"
-                        )  # Use index for comparison
+                        color = "red" if current_line_indices[idx] == i else "white"
                         # Outline
                         for dx in range(-outline_width, outline_width + 1):
                             for dy in range(-outline_width, outline_width + 1):
-                                final_draw.text(
-                                    (x + dx, current_y + dy),
-                                    word,
-                                    font=font,
-                                    fill="black",
-                                    align="center",
-                                )
-
+                                final_draw.text((x + dx, current_y + dy), word, font=font, fill="black", align="center")
                         # Text
-                        final_draw.text(
-                            (x, current_y), word, font=font, fill=color, align="center"
-                        )
+                        final_draw.text((x, current_y), word, font=font, fill=color, align="center")
                         x += word_widths[idx] + word_spacing
 
                     filename = f"{prefix}{start}_word{i}.jpg"  # Unique filename
                     file_path = os.path.join(output_dir, filename)
-                    resized_img = final_img.resize(
-                        (final_img.width // 2, final_img.height // 2), 1
-                    )
+                    resized_img = final_img.resize((final_img.width // 2, final_img.height // 2), 1)
                     resized_img.convert("RGB").save(file_path, "JPEG", quality=40)
-                    print(f"Saved {file_path}")
+                    #print(f"Saved {file_path}")
 
                     line_index += 1
 
@@ -149,7 +117,7 @@ def create_caption_images_thread(prefix: str, captions, max_width, output_dir=".
     os.makedirs(output_dir, exist_ok=True)
 
     try:
-        font = ImageFont.truetype("Vercetti Regular/Vercetti-Regular.ttf", size=100)
+        font = ImageFont.truetype(FONT_PATH, size=100)
     except Exception as e:
         print(f"Error loading font: {e}. Trying default.")
         try:
@@ -237,7 +205,7 @@ def create_caption_images_thread(prefix: str, captions, max_width, output_dir=".
         file_path = os.path.join(output_dir, filename)
         resized_img = final_img.resize((final_img.width // 2, final_img.height // 2), 1)
         resized_img.convert("RGB").save(file_path, "JPEG", quality=40)
-        print(f"Saved {file_path}")
+        #print(f"Saved {file_path}")
 
     def worker():
         """Thread worker that processes tasks from the queue."""
