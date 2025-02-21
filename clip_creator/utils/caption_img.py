@@ -2,12 +2,16 @@ import os
 from queue import Queue
 from tqdm import tqdm
 from threading import Thread
-from clip_creator.conf import FONT_PATH
+from random import choice, randint
+from clip_creator.conf import FONT_PATH, LOGGER, COLORS, COLOR_PAIRS
 from PIL import Image, ImageDraw, ImageFont
 
 
 def create_caption_images(prefix: str, captions, max_width, output_dir="."):
-    """Creates one image *per line* of wrapped text, highlighting current word."""
+    """Creates one image *per line* of wrapped text, highlighting current word.
+    
+    caption: List of dictionaries with "start" and "text" keys.
+    """
     try:
         font = ImageFont.truetype(FONT_PATH, size=100)
     except Exception as e:
@@ -18,99 +22,118 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
             print(f"Error loading default font: {e2}. Please install a font.")
             return
 
+    h_padding = 30
     padding = 30
     word_spacing = 20
-    outline_width = 7
+    outline_width = 20
+    lines_text: list[list[dict]] = [[]]
+    lines_index = 0
 
-    for caption in tqdm(captions, desc="Captions"):
-        start = str(caption.get("start")).replace(".", "-")
-        text = caption.get("text", "")
-        words = text.split()
+    # Find each line of text
+    for i, caption in tqdm(enumerate(captions), total=len(captions), desc="Find each line of text"):
+        lines_text[lines_index].append({"text": caption.get("text", ""), "index": i})
+        temp_x = h_padding
+        # Create a dummy image and draw context for calculations
+        dummy_img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
+        dummy_draw = ImageDraw.Draw(dummy_img)
 
-        for i, current_word in tqdm(enumerate(words), total=len(words), desc="Words", leave=False):
-            line_index = 0
-            current_word_index = 0
+        # Build up the current line using dummy context
+        for word in lines_text[lines_index]:
+            bbox = dummy_draw.textbbox((0, padding), word.get("text", ""), font=font, align="center")
+            word_width = bbox[2] - bbox[0]
+            temp_x += word_width + word_spacing
 
-            while current_word_index < len(words):
-                current_line = []
-                current_line_indices = []  # Keep track of word indices in the line
+        if (temp_x > max_width - h_padding and len(lines_text[lines_index]) > 0):
+            lines_text[lines_index].pop(-1)
+            lines_index += 1
+            lines_text.append([{"text": caption.get("text", ""), "index": i}])
+        if "." in caption.get("text", "") or "!" in caption.get("text", "") or "?" in caption.get("text", ""):
+            lines_index += 1
+            lines_text.append([])
+        
 
-                # Create a dummy image and draw context for calculations
-                dummy_img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
-                dummy_draw = ImageDraw.Draw(dummy_img)
+    # Process each line
+    for j, line in tqdm(enumerate(lines_text), total=len(lines_text), desc="Create Images"):
+        img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
 
-                # Build up the current line using dummy context
-                temp_x = padding
-                while current_word_index < len(words):
-                    word = words[current_word_index]
-                    bbox = dummy_draw.textbbox((0, padding), word, font=font, align="center")
-                    word_width = bbox[2] - bbox[0]
+        # Calculate line heights
+        max_ascent = 0
+        max_descent = 0
+        for word in line:
+            bbox = draw.textbbox((0, padding), word.get("text"), font=font, align="center")
+            ascent = padding - bbox[1]
+            descent = bbox[3] - padding
+            max_ascent = max(max_ascent, ascent)
+            max_descent = max(max_descent, descent)
+        total_height = max_ascent + max_descent
 
-                    if temp_x + word_width + word_spacing > max_width - padding and len(current_line) > 0:
-                        break  # Line is full
+        # Create final image
+        new_width = max_width
+        new_height = total_height + 2 * padding
+        final_img = Image.new("RGBA", (new_width, new_height), color=(0, 0, 0, 0))
+        final_draw = ImageDraw.Draw(final_img)
 
-                    current_line.append(word)
-                    current_line_indices.append(current_word_index)  # Add index
-                    temp_x += word_width + word_spacing
-                    current_word_index += 1
+        # Calculate word widths and total line width
+        word_widths = []
+        total_line_width = 0
+        for word in line:
+            bbox = final_draw.textbbox((0, padding), word.get('text'), font=font, align="center")
+            w = bbox[2] - bbox[0]
+            word_widths.append(w)
+            total_line_width += w
+        
+        if len(line) > 1:
+            total_line_width += word_spacing * (len(line) - 1)
+        ran_check = randint(1, 10)
+        word_to_change = None
+        word_to_change_color = None
+        if ran_check < 2:
+            word_to_change = randint(0,len(line)-1)
+            word_to_change_color = choice(list(COLOR_PAIRS["white"]))
+            bg_choiced_color = "white"
+            paired = "red"
+        if ran_check < 3:
+            bg_choiced_color = choice(list(COLOR_PAIRS.keys()))
+            paired = choice(COLOR_PAIRS[bg_choiced_color])
+        elif ran_check < 5:
+            bg_choiced_color = "white"
+            paired = choice(COLOR_PAIRS[bg_choiced_color])
+        else:
+            bg_choiced_color = "white"
+            paired = "red"
+        # Generate an image for each word in the line
+        for i, caption_ult in enumerate(line):
+            word_index = caption_ult.get("index", "")
+            x = (new_width - total_line_width) // 2
+            current_y = padding
+            
+            
+            # Draw each word in the line
+            for k, caption in enumerate(line):
+                word = caption.get("text", "")
+                color = COLORS[paired] if k == i else COLORS[bg_choiced_color]
+                if word_to_change == k:
+                    color = COLORS[word_to_change_color]
+                # Draw outline
+                for dx in range(-outline_width, outline_width + 1):
+                    for dy in range(-outline_width, outline_width + 1):
+                        final_draw.text((x + dx, current_y + dy), word, font=font, fill="black", align="center")
+                
+                # Draw text
+                final_draw.text((x, current_y), word, font=font, fill=color, align="center")
+                # Key fix: Use k instead of i for word_widths index
+                x += word_widths[k] + word_spacing
 
-                # Check if the current highlighted word is in this line
-                if current_word in current_line:
-                    # Create an image to measure text height
-                    img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
-                    draw = ImageDraw.Draw(img)
+            filename = f"{prefix}_line{j}_word{word_index}.jpg"
+            file_path = os.path.join(output_dir, filename)
+            
+            final_img.convert("RGB").save(file_path, "JPEG", quality=70)
+            #print(f"Saved {file_path}")
 
-                    max_ascent = 0
-                    max_descent = 0
-                    for word in current_line:
-                        bbox = draw.textbbox((0, padding), word, font=font, align="center")
-                        ascent = padding - bbox[1]  # Distance from baseline (padding) to top
-                        descent = bbox[3] - padding  # Distance from baseline to bottom
-                        max_ascent = max(max_ascent, ascent)
-                        max_descent = max(max_descent, descent)
-                    total_height = max_ascent + max_descent
+         
 
-                    # Create final image based on calculated total_height
-                    new_width = max_width
-                    new_height = total_height + 2 * padding
-                    final_img = Image.new("RGBA", (new_width, new_height), color=(0, 0, 0, 0))
-                    final_draw = ImageDraw.Draw(final_img)
-
-                    # Calculate total width of the current line
-                    total_line_width = 0
-                    word_widths = []
-                    for word in current_line:
-                        bbox = final_draw.textbbox((0, padding), word, font=font, align="center")
-                        w = bbox[2] - bbox[0]
-                        word_widths.append(w)
-                        total_line_width += w
-                    if len(current_line) > 1:
-                        total_line_width += word_spacing * (len(current_line) - 1)
-
-                    # Center the text horizontally
-                    x = (new_width - total_line_width) // 2
-                    y_offset = (new_height - total_height - 10) // 2
-                    current_y = padding  # + y_offset
-
-                    # Draw each word with outline and fill (highlighted word in red)
-                    for idx, word in enumerate(current_line):
-                        color = "red" if current_line_indices[idx] == i else "white"
-                        # Outline
-                        for dx in range(-outline_width, outline_width + 1):
-                            for dy in range(-outline_width, outline_width + 1):
-                                final_draw.text((x + dx, current_y + dy), word, font=font, fill="black", align="center")
-                        # Text
-                        final_draw.text((x, current_y), word, font=font, fill=color, align="center")
-                        x += word_widths[idx] + word_spacing
-
-                    filename = f"{prefix}{start}_word{i}.jpg"  # Unique filename
-                    file_path = os.path.join(output_dir, filename)
-                    resized_img = final_img.resize((final_img.width // 2, final_img.height // 2), 1)
-                    resized_img.convert("RGB").save(file_path, "JPEG", quality=40)
-                    #print(f"Saved {file_path}")
-
-                    line_index += 1
-
+    
 
 def create_caption_images_thread(prefix: str, captions, max_width, output_dir="."):
     """Creates one image per line of wrapped text, highlighting current word using parallel processing."""
@@ -288,12 +311,16 @@ def create_caption_images_thread(prefix: str, captions, max_width, output_dir=".
 
 if __name__ == "__main__":
     caption_list = [
-        {
-            "start": 3764.4,
-            "text": "This is a sample caption that is very long and needs to wrap",
-        },
-        {"start": 23.8, "text": "Another caption for testing with even more words"},
+        {'text': 'on', 'start': 40.298, 'end': 40.439, 'duration': 0.14099999999999824},
+        {'text': 'them', 'start': 40.479, 'end': 40.659, 'duration': 0.17999999999999972},
+        {'text': 'when', 'start': 40.719, 'end': 40.919, 'duration': 0.19999999999999574},
+        {'text': 'I', 'start': 40.979, 'end': 41.059, 'duration': 0.0799999999999983},
+        {'text': 'win', 'start': 41.139, 'end': 41.399, 'duration': 0.259999999999998},
+        {'text': 'the', 'start': 41.459, 'end': 41.62, 'duration': 0.16099999999999426},
+        {'text': 'round.', 'start': 41.64, 'end': 42.04, 'duration': 0.3999999999999986},
+        {'text': 'Sign', 'start': 42.28, 'end': 42.681, 'duration': 0.40099999999999625},
     ]
     max_width = 1080  # Set maximum width for wrapping
-    output_directory = "./caption_images"
-    create_caption_images(caption_list, max_width, output_directory)
+    output_directory = "tmp\caps_img"
+    prefix = "test_"
+    create_caption_images(prefix, caption_list, max_width, output_directory)

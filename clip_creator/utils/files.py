@@ -1,5 +1,6 @@
 import shutil
 import os
+import time
 from clip_creator.conf import LOGGER
 def copy_to_tmp(dl_fl:str, tmp_dl_fl:str):
     """
@@ -12,8 +13,18 @@ def save_space(dl_fl:str, tmp_dl_fl:str, clips_fl:str, tmp_clips_fl:str):
     Remove the files needed
     """
     try:
+        
+        time.sleep(1)
         os.remove(tmp_dl_fl)
+        
     except Exception as e:
         LOGGER.error(f"Error removing file: {e}")
-        
+    
+    time.sleep(1)
     shutil.copy(tmp_clips_fl, clips_fl)
+    
+    try:
+        time.sleep(1)
+        os.remove(tmp_clips_fl)
+    except Exception as e:
+        LOGGER.error(f"Error removing file: {e}")

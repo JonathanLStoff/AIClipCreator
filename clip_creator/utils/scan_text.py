@@ -39,7 +39,7 @@ def most_common_ngrams(text, n=3):
                 most_common[f"{i}-gram"]["count"] = count
                 break  # Break after finding the first most common ngram of this length
 
-    return most_common[f"{i}-gram"]["word"], most_common[f"{i}-gram"]["count"]
+    return most_common[f"{i}-gram"].get("word", ""), most_common[f"{i}-gram"].get("count", 0)
 
 
 def find_timestamps(text: str):

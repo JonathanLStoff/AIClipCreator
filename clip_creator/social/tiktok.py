@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 
 from selenium import webdriver
@@ -8,15 +9,10 @@ from tiktok_uploader.upload import upload_video
 
 
 def post_to_tiktok(
-    access_token,
     video_path,
     title,
     schedule: datetime | None = None,
-    privacy_level="PUBLIC_TO_EVERYONE",
-    disable_duet=False,
-    disable_comment=False,
-    disable_stitch=False,
-    video_cover_timestamp_ms=1000,
+
 ):
     """
     Posts a video to TikTok using the TikTok Open API.
@@ -35,10 +31,12 @@ def post_to_tiktok(
         A dictionary containing the API response, or None if an error occurs.  Prints error details to console.
     """
     cookies_list = get_tiktok_cookies()
-    if schedule:
-        upload_video(video_path, title, cookies_list=cookies_list, schedule=schedule)
+    if not cookies_list:
+        upload_video(video_path, title, username=os.environ.get("TIKTOK_USERNAME"), password=os.environ.get("TIKTOK_P"), schedule=schedule, )
+    elif schedule:
+        upload_video(video_path, title, username=os.environ.get("TIKTOK_USERNAME"), password=os.environ.get("TIKTOK_P"), cookies_list=cookies_list, schedule=schedule, )
     else:
-        upload_video(video_path, title, cookies_list=cookies_list)
+        upload_video(video_path, title, cookies_list=cookies_list, )
 
 
 def get_tiktok_cookies(url="https://www.tiktok.com"):
@@ -54,7 +52,7 @@ def get_tiktok_cookies(url="https://www.tiktok.com"):
     """
     try:
         options = webdriver.ChromeOptions()
-        # options.add_argument("--headless")  # Optional: Run browser in the background
+        options.add_argument("--headless")  # Optional: Run browser in the background
 
         driver = webdriver.Chrome(options=options)  # Or Firefox(), Edge(), etc.
         driver.get(url)
@@ -80,3 +78,7 @@ def get_tiktok_cookies(url="https://www.tiktok.com"):
         if "driver" in locals():
             driver.quit()
         return None
+
+if __name__ == "__main__":
+    post_to_tiktok("tmp/clips/5FctraXMT-E.mp4", "#fyp #gaming #clip #fyppppppppppppp \n credit SMii7Yplus's Fortnite Counter-Strike is Crazy")
+    

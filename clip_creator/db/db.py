@@ -1,5 +1,6 @@
 import datetime
 import sqlite3
+import pandas as pd
 
 
 def create_database(db_name="aiclipcreator.db"):
@@ -50,6 +51,19 @@ def create_database(db_name="aiclipcreator.db"):
                 FOREIGN KEY (video_id) REFERENCES videos(id)
             )
         """)
+        # Create clip_paths table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS clip_info (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id TEXT,
+            clip_path TEXT,
+            description TEXT,
+            true_transcript TEXT,
+            title TEXT,
+            FOREIGN KEY (video_id) REFERENCES videos(id)
+            )
+        """)
+        
 
         conn.commit()
         print(f"Database '{db_name}' created successfully.")
@@ -61,7 +75,101 @@ def create_database(db_name="aiclipcreator.db"):
     finally:
         conn.close()
 
+def add_clip_info(info_data, db_name="aiclipcreator.db"):
+    """
+    Inserts a new row into the clip_info table.
 
+    Args:
+        info_data: A dictionary with the following keys:
+            - video_id: (str) the associated video ID.
+            - clip_path: (str) path to the clip file.
+            - description: (str) description of the clip.
+            - true_transcript: (str) the verified transcript.
+            - title: (str) title of the clip.
+        db_name: Name of the SQLite database file.
+
+    Returns:
+        The ID of the newly inserted row if successful, or None otherwise.
+    """
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+
+        required_keys = ["video_id", "clip_path", "description", "true_transcript", "title"]
+        if not all(key in info_data for key in required_keys):
+            raise ValueError("Missing required keys in info_data")
+
+        cursor.execute(
+            """
+            INSERT INTO clip_info (video_id, clip_path, description, true_transcript, title)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                info_data["video_id"],
+                info_data["clip_path"],
+                info_data["description"],
+                info_data["true_transcript"],
+                info_data["title"],
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        conn.rollback()
+        return None
+
+    except ValueError as e:
+        print(f"Input error: {e}")
+        return None
+
+    finally:
+        if conn:
+            conn.close()
+
+def get_all_video_ids(db_name="aiclipcreator.db"):
+    """
+    Retrieves all video IDs from the videos table.
+
+    Args:
+        db_name: Name of the SQLite database file.
+
+    Returns:
+        A list of video IDs.
+    """
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT video_id FROM clips")
+        rows = cursor.fetchall()
+        return [row[0] for row in rows]
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+def get_all_videos_df(db_name="aiclipcreator.db"):
+    """
+    Retrieves all rows from the videos table into a pandas DataFrame.
+
+    Args:
+        db_name: Name of the SQLite database file.
+
+    Returns:
+        A pandas DataFrame containing all rows from the videos table.
+    """
+    try:
+        conn = sqlite3.connect(db_name)
+        df = pd.read_sql_query("SELECT * FROM videos", conn)
+        return df
+    except Exception as e:
+        print(f"Error: {e}")
+        return pd.DataFrame()
+    finally:
+        if conn:
+            conn.close()
 def add_video_entry(video_data, db_name="aiclipcreator.db"):
     """Adds a new video entry to the database.
 

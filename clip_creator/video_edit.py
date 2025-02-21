@@ -1,12 +1,14 @@
 import os
 from random import randint
-import librosa
-import whisperx
+import traceback
+import torch
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 from moviepy import ColorClip, CompositeVideoClip, ImageClip, TextClip, VideoFileClip, AudioFileClip
 from moviepy.video.fx import Crop, Resize
 
-from clip_creator.conf import CODEC, FFMPEG_PARAMS, LOGGER, NUM_CORES, FONT_PATH
-from clip_creator.utils.caption_img import create_caption_images, create_caption_images_thread
+from clip_creator.conf import CODEC, LOGGER, NUM_CORES, FONT_PATH, WIS_DEVICE, MODELS_FOLDER, MODEL_SPEC_FOLDERS, LOW_CPU_MEM
+from clip_creator.utils.caption_img import create_caption_images
+import math
 
 
 def edit_video(
@@ -30,6 +32,7 @@ def edit_video(
     """
     audio_file = f"./tmp/audio_{prefix}.mp3"
     clip = VideoFileClip(input_file).subclipped(start_time, end_time)
+    full_length = clip.duration
     LOGGER.info(f"Video duration: {end_time-start_time} seconds")
     iw, ih = clip.size
     target_h, target_w = target_size
@@ -111,12 +114,25 @@ def edit_video(
         audio_file, codec="libmp3lame"
     )
     
-    ######################################
+    #########################################
     # Make my own transcription for captions
-    ######################################
-    true_transcript = get_word_timestamps(audio_file, device="cpu")
-    LOGGER.info(f"Transcript: {true_transcript}")
-    exit()
+    #########################################
+    number_runs = math.ceil(cropped_clip.duration / 30)
+    true_transcript = []
+    for i in range(number_runs):
+        segment_start = i * 30
+        with AudioFileClip(audio_file) as full_audio:
+            segment_end = min((i + 1) * 30, full_audio.duration)
+            segment_file = f"./tmp/audios/audio_{prefix}_segment_{i}.mp3"
+            segment = full_audio.subclipped(segment_start, segment_end)
+            segment.write_audiofile(segment_file, codec="libmp3lame", logger=None)
+
+        transcript_segment = get_word_timestamps_openai(segment_file, audio_clip_length=full_audio.duration,device=WIS_DEVICE, time_add=(i * 30))
+        # Adjust timestamps for the segment offset
+        true_transcript.extend(transcript_segment)
+        os.remove(segment_file)
+        
+        
     final_clip = CompositeVideoClip(
         [
             cropped_clip.with_position("center").with_effects([Resize(0.7)]),
@@ -125,30 +141,29 @@ def edit_video(
         size=target_size,
     )
     output_dir_img, clip_list = create_captions(
-        prefix, true_transcript, final_clip, ffmpeg_params=FFMPEG_PARAMS
+        prefix, true_transcript, final_clip
     )
     
     final_clip = CompositeVideoClip(
         [final_clip.with_layer_index(2), *clip_list],
         bg_color=(0, 0, 0),
     )
-    final_clip = final_clip.with_audio(AudioFileClip(audio_file))
+    final_clip = final_clip.subclipped(0, full_length).with_audio(AudioFileClip(audio_file))
     final_clip.write_videofile(
-        output_file, codec=CODEC, preset="fast", ffmpeg_params=FFMPEG_PARAMS, threads=NUM_CORES
+        output_file, codec=CODEC, preset="fast", ffmpeg_params=["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k"], threads=NUM_CORES
     )
     # Remove caption images
     for img in os.listdir(output_dir_img):
         if prefix in str(img):
             os.remove(os.path.join(output_dir_img, img))
     os.remove(audio_file)
-
+    return output_file, true_transcript
 
 def create_captions(
     prefix: str,
     transcript: list[dict],
     video_obj: VideoFileClip,
-    output_dir: str = "./tmp/caps_img",
-    ffmpeg_params: list | None = None,
+    output_dir: str = "./tmp/caps_img"
 ):
     """
     Creates caption image clips from a transcript and overlays them onto a video clip.
@@ -161,7 +176,7 @@ def create_captions(
     Args:
         transcript (list[dict]): A list of dictionaries where each dictionary represents a
             segment of the transcript. Each dictionary should contain:
-                - 'text' (str): The caption text for the segment.
+                - 'text' (str): The caption word for the segment.
                 - 'start' (str): The start time of the segment, used for naming image files.
                 - 'duration' (float): The duration of the caption segment.
         video_obj (VideoFileClip): The video clip (from moviepy) onto which the caption images
@@ -171,31 +186,36 @@ def create_captions(
     Returns:
         VideoFileClip: The modified video clip with the caption image clips composited on top.
     """
-    if ffmpeg_params is None:
-        ffmpeg_params = ["-c:v", "h264_videotoolbox"]
-    create_caption_images(prefix, transcript, video_obj.size[0], output_dir)
-    clip_list = []
-    clip_start_time = 0
-    first_start_time = transcript[0]["start"]
     
-    for _i, section in enumerate(transcript):
-        clip_start_time = section["start"] - first_start_time
-        for j in range(len(section["text"].split())):
-            file_name = f"{prefix}{str(section['start']).replace('.', '-')}_word{j}.jpg"
 
-            file_path = os.path.join(output_dir, file_name)
-            duration = section["duration"] / len(section["text"].split())
-            # Create an image clip from the generated file with duration matching the video.
-            caption_clip = ImageClip(file_path, duration=duration)
+    create_caption_images(prefix, transcript, video_obj.size[0], output_dir)
+    
+    clip_list = []
+    
+    for i, section in enumerate(transcript):
+        file_name = ""
+        for file in os.listdir(output_dir):
+            if f"word{i}.jpg" in file and prefix in file:
+                file_name = file
+        #if section["end"] > video_obj.duration:
+            
+        if i+1>=len(transcript):
+            duration = section["duration"] + 1
+        else:
+            duration = transcript[i+1]["start"] - section["start"]
+            #LOGGER.info("transcript[i+1]: %s", transcript[i+1])
+            if duration > 3:
+                duration = 3
+                
+        file_path = os.path.join(output_dir, file_name)
+        caption_clip = ImageClip(file_path, duration=duration)
+        # Position the image so that its center is at 6/7th of the video’s height.
+        pos_y = int(video_obj.h * 11 / 14 - caption_clip.h / 2)
+        caption_clip = caption_clip.with_start(section["start"]).with_position(("center", pos_y)).with_layer_index(1)
 
-            caption_clip = caption_clip.with_effects([Resize(2)])
-            # Position the image so that its center is at 6/7th of the video’s height.
-            pos_y = int(video_obj.h * 6 / 7 - caption_clip.h / 2)
-            caption_clip = caption_clip.with_start(clip_start_time).with_position(("center", pos_y)).with_layer_index(1)
+        # Composite the caption image onto the video.
+        clip_list.append(caption_clip)
 
-            # Composite the caption image onto the video.
-            clip_list.append(caption_clip)
-            clip_start_time += duration
 
     return output_dir, clip_list
 
@@ -321,8 +341,7 @@ def add_text_to_video(
     final_clip.close()  # Close the final clip
     print(f"Video with text saved to {output_path}")
 
-
-def get_word_timestamps(audio_path, model_name="medium", device="cuda"):  # Use "cpu" if no GPU
+def get_word_timestamps_openai(audio_path, time_add, model_name="facebook/seamless-m4t-v2-large", device="cuda:0", audio_clip_length:float=0, compute_type:str="float16", chunk_length_s:int=20):  # Use "cpu" if no GPU
     """
     Gets word-level timestamps from an audio clip using WhisperX.
 
@@ -338,41 +357,76 @@ def get_word_timestamps(audio_path, model_name="medium", device="cuda"):  # Use 
             "end": End time of the word in seconds (float).
         Returns an empty list if there's an error.
     """
-    try:
-        # 1. Load audio
-        LOGGER.info(f"Loading audio from {audio_path}")
-        audio, sr = librosa.load(audio_path)  # librosa handles various audio formats
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
 
-        # 2. Load WhisperX model
-        model = whisperx.load_model(model_name, device)
-        LOGGER.info(f"Transcribing audio using {model_name} model")
-        # 3. Transcribe the audio
-        result = model.transcribe(audio, batch_size=8)  # Adjust batch_size if needed
-        LOGGER.info("Transcription complete")
-        # 4. Align the transcript to the audio (important for accurate timestamps)
-        model_align, metadata = whisperx.load_align_model(model_name, device)
-        result = whisperx.align(result["segments"], model_align, metadata, audio, device, return_metadata=False)
+    model_id = "openai/whisper-large-v3-turbo"
 
-        word_timestamps = []
-        for segment in result["segments"]:
-            for word_info in segment["words"]:
-                word = word_info["word"]
-                start = word_info["start"]
-                end = word_info["end"]
-                word_timestamps.append({
-                    "text": word,
-                    "start": start,
-                    "end": end,
-                    "duration": end - start,
-                })
+    model = AutoModelForSpeechSeq2Seq.from_pretrained(
+        model_id,
+        torch_dtype=torch_dtype,
+        low_cpu_mem_usage=LOW_CPU_MEM,
+        use_safetensors=True,
+        attn_implementation="eager"
+    )
+    model.to(device)
 
-        return word_timestamps
+    processor = AutoProcessor.from_pretrained(model_id)
 
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return []
-# Example usage:
+    pipe = pipeline(
+        "automatic-speech-recognition",
+        model=model,
+        tokenizer=processor.tokenizer,
+        feature_extractor=processor.feature_extractor,
+        torch_dtype=torch_dtype,
+        device=device,
+        stride_length_s=chunk_length_s * 0.15,  # 15% overlap for better continuity
+        # generate_kwargs={
+        #     "language": "en",
+        #     "task": "transcribe",
+        # },
+        chunk_length_s=chunk_length_s,
+    )
+
+    result = pipe(
+        audio_path,
+        batch_size=8,
+        return_timestamps="word",
+    )
+    LOGGER.info("Transcription %s", result)
+    outout = []
+    for r in result['chunks']:
+        
+        start, end = r['timestamp']
+        new_start = time_add+start
+        new_end = time_add+audio_clip_length if not end else time_add+end
+        
+        new_duration = audio_clip_length - start if not end else (end - start if end - start > 0 else 0.1)
+        outout.append({
+            "text": r['text'],
+            "start": new_start,
+            "end": new_end,
+            "duration": new_duration,
+        })
+    return outout
+
+def fix_video_grb(input_file):
+    """
+    Fixes the color space of a video file.
+    Parameters:
+        • input_file  : path to the input video file.
+        • output_file : where to write the fixed video.
+    """
+    clip = VideoFileClip(input_file)
+    output_file = input_file.replace(".mp4", "_fixed.mp4")
+    clip.write_videofile(output_file, codec="libx264", preset="fast", ffmpeg_params=["-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k"], threads=NUM_CORES)
+
 if __name__ == "__main__":
-    input_video_path = "input_video.mp4"  # Replace with your landscape video file
-    output_video_path = "output_portrait.mp4"
-    edit_video(input_video_path, output_video_path, zoom=1.2, target_size=(720, 1280))
+    file_fix = [
+        "tmp/clips/5FctraXMT-E.mp4",
+        "tmp/clips/_96ADhbwQJU.mp4",
+        "tmp/clips/gu4vGTxm6gg.mp4",
+        "tmp/clips/uDqN4MIdIXQ.mp4",
+                ]
+    for file in file_fix:
+        fix_video_grb(file)

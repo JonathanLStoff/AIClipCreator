@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import time
 
 from clip_creator.ai import ask_if_comment_in_transcript, find_sections
 from clip_creator.conf import (
@@ -16,10 +17,14 @@ from clip_creator.db.db import (
     create_database,
     create_or_update_clip,
     find_clip,
+    add_clip_info,
+    get_all_video_ids,
+    get_all_videos_df
 )
 from clip_creator.social.reddit import check_top_comment, search_reddit
+from clip_creator.social.tiktok import post_to_tiktok
 from clip_creator.utils.files import copy_to_tmp, save_space
-from clip_creator.utils.path_setup import check_and_create_dirs
+from clip_creator.utils.path_setup import check_and_create_dirs, get_unused_videos
 from clip_creator.utils.scan_text import (
     clean_text,
     convert_timestamp_to_seconds,
@@ -58,6 +63,9 @@ def main():
         "--noai", action="store_true", help="Retrieve new videos from YouTube if set"
     )
     parser.add_argument("--inputvideoid", type=str, help="Path to the input video")
+    parser.add_argument(
+        "--skiptimecheck", action="store_true", help="Retrieve new videos from YouTube if set"
+    )
     args = parser.parse_args()
     LOGGER.info("Arguments: %s", args)
     #####################################
@@ -68,18 +76,24 @@ def main():
     # Create database
     #####################################
     create_database()
+    used_videos = get_all_video_ids()
+    video_df_info = get_all_videos_df()
+    un_used_videos, un_used_videos_li = get_unused_videos(used_videos, raw_dir=DOWNLOAD_FOLDER)
     #####################################
     # Get videos and transcripts
     #####################################
     videos = []
+    LOGGER.info("Used Videos: %s", used_videos)
     if not args.noretrieve:
         # get hot videos
-
-        if args.inputvideoid:
+        print("Retrieving videos")
+        if args.inputvideoid != "" and args.inputvideoid is not None:
+            print("Input video id: %s", args.inputvideoid)
             videos.append({"id": {"videoId": args.inputvideoid}})
         else:
             # videos.extend(search_videos("gaming", time_range=1))
-            videos.extend(get_subscriptions_videos())
+            videos.extend(un_used_videos)
+            videos.extend(get_subscriptions_videos(used_ids=used_videos+un_used_videos_li, skip_time_check=args.skiptimecheck, video_df_info=video_df_info))
             LOGGER.info("Videos: %s", videos)
             if args.numvid:
                 videos = videos[: args.numvid]
@@ -93,7 +107,7 @@ def main():
             raw_transcripts[video["id"]["videoId"]] = get_transcript(
                 video["id"]["videoId"]
             )  # {'text': 'out our other man outs right over here', 'start': 1060.84, 'duration': 3.52}
-            formated_transcripts[video["id"]["videoId"]] = join_transcript(
+            formated_transcripts[video["id"]["videoId"]] = "disabled" if "disabled" == raw_transcripts[video["id"]["videoId"]] else join_transcript(
                 raw_transcripts[video["id"]["videoId"]]
             )
             LOGGER.info("Transcript: %s", raw_transcripts[video["id"]["videoId"]])
@@ -112,9 +126,18 @@ def main():
     video_info = {}
     LOGGER.info(formated_transcripts)
     for id, script in formated_transcripts.items():
-        video_info[id] = get_video_info(id)
+        if id in video_df_info.index:
+            
+            video_info[id] = {
+            "creator": video_df_info.loc[id]['video_creator'],
+            "views": video_df_info.loc[id]['views'],
+            "likes": video_df_info.loc[id]['likes'],
+            "video_name": video_df_info.loc[id]['name'],
+        }
+        else:
+            video_info[id] = get_video_info(id)
         LOGGER.info("Video Info: %s", video_info[id])
-
+    print(video_info)
     ######################################
     # Reddit Comments
     ######################################
@@ -205,8 +228,12 @@ def main():
     ######################################
     clips = {}
     for id, script in raw_transcripts.items():
-        if timestamps[id]:
-            clips[id] = find_timestamp_clips(script, timestamps[id])
+        if timestamps[id]: # Add more checks
+            if "disabled" != script:
+                clips[id] = find_timestamp_clips(script, timestamps[id])
+            else:
+                LOGGER.info("Transcript is disabled, add download and transcribe function here")
+                clips[id] = None
         else:
             clips[id] = None
         LOGGER.info("Clips: %s", clips[id])
@@ -248,7 +275,7 @@ def main():
         for id, script in formated_transcripts.items():
             if clips[id]:
                 if not os.path.exists(f"{DOWNLOAD_FOLDER}/{id}.mp4"):
-                    LOGGER.info("not found: %s", f"{DOWNLOAD_FOLDER}/{id}.mp4")
+                    LOGGER.info("not found: %s, downloading", f"{DOWNLOAD_FOLDER}/{id}.mp4")
                     Download(id, path=TMP_DOWNLOAD_FOLDER, filename=id)
                     # Convert webm to mp4
                     convert_webm_to_mp4(
@@ -256,6 +283,7 @@ def main():
                         f"{DOWNLOAD_FOLDER}/{id}.mp4",
                     )
                     os.remove(f"{TMP_DOWNLOAD_FOLDER}/{id}.webm")
+                time.sleep(5)
     else:
         if not os.path.exists(f"{DOWNLOAD_FOLDER}/{args.inputvideoid}.mp4"):
             LOGGER.info("not found: %s", f"{DOWNLOAD_FOLDER}/{args.inputvideoid}.mp4")
@@ -285,10 +313,19 @@ def main():
         else:
             clips_chunks[id] = None
             
-    
+    ######################################
+    # Best overall comment
+    ######################################
+    best_comment = {}
+    for id, script in formated_transcripts.items():
+        best_comment[id] = str(top_yt_comment[id])
+        if reddit_comments[id]:
+            best_comment[id] = str(top_reddit_comment[id])
     ######################################
     # Edit Videos
     ######################################
+    clip_paths = {}
+    true_transcripts = {}
     for id, clip in clips.items():
         if clip and clips_chunks[id]:
             LOGGER.info(
@@ -299,14 +336,14 @@ def main():
             copy_to_tmp(
                 f"{DOWNLOAD_FOLDER}/{id}.mp4", f"{TMP_DOWNLOAD_FOLDER}/{id}.mp4"
             )
-            edit_video(
+            clip_paths[id],true_transcripts[id] = edit_video(
                 sanitize_filename(id),
                 f"{TMP_DOWNLOAD_FOLDER}/{id}.mp4",
                 f"{TMP_CLIPS_FOLDER}/{id}.mp4",
                 target_size=(1080, 1920),
                 start_time=clips_chunks[id]["start"],
                 end_time=clips_chunks[id]["end"],
-                text=top_yt_comment[id],
+                text=best_comment[id],
                 transcript=clips[id],
             )
             save_space(
@@ -315,7 +352,7 @@ def main():
                 f"{CLIPS_FOLDER}/{id}.mp4",
                 f"{TMP_CLIPS_FOLDER}/{id}.mp4",
             )
-
+            clip_paths[id] = f"{CLIPS_FOLDER}/{id}.mp4"
             clip_dict = {
                 "video_id": id,
                 "start_time": int(clips_chunks[id]["start"]),
@@ -329,11 +366,30 @@ def main():
     descriptions = {}
     for id, script in formated_transcripts.items():
         descriptions[id] = (
-            "#fyp #gaming #clip #fyppppppppppppp \n credit"
+            "#fyp #gaming #clip #fyppppppppppppp\ncredit"
             f" {video_info[id]['creator']}'s {video_info[id]['video_name']}"
         )
+    for id, clipy in clips.items():
+        if clipy:
+            clip_info = {
+                "video_id": id,
+                "clip_path": clip_paths[id],
+                "description": descriptions[id],
+                "true_transcript": json.dumps(true_transcripts[id]),
+                "title": best_comment[id],
+            }
+            add_clip_info(clip_info)
     LOGGER.info("Descriptions: %s", descriptions)
-
+    ########################################
+    # Post to TikTok
+    ########################################
+    for id, clipy in clips.items():
+        if clipy:
+            with open(clip_paths[id].replace("mp4", "txt"), "w") as f:
+                f.write(descriptions[id])
+            #post_to_tiktok(clip_paths[id], title=descriptions[id]) #add schedule
+            # add to db when is scheduled
+    
 
 if __name__ == "__main__":
     main()

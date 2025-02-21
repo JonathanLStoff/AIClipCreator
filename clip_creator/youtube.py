@@ -1,4 +1,7 @@
 import os
+import time
+import json
+import traceback
 from datetime import UTC, datetime, timedelta
 
 # import subprocess
@@ -12,14 +15,24 @@ from googleapiclient.discovery import build
 from yt_dlp import YoutubeDL
 
 from clip_creator.conf import API_KEY, LOGGER
+from clip_creator.utils.scan_text import find_timestamps
 
-YOUTUBE = build("youtube", "v3", developerKey=API_KEY)
 
 
 def Download(video_id: str, path: str = "videos", filename: str | None = None):
     link = f"https://www.youtube.com/watch?v={video_id}"
     with YoutubeDL() as ydl:
-        ydl.download([link])
+        try:
+            ydl.download([link])
+        except Exception as e:
+            if "403" in str(e):
+                while True:
+                    try:
+                        ydl.download([link])
+                        break
+                    except Exception as e:
+                        LOGGER.info(f"Error downloading video: {e}")
+                        time.sleep(50)
     for file in os.listdir("./"):
         if video_id in file:
             os.rename(file, f"{path}/{filename}.{file.split('.')[-1]}")
@@ -28,25 +41,64 @@ def Download(video_id: str, path: str = "videos", filename: str | None = None):
 
 
 def subscriptions():
-    request = YOUTUBE.subscriptions().list(
-        part="snippet",
-        channelId="UCq0LuNd6o2XTTEdSkQPhGxw",
-    )
-    response = request.execute()
+    """Gets the user's YouTube subscriptions."""
+    response = None
+    api_inx = 0
+    while True:
+        yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
+        request = yt.subscriptions().list(
+            part="snippet",
+            channelId="UCq0LuNd6o2XTTEdSkQPhGxw",
+            maxResults=50,
+            order="unread",
+        )
+        response = request.execute()
+        if response.get("items"):
+            break
+        else:
+            api_inx += 1
+            if api_inx == len(API_KEY):
+                break
     return response.get("items", [])
 
 
-def get_latest_videos(channel_id):
+def get_latest_videos(channel_id, used_ids, video_df_info, max_results=10):
     """Gets the latest videos from a YouTube channel."""
-    request = YOUTUBE.search().list(
-        part="snippet", channelId=channel_id, order="date", maxResults=10
-    )
-    response = request.execute()
+    response = None
+    api_inx = 0
+    while True:
+        yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
+        request = yt.search().list(
+            part="snippet", channelId=channel_id, order="date", maxResults=max_results
+        )
+        response = request.execute()
+        if response.get("items"):
+            break
+        else:
+            api_inx += 1
+            if api_inx == len(API_KEY):
+                break
     list_videos = []
-
+    LOGGER.info("Response: %s", response)
     for entry in response.get("items", []):
-        if is_duration_over_minutes(get_video_len(entry["id"]["videoId"]), 15):
-            list_videos.append(entry)
+        time.sleep(0.5)
+        if entry == []:
+            continue
+        if entry["id"]["videoId"] not in used_ids:
+            length_vid = 0
+            if entry["id"]["videoId"] in video_df_info.index.values:
+                LOGGER.info("Video already exists in the database")
+                existing_row = video_df_info.loc[entry["id"]["videoId"]]
+                LOGGER.info("Existing video details: %s", existing_row)
+                length_vid = (json.loads(existing_row["transcript"]))[-1]['start']
+            if length_vid/60 > 15:
+                list_videos.append(entry)
+            elif is_duration_over_minutes(get_video_len(entry["id"]["videoId"]), 15):
+                list_videos.append(entry)
+            else:
+                LOGGER.info("Video is less than 15 minutes long")
+        if len(list_videos) == max_results:
+            break
 
     return list_videos
 
@@ -73,21 +125,26 @@ def is_duration_over_minutes(duration_iso8601, length: int = 15):
         return False
 
 
-def get_subscriptions_videos():
+def get_subscriptions_videos(used_ids, skip_time_check=False, video_df_info=None, max_results=40):
     """Gets the latest videos from the user's YouTube subscriptions."""
     subscriptions_list = subscriptions()
     videos = []
+    LOGGER.info("Subscriptions: %s", subscriptions_list)
     for subscription in subscriptions_list:
         channel_id = subscription["snippet"]["resourceId"]["channelId"]
+        LOGGER.info("Channel ID: %s", channel_id)
         dt_object = datetime.strptime(
             subscription["snippet"]["publishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ"
         ).replace(tzinfo=UTC)
-
-        if datetime.now(UTC) - dt_object > timedelta(minutes=10) and datetime.now(
+        LOGGER.info("Published At: %s", dt_object)
+        LOGGER.info("Current Time: %s", datetime.now(UTC))
+        if (datetime.now(UTC) - dt_object > timedelta(minutes=10) and datetime.now(
             UTC
-        ) - dt_object < timedelta(days=1):
-            videos.extend(get_latest_videos(channel_id))
-
+        ) - dt_object < timedelta(days=1)) or skip_time_check:
+            videos.extend(get_latest_videos(channel_id, used_ids, video_df_info, max_results))
+            if len(videos) >= max_results:
+                break
+    LOGGER.info("Videos: %s", videos)
     return videos
 
 
@@ -97,16 +154,24 @@ def search_videos(query, time_range=7):
     published_after = (
         (now - timedelta(days=time_range)).isoformat().replace("+00:00", "Z")
     )
-
-    request = YOUTUBE.search().list(
-        q=query,
-        part="snippet",
-        type="video",
-        publishedAfter=published_after,
-        order="relevance",
-        maxResults=50,
-    )
-    response = request.execute()
+    api_inx = 0
+    while True:
+        yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
+        request = yt.search().list(
+            q=query,
+            part="snippet",
+            type="video",
+            publishedAfter=published_after,
+            order="relevance",
+            maxResults=50,
+        )
+        response = request.execute()
+        if response.get("items"):
+            break
+        else:
+            api_inx += 1
+            if api_inx == len(API_KEY):
+                break
     return response.get("items", [])
 
 
@@ -116,8 +181,18 @@ def is_trending(video_id):
     # Trending status is dynamic and algorithm-driven. This function uses a proxy
     # by checking if a video has a high view count relative to its age.  This is not definitive.
     try:
-        request = YOUTUBE.videos().list(part="statistics,snippet", id=video_id)
-        response = request.execute()
+        api_inx = 0
+        while True:
+            yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
+            request = yt.videos().list(part="statistics,snippet", id=video_id)
+            response = request.execute()
+            if response.get("items"):
+                break
+            else:
+                api_inx += 1
+                if api_inx == len(API_KEY):
+                    break
+        
         items = response.get("items", [])
         if items:
             video_stats = items[0]["statistics"]
@@ -144,8 +219,19 @@ def is_trending(video_id):
 def get_video_info(video_id):
     """Gets transcript, link, likes, views, creator, and video name for a video."""
     try:
-        request = YOUTUBE.videos().list(part="snippet,statistics", id=video_id)
-        response = request.execute()
+        api_inx = 0
+        while True:
+            yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
+            request = yt.videos().list(part="snippet,statistics", id=video_id)
+            response = request.execute()
+            if response.get("items"):
+                LOGGER.info("Response: %s", response)
+                break
+            else:
+                LOGGER.info("API key %s failed", API_KEY[api_inx])
+                api_inx += 1
+                if api_inx == len(API_KEY):
+                    break
         if response.get("items"):
             video_data = response["items"][0]
             snippet = video_data.get("snippet", {})
@@ -168,15 +254,24 @@ def get_video_info(video_id):
             "video_name": video_name,
         }
     except Exception as e:
-        LOGGER.info(f"Error getting video info: {e}")
+        print(f"Error getting video info: {traceback.format_exc()}")
         return None
 
 
 def get_video_len(video_id):
     """Gets transcript, link, likes, views, creator, and video name for a video."""
     try:
-        request = YOUTUBE.videos().list(part="contentDetails", id=video_id)
-        response = request.execute()
+        api_inx = 0
+        while True:
+            yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
+            request = yt.videos().list(part="contentDetails", id=video_id)
+            response = request.execute()
+            if response.get("items"):
+                break
+            else:
+                api_inx += 1
+                if api_inx == len(API_KEY):
+                    break
         if response.get("items"):
             return response["items"][0]["contentDetails"]["duration"]
         else:
@@ -197,6 +292,7 @@ def get_transcript(video_id):
         return transcript
     except youtube_transcript_api.TranscriptsDisabled:
         LOGGER.info("Transcripts are disabled for this video.")
+        return "disabled"
     except youtube_transcript_api.NoTranscriptFound:
         LOGGER.info("No transcript found for this video.")
     except Exception as e:
@@ -212,11 +308,22 @@ def get_comments(video_id, max_comments=100):  # Added max_comments
     """Gets comments for a video."""
     try:
         comments = []
-        request = YOUTUBE.commentThreads().list(
+
+        api_inx = 0
+        while True:
+            yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
+            request = yt.commentThreads().list(
             part="snippet",
             videoId=video_id,
             maxResults=max_comments,  # Limit the number of comments retrieved
-        )
+            )
+            response = request.execute()
+            if response.get("items"):
+                break
+            else:
+                api_inx += 1
+                if api_inx == len(API_KEY):
+                    break
         while request:
             response = request.execute()
             for item in response.get("items", []):
@@ -226,12 +333,15 @@ def get_comments(video_id, max_comments=100):  # Added max_comments
                     "text": comment.get("textOriginal", ""),
                     "likeCount": comment.get("likeCount", 0),
                 })
+            if len(comments) >= max_comments:
+                break
             if "nextPageToken" in response:
-                request = YOUTUBE.commentThreads().list_next(request, response)
+                request = yt.commentThreads().list_next(request, response)
             else:
                 request = None  # No more pages
         return comments
     except Exception as e:
+        LOGGER.info(f"Error getting comments: {traceback.format_exc()}")
         LOGGER.info(f"Error getting comments: {e}")
         return []
 
@@ -240,7 +350,14 @@ def get_top_comment(comments: list[dict], max_words: int, creator: str) -> str:
     """Get the top comment from a list of comments."""
     top_comment = ""
     top_comment_upvotes = 0
-    for comment in comments:
+    running_average = 0
+    for i, comment in enumerate(comments):
+        if i == 0:
+            running_average = comment.get("likeCount", 0)
+        else:  
+            running_average = (running_average * i + comment.get("likeCount", 0))/(i+1)
+    LOGGER.info("Running average: %s", running_average)
+    for comment in comments:    
         words = comment["text"].split()
         if (
             len(words) <= max_words
@@ -253,6 +370,10 @@ def get_top_comment(comments: list[dict], max_words: int, creator: str) -> str:
                 LOGGER.info("Top comment found: %s, vid creator: %s", comment, creator)
                 top_comment = str(comment["text"])
                 top_comment_upvotes = upvotes
+            if upvotes > running_average * 2:
+                if find_timestamps(comment["text"]):
+                    top_comment = str(comment["text"])
+                    break
     print(top_comment_upvotes)
     return top_comment
 
