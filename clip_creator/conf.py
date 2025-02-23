@@ -41,6 +41,11 @@ if sys.platform.startswith("win"):
         "facebook/seamless-m4t-v2-large":"D:/models/models--facebook--seamless-m4t-v2-large/snapshots/5f8cc790b19fc3f67a61c105133b20b34e3dcb76"
     }
     LOW_CPU_MEM = False
+    USER_ACCOUNT = os.environ.get("USERPROFILE")
+    USER_ACCOUNT_FOLDER = os.path.basename(USER_ACCOUNT)
+    
+    CHROME_USER_PATH = f"C:/Users/{USER_ACCOUNT_FOLDER}/AppData/Local/Google/Chrome/User Data/Default"
+    
     LOGGER.info("Running on Windows")
 elif sys.platform.startswith("darwin"):
     #FFMPEG_PARAMS = ["-c:v", "h264_videotoolbox"]
@@ -56,7 +61,7 @@ elif sys.platform.startswith("darwin"):
         "Systran/faster-whisper-large-v2":"/Volumes/externalSSD/models/models--Systran--faster-whisper-large-v2/snapshots/f0fe81560cb8b68660e564f55dd99207059c092e",
         "facebook/seamless-m4t-v2-large":"/Volumes/externalSSD/models/models--facebook--seamless-m4t-v2-large/snapshots/5f8cc790b19fc3f67a61c105133b20b34e3dcb76"
     }
-    
+    CHROME_USER_PATH = f"/Users/{os.environ.get('USER')}/Library/Application Support/Google/Chrome"
     LOGGER.info("Running on macOS")
 else:
     DOWNLOAD_FOLDER = os.path.expanduser("~/Downloads")
@@ -84,3 +89,5 @@ COLOR_PAIRS = {
     }
 
 YT_MAX_RETRIES = 3
+
+GOOGLE_ACCOUNT_NAME = "clipcityai@gmail.com"
