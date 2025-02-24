@@ -38,8 +38,9 @@ def upload_video(video_path: str, schedule: datetime | None = None, description:
         driver.get("https://www.tiktok.com/tiktokstudio/upload?from=webapp")
         #time.sleep(120)
         LOGGER.info("Navigated to TikTok Studio upload page successfully.")
-        if check_google_continue_button(driver):
-            login_with_google_account(driver=driver)
+        element_goog = check_google_continue_button(driver)
+        if element_goog:
+            login_with_google_account(driver=driver, element_goog=element_goog)
             
         file_input = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.XPATH, "//input[@type='file' and @accept='video/*']"))
@@ -119,7 +120,7 @@ def check_google_continue_button(driver):
             EC.presence_of_element_located((By.XPATH, "//div[@style='font-size: 15px;'][contains(text(), 'Continue with Google')]"))
         )
         print("Element 'Continue with Google' found!")
-        return True #element was found
+        return element #element was found
 
     except TimeoutException:
         print("Element 'Continue with Google' not found within the timeout.")
