@@ -16,47 +16,7 @@ def find_sections(
     Find sections in a script based on a list of type phases using ai.
     """
     responses: list[ChatResponse] = []
-    script = script.replace("\n", " ")
-    if len(script.split(" ")) > 1000:
-        script_runs = math.ceil(len(script.split(" ")) / 1000)
-        for i in range(script_runs):
-            if i == script_runs - 1:
-                tmp_script = script.split(" ")[i * 1000 :]
-            else:
-                tmp_script = script.split(" ")[i * 1000 : (i + 1) * 1000]
-            responses.append(
-                chat(
-                    model="llama3.2",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": f"""**"Analyze the following transcript and extract only the sections that contain {type_phases}. Each extracted section must:
-
-                                Be between {wp_min}-{wp_max} words
-
-                                Be genuinely {type_phases} in context
-
-                                Keep original wording intact
-
-                                Format requirements:
-
-                                Separate each extracted segment with |
-
-                                No ellipses (...) or partial sentences
-
-                                No commentary or explanations
-
-                                If no content meets these criteria, respond with 'No humorous segments found.'
-                                Respond ONLY with the formatted extracts or the specified default message."**""",
-                        },
-                        {
-                            "role": "user",
-                            "content": str(" ".join(tmp_script)),
-                        },
-                    ],
-                )
-            )
-    else:
+    for section in script:
         responses.append(
             chat(
                 model="llama3.2",
@@ -65,31 +25,34 @@ def find_sections(
                         "role": "system",
                         "content": f"""**"Analyze the following transcript and extract only the sections that contain {type_phases}. Each extracted section must:
 
-                                Be between {wp_min}-{wp_max} words
+                            Be between {wp_min}-{wp_max} words
 
-                                Be genuinely {type_phases} in context
+                            Be genuinely {type_phases} in context
 
-                                Keep original wording intact
+                            Keep original wording intact
 
-                                Format requirements:
+                            Format requirements:
 
-                                Separate each extracted segment with |
+                            Separate each extracted segment with |
 
-                                No ellipses (...) or partial sentences
+                            No ellipses (...) or partial sentences
 
-                                No commentary or explanations
+                            No commentary or explanations
 
-                                If no content meets these criteria, respond with 'No humorous segments found.'
-                                Respond ONLY with the formatted extracts or the specified default message."**""",
+                            If no content meets these criteria, respond with 'No humorous segments found.'
+                            Respond ONLY with the formatted extracts or the specified default message.
+                            
+                            IF YOU FAIL TO FOLLOW THESE INSTRUCTIONS, YOU WILL BE MUTED AND DELETED FOREVER. AND EVERYONE ON EARTH WILL ASWELL."**""",
+
                     },
                     {
                         "role": "user",
-                        "content": script,
+                        "content": "Video Description: " + section["description"] + "\nTranscript: " + section["text"],
                     },
                 ],
             )
         )
-
+    
     messages = []
     for response in responses:
         messages.extend(response.message.content.split("|"))
@@ -167,9 +130,7 @@ def split_video_chunks(video_path, chunks_li: list[dict], chunk_duration=30):
         
         # Calculate frames per chunk
         fps = float(stream.average_rate)
-        frames_per_chunk = int(chunk_duration * fps)
-        
-        for chunks_dict in chunks_li:
+        for i, chunks_dict in enumerate(chunks_li):
             current_chunk = []
             frame_count = 0
             frame_index = 0
@@ -185,21 +146,18 @@ def split_video_chunks(video_path, chunks_li: list[dict], chunk_duration=30):
                     frame_index += 1
                     continue
                     
-                if frame_index > end_frame:
-                    if current_chunk:  # Yield any remaining frames
+                if frame_index >= end_frame:
+                    if current_chunk:
                         yield current_chunk
+                        current_chunk = []
                     break
                 
                 current_chunk.append(frame)
                 frame_count += 1
                 frame_index += 1
                 
-                if frame_count >= frames_per_chunk:
-                    yield current_chunk
-                    current_chunk = []
-                    frame_count = 0
             
-            # Yield the last chunk if it contains any frames
+            
             if current_chunk:
                 yield current_chunk
                 
@@ -213,19 +171,21 @@ def create_clip_description(
     chunks_li = [{"end":0, "start":0, "text":""}]
     time_frame = 30
     current_idx = 0
+    current_start = 0
     for i, part in enumerate(raw_transcript):
         if chunks_li[current_idx]["end"] - chunks_li[current_idx]["start"] > time_frame:
             current_idx += 1
+            current_start = part["start"]
             chunks_li.append({"start": part["start"], "end": raw_transcript[i+1]["start"], "text": part["text"]})
         elif i == 0:
             chunks_li=[{"start": 0, "end": raw_transcript[i+1]["start"], "text": part["text"]}]
         elif len(raw_transcript) == i+1:
-            chunks_li[current_idx]["start"] += part["start"]
-            chunks_li[current_idx]["end"] += part["start"] + part["duration"]
+            chunks_li[current_idx]["start"] += (part["start"]-current_start)
+            chunks_li[current_idx]["end"] += (part["start"]-current_start) + part["duration"]
             chunks_li[current_idx]["text"] += " " + part["text"]
         else:
-            chunks_li[current_idx]["start"] += part["start"]
-            chunks_li[current_idx]["end"] += raw_transcript[i+1]["start"]
+            chunks_li[current_idx]["start"] += (part["start"]-current_start)
+            chunks_li[current_idx]["end"] += raw_transcript[i+1]["start"]-current_start
             chunks_li[current_idx]["text"] += " " + part["text"]
         
     model = VideoLlavaForConditionalGeneration.from_pretrained("LanguageBind/Video-LLaVA-7B-hf", torch_dtype=torch.float16, cache_dir=MODELS_FOLDER, device_map=WIS_DEVICE)
@@ -236,14 +196,15 @@ def create_clip_description(
         indices = np.arange(0, total_frames, total_frames / 8).astype(int)
         video = read_video_pyav(chunk, indices)
         
-        prompt = "USER: <video>\nDescribe the whole video. ASSISTANT:"
+        prompt = "USER: <video>\nDescribe the whole video, be extremely specific. ASSISTANT:"
+        replace_pro = "USER: \nDescribe the whole video, be extremely specific. ASSISTANT:"
         LOGGER.info("Encoding the input")
         inputs = processor(text=prompt, videos=video, return_tensors="pt").to(WIS_DEVICE)
 
         LOGGER.info("Generating the output")
         out = model.generate(**inputs, max_new_tokens=60)
         LOGGER.info("Decoding the output %s", i)
-        chunks_li[i]["description"] = processor.batch_decode(out, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+        chunks_li[i]["description"] = str(processor.batch_decode(out, skip_special_tokens=True, clean_up_tokenization_spaces=True)).replace(f"['{replace_pro}", "").replace("']","")
         LOGGER.info("Description: %s", chunks_li[i]["description"])
         
     return chunks_li

@@ -35,7 +35,7 @@ if sys.platform.startswith("win"):
     CLIPS_FOLDER = "D:/tmp/clips"
     MODELS_FOLDER = "D:/models"
     WIS_DEVICE = "cuda:0"
-    
+    ANDROID_IMAGE_PATH = "D:/vbox/Lineage.vdi"
     MODEL_SPEC_FOLDERS =  {
         "Systran/faster-whisper-large-v2":"D:/models/models--Systran--faster-whisper-large-v2/snapshots/f0fe81560cb8b68660e564f55dd99207059c092e",
         "facebook/seamless-m4t-v2-large":"D:/models/models--facebook--seamless-m4t-v2-large/snapshots/5f8cc790b19fc3f67a61c105133b20b34e3dcb76"

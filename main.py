@@ -3,7 +3,7 @@ import json
 import os
 import time
 
-from clip_creator.ai import ask_if_comment_in_transcript, find_sections
+from clip_creator.ai import ask_if_comment_in_transcript, find_sections, create_clip_description
 from clip_creator.conf import (
     CLIPS_FOLDER,
     DOWNLOAD_FOLDER,
@@ -99,25 +99,23 @@ def main():
                 videos = videos[: args.numvid]
         # filter out non trending videos
         # videos = [video for video in videos if is_trending(video['id']['videoId'])]
-
-        raw_transcripts = {}
-        formated_transcripts = {}
-        for video in videos:
-            LOGGER.info("getting transcript for video id: %s", video["id"]["videoId"])
-            raw_transcripts[video["id"]["videoId"]] = get_transcript(
-                video["id"]["videoId"]
-            )  # {'text': 'out our other man outs right over here', 'start': 1060.84, 'duration': 3.52}
-            formated_transcripts[video["id"]["videoId"]] = "disabled" if "disabled" == raw_transcripts[video["id"]["videoId"]] else join_transcript(
-                raw_transcripts[video["id"]["videoId"]]
-            )
-            LOGGER.info("Transcript: %s", raw_transcripts[video["id"]["videoId"]])
     else:
-        formated_transcripts = {}
-        raw_transcripts = {}
-        with open("test_files/yt_script_t7crKS9DWaI.txt") as file:
-            formated_transcripts["t7crKS9DWaI"] = file.read()
-        with open("test_files/yt_script_t7crKS9DWaI.json") as file:
-            raw_transcripts["t7crKS9DWaI"] = json.load(file)
+        videos.extend(un_used_videos)
+    ################################
+    # Get Transcripts
+    ################################    
+    raw_transcripts = {}
+    formated_transcripts = {}
+    for video in videos:
+        LOGGER.info("getting transcript for video id: %s", video["id"]["videoId"])
+        raw_transcripts[video["id"]["videoId"]] = get_transcript(
+            video["id"]["videoId"]
+        )  # {'text': 'out our other man outs right over here', 'start': 1060.84, 'duration': 3.52}
+        formated_transcripts[video["id"]["videoId"]] = "disabled" if "disabled" == raw_transcripts[video["id"]["videoId"]] else join_transcript(
+            raw_transcripts[video["id"]["videoId"]]
+        )
+        LOGGER.info("Transcript: %s", raw_transcripts[video["id"]["videoId"]])
+    
 
     ######################################
     # Get video info
@@ -237,6 +235,16 @@ def main():
         else:
             clips[id] = None
         LOGGER.info("Clips: %s", clips[id])
+        
+    #######################################
+    # Use ai to describe the video
+    #######################################    
+    video_descriptions = {}
+    if not args.noai:
+        for id, script in raw_transcripts.items():
+            video_descriptions[id] = create_clip_description(f"{DOWNLOAD_FOLDER}/{id}.mp4", script)
+            
+    
     ######################################
     # Find comment section in video #2 Reason to CLIP
     ######################################
@@ -261,7 +269,7 @@ def main():
     if not args.noai:
         found_sections = {}
         starting_timestamps = {}
-        for id, script in formated_transcripts.items():
+        for id, script in video_descriptions.items():
             for type_phases in SECTIONS_TYPES:
                 found_sections[id] = find_sections(script, type_phases)
                 starting_timestamps[id] = find_text_sec(
