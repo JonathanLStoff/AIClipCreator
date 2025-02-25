@@ -84,7 +84,7 @@ def get_latest_videos(channel_id, used_ids, video_df_info, max_results=10):
         time.sleep(0.5)
         if entry == []:
             continue
-        if entry["id"]["videoId"] not in used_ids:
+        if entry.get("id", {}).get("videoId") not in used_ids and entry.get("id", {}).get("videoId"):
             length_vid = 0
             if entry["id"]["videoId"] in video_df_info.index.values:
                 LOGGER.info("Video already exists in the database")
@@ -287,8 +287,7 @@ def get_transcript(video_id):
         transcript = youtube_transcript_api.YouTubeTranscriptApi.get_transcript(
             video_id
         )
-        # Format transcript as a string:
-        # transcript_text = " ".join([entry['text'] for entry in transcript])
+        
         return transcript
     except youtube_transcript_api.TranscriptsDisabled:
         LOGGER.info("Transcripts are disabled for this video.")
@@ -350,11 +349,12 @@ def get_top_comment(comments: list[dict], max_words: int, creator: str) -> str:
     """Get the top comment from a list of comments."""
     top_comment = ""
     top_comment_upvotes = 0
+    top_ts_comment_uv = 0
     running_average = 0
     for i, comment in enumerate(comments):
         if i == 0:
             running_average = comment.get("likeCount", 0)
-        else:  
+        else:
             running_average = (running_average * i + comment.get("likeCount", 0))/(i+1)
     LOGGER.info("Running average: %s", running_average)
     for comment in comments:    
@@ -370,10 +370,12 @@ def get_top_comment(comments: list[dict], max_words: int, creator: str) -> str:
                 LOGGER.info("Top comment found: %s, vid creator: %s", comment, creator)
                 top_comment = str(comment["text"])
                 top_comment_upvotes = upvotes
-            if upvotes > running_average * 2:
+                
+            if upvotes > running_average * 3 and upvotes > top_ts_comment_uv:
                 if find_timestamps(comment["text"]):
+                    top_ts_comment_uv = upvotes
                     top_comment = str(comment["text"])
-                    break
+                    
     print(top_comment_upvotes)
     return top_comment
 

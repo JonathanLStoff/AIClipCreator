@@ -1,7 +1,8 @@
 import os
 import time
+import traceback
 from datetime import datetime
-from clip_creator.conf import CHROME_USER_PATH, LOGGER
+from clip_creator.conf import CHROME_USER_PATH, LOGGER, GOOGLE_ACCOUNT_NAME, CONFIG
 from clip_creator.social.google_login import login_with_google_account
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -10,9 +11,11 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.action_chains import ActionChains
+import math
 
 
-def upload_video(video_path: str, schedule: datetime | None = None, description: str = "", submit: bool = False):
+def upload_video_tt(video_path: str, schedule: datetime | None = None, description: str = "", submit: bool = False):
     """
     Uploads a video to TikTok using the TikTok API.
 
@@ -20,7 +23,7 @@ def upload_video(video_path: str, schedule: datetime | None = None, description:
         video_path: The path to the video file.
         title: The title of the video.
         
-        schedule: The scheduled date and time for the video (optional).
+        schedule: The scheduled time for the video (optional).
 
     Returns:
         A dictionary containing the API response, or None if an error occurs.  Prints error details to console.
@@ -33,14 +36,16 @@ def upload_video(video_path: str, schedule: datetime | None = None, description:
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     actual_user_data_dir = driver.capabilities.get("userDataDir")
+    
+    wait = WebDriverWait(driver, 60)
     LOGGER.info(actual_user_data_dir)
     try:
         driver.get("https://www.tiktok.com/tiktokstudio/upload?from=webapp")
-        #time.sleep(120)
         LOGGER.info("Navigated to TikTok Studio upload page successfully.")
         element_goog = check_google_continue_button(driver)
         if element_goog:
             login_with_google_account(driver=driver, element_goog=element_goog)
+            
             
         file_input = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.XPATH, "//input[@type='file' and @accept='video/*']"))
@@ -54,7 +59,7 @@ def upload_video(video_path: str, schedule: datetime | None = None, description:
         else:
             LOGGER.error(f"File not found: {video_path}")
             return None
-        set_draftjs_text(driver, description)
+        set_draftjs_text(driver, description, wait)
         if schedule:
             # Select the "Schedule" radio option
             span_element = WebDriverWait(driver, 10).until(
@@ -62,52 +67,37 @@ def upload_video(video_path: str, schedule: datetime | None = None, description:
             )
             span_element.click()
             LOGGER.info("Selected the 'Schedule' option.")
-            # Allow access to save the video
-            allow_button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[.//div[contains(text(), 'Allow')]]"))
-            )
-            allow_button.click()
-            # Set the scheduled date and time
-            input_element = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.CLASS_NAME, "TUXTextInputCore-input"))
-            )
-
-            # Clear the existing value
-            input_element.clear()
-
-            # Format the date and time as HH:MM 24-hour format"
-            new_time = schedule.strftime("%H:%M")
-            # Send the new time
-            input_element.send_keys(new_time)
-            
-            input_element = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.CLASS_NAME, "TUXTextInputCore-input"))
-            )
-
-            # Clear the existing value
-            input_element.clear()
-            # Format the date as MM/DD/YYYY
-            new_date = schedule.strftime("%Y-%m-%d")
-            # Send the new date
-            input_element.send_keys(new_date)
-            LOGGER.info(f"Set scheduled date and time: {schedule}")
+            _set_schedule_video(driver, schedule)
             if submit:
+                file_size = os.path.getsize(video_path) / (1024 * 1024)
+                expected_text = f"Uploaded（{file_size:.2f}MB"
+                LOGGER.info(f"Waiting for text: {expected_text}")
+                #wait.until(EC.text_to_be_present_in_element((By.XPATH, "//span[contains(@class, 'TUXText--tiktok-sans')]"), expected_text))
                 # Click the "Schedule" button
+                time.sleep(5)
                 schedule_button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.XPATH, "//button[.//div[contains(text(), 'Schedule')]]"))
                 )
                 schedule_button.click()
+            else:
+                time.sleep(600)
         elif submit:
+            file_size = os.path.getsize(video_path) / (1024 * 1024)
+            expected_text = f"Uploaded（{file_size:.2f}MB）"
+            #wait.until(EC.text_to_be_present_in_element((By.XPATH, "//span[contains(@class, 'TUXText--tiktok-sans')]"), expected_text))
             # Click the "Post" button
+            time.sleep(5)
             post_button = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((By.XPATH, "//button[.//div[contains(text(), 'Post')]]"))
             )
             post_button.click()
-            
+        else:
+            time.sleep(600)    
+        time.sleep(10)
         # Additional automation steps for uploading the video can be added here.
         return {"status": "success", "message": "Opened TikTok upload page."}
     except Exception as e:
-        LOGGER.error(f"Failed to open TikTok upload page: {e}")
+        LOGGER.error(f"Failed to open TikTok upload page: {traceback.format_exc()}")
         return None
     finally:
         driver.quit()
@@ -119,8 +109,8 @@ def check_google_continue_button(driver):
         element = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.XPATH, "//div[@style='font-size: 15px;'][contains(text(), 'Continue with Google')]"))
         )
-        print("Element 'Continue with Google' found!")
-        return element #element was found
+        LOGGER.info("Element 'Continue with Google' found!")
+        return True #element was found
 
     except TimeoutException:
         print("Element 'Continue with Google' not found within the timeout.")
@@ -130,36 +120,227 @@ def check_google_continue_button(driver):
         print(f"An error occurred: {e}")
         return False #error occurred
 
-    finally:
-        driver.quit()
         
-def set_draftjs_text(driver, new_text):
+def set_draftjs_text(driver, new_text, wait):
     """Sets text in a Draft.js editor."""
+    try:
+        editable_div = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@class='notranslate public-DraftEditor-content']")))
+        # Click the div
+        editable_div.click()
+        # Type 30 backspaces followed by the new_text
+        actions = ActionChains(driver)
+        backspaces = 30 * "\b"
+        actions.send_keys(backspaces + new_text).perform()
+    except Exception as e:
+        LOGGER.error(f"An error occurred: {e}")
+def _set_schedule_video(driver, schedule: datetime) -> None:
+    """
+    Sets the schedule of the video
+
+    Parameters
+    ----------
+    driver : selenium.webdriver
+    schedule : datetime.datetime
+        The datetime to set
+    """
+
+    month = schedule.month
+    day = schedule.day
+    hour = schedule.hour
+    minute = schedule.minute
 
     try:
-        editor_element = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CLASS_NAME, "public-DraftEditor-content"))
+        switch = driver.find_element(By.XPATH, CONFIG['selectors']['schedule']['switch'])
+        switch.click()
+        scroll_to_timepicker_options(driver, hour, minute)
+        return
+        
+        click_matching_time_option(driver, hour, "h")
+        switch.click()
+        switch.click()
+        
+        
+        
+        click_matching_time_option(driver, minute, "m")
+        return
+        __date_picker(driver, month, day)
+        __time_picker(driver, hour, minute)
+    except Exception as e:
+        msg = f'Failed to set schedule: {e}'
+        LOGGER.error(msg)
+def __date_picker(driver, month: int, day: int) -> None:
+
+    condition = EC.presence_of_element_located(
+        (By.XPATH, CONFIG['selectors']['schedule']['date_picker'])
         )
+    date_picker = WebDriverWait(driver, CONFIG['implicit_wait']).until(condition)
+    date_picker.click()
 
-        # Clear existing text using JavaScript
-        driver.execute_script("""
-            const editor = arguments[0];
-            editor.innerHTML = '<div data-contents="true"><div class="" data-block="true" data-editor="2udup" data-offset-key="5rs50-0-0"><div data-offset-key="5rs50-0-0" class="public-DraftStyleDefault-block public-DraftStyleDefault-ltr"><span data-offset-key="5rs50-0-0"><span data-text="true"></span></span></div></div></div>';
-        """, editor_element)
+    condition = EC.presence_of_element_located(
+        (By.XPATH, CONFIG['selectors']['schedule']['calendar'])
+    )
+    calendar = WebDriverWait(driver, CONFIG['implicit_wait']).until(condition)
 
-        # Set the new text using JavaScript
-        driver.execute_script("""
-            const editor = arguments[0];
-            const newText = arguments[1];
-            editor.querySelector('span[data-text="true"]').textContent = newText;
-        """, editor_element, new_text)
+    calendar_month = driver.find_element(By.XPATH, CONFIG['selectors']['schedule']['calendar_month']).text
+    n_calendar_month = datetime.strptime(calendar_month, '%B').month
+    if n_calendar_month != month:  # Max can be a month before or after
+        if n_calendar_month < month:
+            arrow = driver.find_elements(By.XPATH, CONFIG['selectors']['schedule']['calendar_arrows'])[-1]
+        else:
+            arrow = driver.find_elements(By.XPATH, CONFIG['selectors']['schedule']['calendar_arrows'])[0]
+        arrow.click()
+    valid_days = driver.find_elements(By.XPATH, CONFIG['selectors']['schedule']['calendar_valid_days'])
 
-        print(f"Text set to: {new_text}")
+    day_to_click = None
+    for day_option in valid_days:
+        if int(day_option.text) == day:
+            day_to_click = day_option
+            break
+    if day_to_click:
+        day_to_click.click()
+    else:
+        raise Exception('Day not found in calendar')
+def click_matching_time_option(driver, target_number, min_or_hour):
+    """
+    Finds time picker options with the specified class, checks if their text matches the
+    target number, and clicks the matching option.
+
+    Args:
+        driver: The Selenium WebDriver instance.
+        target_number: The number to match against the time picker options.
+    """
+    try:
+        wait = WebDriverWait(driver, 10)  # Adjust timeout as needed
+        # Wait until the time picker container exists
+        wait.until(EC.presence_of_element_located((By.XPATH, CONFIG['selectors']['schedule']['time_picker_container'])))
+        input_box = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@class='TUXInputBox']")))
+
+        # Click the input box
+        input_box.click()
+        if min_or_hour == "h":
+            time_options = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//span[@class='tiktok-timepicker-option-text tiktok-timepicker-left']")))
+        else:
+            time_options = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//span[@class='tiktok-timepicker-option-text tiktok-timepicker-right']")))
+            scroll_timepicker_options(driver)
+
+        for i, option in enumerate(time_options):
+            
+            option_text = option.text.strip()
+            try:
+                LOGGER.info(f"Option text: {option_text}")
+                if int(option_text) == int(target_number):
+                    option.click()
+                    LOGGER.info(f"Clicked time option: {target_number}")
+                    return  # Exit after clicking the matching option
+            except ValueError as e:
+                LOGGER.error(f"Skipping non-integer option: {e}") # handles non integer text in the span.
+
+        LOGGER.info(f"Time option '{target_number}' not found.")
 
     except Exception as e:
-        print(f"An error occurred: {e}")
+        LOGGER.info(f"Error finding and clicking time option: {e}")
+        raise # re-raise the exception to stop or handle it in the calling code.
+def scroll_timepicker_options(driver, scroll_amount=10, scroll_iterations=5):
+    """
+    Finds all elements with class "tiktok-timepicker-option-list" and scrolls on them up and down.
 
-    
+    Args:
+        driver: The Selenium WebDriver instance.
+        scroll_amount: The number of pixels to scroll in each iteration.
+        scroll_iterations: The number of scroll up and down iterations.
+    """
+    try:
+        wait = WebDriverWait(driver, 10)  # Adjust timeout as needed
+
+        timepicker_lists = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tiktok-timepicker-option-list")))
+
+        for timepicker_list in timepicker_lists:
+            actions = ActionChains(driver)
+
+            for _ in range(scroll_iterations):
+                # Scroll down
+                actions.move_to_element(timepicker_list).scroll_by_amount(0, scroll_amount).perform()
+                time.sleep(1)  # Add a delay to allow the page to load
+                # Scroll up
+                actions.move_to_element(timepicker_list).scroll_by_amount(0, -scroll_amount).perform()
+
+            print("Scrolled timepicker list.")
+
+    except Exception as e:
+        print(f"Error scrolling timepicker options: {e}")
+        raise # re-raise the exception to stop or handle it in the calling code
+def scroll_to_timepicker_options(driver, hour, min):
+    """
+    Finds all elements with class "tiktok-timepicker-option-list" and scrolls on them up and down.
+
+    Args:
+        driver: The Selenium WebDriver instance.
+        scroll_amount: The number of pixels to scroll in each iteration.
+        scroll_iterations: The number of scroll up and down iterations.
+    """
+    try:
+        wait = WebDriverWait(driver, 10)  # Adjust timeout as needed
+
+        timepicker_lists = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tiktok-timepicker-option-list")))
+
+        for timepicker_list in timepicker_lists:
+            actions = ActionChains(driver)
+            children_count = driver.execute_script("return arguments[0].childElementCount;", timepicker_list)
+            if children_count == 24:
+                actions.move_to_element(timepicker_list).scroll_by_amount(0, -(datetime.now().hour - hour)).perform()
+                LOGGER.info("Scrolled for hour: %s",-(datetime.now().hour - hour))
+            else:
+                adjusted_minute = math.ceil((datetime.now().minute + 15) / 5) * 5
+                actions.move_to_element(timepicker_list).scroll_by_amount(0, -( (adjusted_minute - min)/5)).perform()
+                LOGGER.info("Scrolled for minute: %s",-( (adjusted_minute - min)/5))
+            
+
+            print("Scrolled timepicker list.")
+
+    except Exception as e:
+        print(f"Error scrolling timepicker options: {e}")
+        raise # re-raise the exception to stop or handle it in the calling code
+def __time_picker(driver, hour: int, minute: int) -> None:
+
+    condition = EC.presence_of_element_located(
+        (By.XPATH, CONFIG['selectors']['schedule']['time_picker'])
+        )
+    time_picker = WebDriverWait(driver, CONFIG['implicit_wait']).until(condition)
+    time_picker.click()
+
+    condition = EC.presence_of_element_located(
+        (By.XPATH, CONFIG['selectors']['schedule']['time_picker_container'])
+    )
+    time_picker_container = WebDriverWait(driver, CONFIG['implicit_wait']).until(condition)
+
+    # 00 = 0, 01 = 1, 02 = 2, 03 = 3, 04 = 4, 05 = 5, 06 = 6, 07 = 7, 08 = 8, 09 = 9, 10 = 10, 11 = 11, 12 = 12,
+    # 13 = 13, 14 = 14, 15 = 15, 16 = 16, 17 = 17, 18 = 18, 19 = 19, 20 = 20, 21 = 21, 22 = 22, 23 = 23
+    hour_options = driver.find_elements(By.XPATH, CONFIG['selectors']['schedule']['timepicker_hours'])
+    # 00 == 0, 05 == 1, 10 == 2, 15 == 3, 20 == 4, 25 == 5, 30 == 6, 35 == 7, 40 == 8, 45 == 9, 50 == 10, 55 == 11
+    minute_options = driver.find_elements(By.XPATH, CONFIG['selectors']['schedule']['timepicker_minutes'])
+
+    hour_to_click = hour_options[hour]
+    minute_option_correct_index = int(minute / 5)
+    minute_to_click = minute_options[minute_option_correct_index]
+
+    time.sleep(1) # temporay fix => might be better to use an explicit wait
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", hour_to_click)
+    time.sleep(1) # temporay fix => might be better to use an explicit wait
+    hour_to_click.click()
+
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", minute_to_click)
+    time.sleep(2) # temporary fixed => Might be better to use an explicit wait
+    minute_to_click.click()
+
+    # click somewhere else to close the time picker
+    time_picker.click()
 if __name__ == "__main__":
-    upload_video("/Users/jonathanstoff/Downloads/B0RXp2A_Wv0.mp4", datetime(2025, 2, 23, 12, 0), "Check out this cool video!")
+    # MACOS upload_video("/Users/jonathanstoff/Downloads/B0RXp2A_Wv0.mp4", datetime(2025, 2, 23, 12, 0), "Check out this cool video!")
+    
+    upload_video_tt(
+            "D:/tmp/clips/qCuEQGLtfQ8.mp4",
+            datetime(2025, 2, 24, 22, 35),
+            open("D:/tmp/clips/qCuEQGLtfQ8.txt").read(),
+            submit=False
+        )
     

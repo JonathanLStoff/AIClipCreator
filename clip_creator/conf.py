@@ -1,6 +1,8 @@
 import logging
 import os
 import sys
+from os.path import join
+import toml
 
 API_KEY = [
     os.environ.get("YOUTUBE_API_KEY_1"),
@@ -16,6 +18,7 @@ console_handler = logging.StreamHandler()
 console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 LOGGER.addHandler(console_handler)
 
+CONFIG = toml.load(join("clip_creator/social/", 'config.toml'))
 
 TIKTOK_USERNAME = os.environ.get("TIKTOK_USERNAME")
 TIKTOK_PASSWORD = os.environ.get("TIKTOK_PASSWORD")
@@ -44,7 +47,7 @@ if sys.platform.startswith("win"):
     USER_ACCOUNT = os.environ.get("USERPROFILE")
     USER_ACCOUNT_FOLDER = os.path.basename(USER_ACCOUNT)
     
-    CHROME_USER_PATH = f"C:/Users/{USER_ACCOUNT_FOLDER}/AppData/Local/Google/Chrome/User Data/Default"
+    CHROME_USER_PATH = f"C:/Users/{USER_ACCOUNT_FOLDER}/AppData/Local/Google/Chrome/User Data"
     
     LOGGER.info("Running on Windows")
 elif sys.platform.startswith("darwin"):
@@ -91,3 +94,13 @@ COLOR_PAIRS = {
 YT_MAX_RETRIES = 3
 
 GOOGLE_ACCOUNT_NAME = "clipcityai@gmail.com"
+
+
+
+POSTABLE_TIMES = [
+    [ # Monday
+        [""], # Time frame 1
+        [""], # Time frame 2
+        [""], # Time frame 3
+    ],
+]

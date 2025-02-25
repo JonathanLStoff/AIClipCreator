@@ -4,73 +4,116 @@ import pandas as pd
 
 
 def create_database(db_name="aiclipcreator.db"):
-    """Creates the aiclipcreator database with videos and clips tables."""
+    """Creates or updates the aiclipcreator database with videos, clips, and clip_info tables."""
 
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
 
     try:
-        # Create videos table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS videos (
-                id TEXT PRIMARY KEY,
-                name TEXT,
-                created_at TEXT,  -- Store as ISO 8601 string for datetime
-                updated_at TEXT, -- Store as ISO 8601 string for datetime
-                uploaded_at TEXT, -- Store as ISO 8601 string for datetime
-                transcript TEXT,
-                one_word_most_used TEXT,
-                one_word_count INTEGER,
-                two_word_most_used TEXT,
-                two_word_count INTEGER,
-                three_word_most_used TEXT,
-                three_word_count INTEGER,
-                views INTEGER,
-                likes INTEGER,
-                top_yt_comment TEXT,
-                top_reddit_comment TEXT,
-                reddit_url TEXT,
-                video_creator TEXT
-            )
-        """)
+        # Check and create/update videos table
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='videos'")
+        if cursor.fetchone() is None:
+            cursor.execute("""
+                CREATE TABLE videos (
+                    id TEXT PRIMARY KEY,
+                    name TEXT,
+                    created_at TEXT,
+                    updated_at TEXT,
+                    uploaded_at TEXT,
+                    transcript TEXT,
+                    one_word_most_used TEXT,
+                    one_word_count INTEGER,
+                    two_word_most_used TEXT,
+                    two_word_count INTEGER,
+                    three_word_most_used TEXT,
+                    three_word_count INTEGER,
+                    views INTEGER,
+                    likes INTEGER,
+                    top_yt_comment TEXT,
+                    top_reddit_comment TEXT,
+                    reddit_url TEXT,
+                    video_creator TEXT
+                )
+            """)
+        else:
+            # Check and add missing columns
+            expected_columns = [
+                ("id", "TEXT PRIMARY KEY"), ("name", "TEXT"), ("created_at", "TEXT"), ("updated_at", "TEXT"),
+                ("uploaded_at", "TEXT"), ("transcript", "TEXT"), ("one_word_most_used", "TEXT"),
+                ("one_word_count", "INTEGER"), ("two_word_most_used", "TEXT"), ("two_word_count", "INTEGER"),
+                ("three_word_most_used", "TEXT"), ("three_word_count", "INTEGER"), ("views", "INTEGER"),
+                ("likes", "INTEGER"), ("top_yt_comment", "TEXT"), ("top_reddit_comment", "TEXT"),
+                ("reddit_url", "TEXT"), ("video_creator", "TEXT")
+            ]
+            cursor.execute("PRAGMA table_info(videos)")
+            existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
+            for col_name, col_type in expected_columns:
+                if col_name not in existing_columns:
+                    cursor.execute(f"ALTER TABLE videos ADD COLUMN {col_name} {col_type}")
 
-        # Create clips table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS clips (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                video_id TEXT,
-                start_time INTEGER,
-                end_time INTEGER,
-                clip_transcript TEXT,
-                post_tiktok TEXT, -- Store as ISO 8601 string for datetime or NULL
-                tiktok_url TEXT,
-                post_instagram TEXT, -- Store as ISO 8601 string for datetime or NULL
-                instagram_url TEXT,
-                post_youtube TEXT, -- Store as ISO 8601 string for datetime or NULL
-                youtube_url TEXT,
-                FOREIGN KEY (video_id) REFERENCES videos(id)
-            )
-        """)
-        # Create clip_paths table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS clip_info (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            video_id TEXT,
-            clip_path TEXT,
-            description TEXT,
-            true_transcript TEXT,
-            title TEXT,
-            FOREIGN KEY (video_id) REFERENCES videos(id)
-            )
-        """)
-        
+        # Check and create/update clips table
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='clips'")
+        if cursor.fetchone() is None:
+            cursor.execute("""
+                CREATE TABLE clips (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    video_id TEXT,
+                    start_time INTEGER,
+                    end_time INTEGER,
+                    clip_transcript TEXT,
+                    post_tiktok TEXT,
+                    tiktok_url TEXT,
+                    post_instagram TEXT,
+                    instagram_url TEXT,
+                    post_youtube TEXT,
+                    youtube_url TEXT,
+                    FOREIGN KEY (video_id) REFERENCES videos(id)
+                )
+            """)
+        else:
+            expected_columns = [
+                ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"), ("video_id", "TEXT"), ("start_time", "INTEGER"),
+                ("end_time", "INTEGER"), ("clip_transcript", "TEXT"), ("post_tiktok", "TEXT"),
+                ("tiktok_url", "TEXT"), ("post_instagram", "TEXT"), ("instagram_url", "TEXT"),
+                ("post_youtube", "TEXT"), ("youtube_url", "TEXT")
+            ]
+            cursor.execute("PRAGMA table_info(clips)")
+            existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
+            for col_name, col_type in expected_columns:
+                if col_name not in existing_columns:
+                    cursor.execute(f"ALTER TABLE clips ADD COLUMN {col_name} {col_type}")
+
+        # Check and create/update clip_info table
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='clip_info'")
+        if cursor.fetchone() is None:
+            cursor.execute("""
+                CREATE TABLE clip_info (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    video_id TEXT,
+                    clip_path TEXT,
+                    description TEXT,
+                    true_transcript TEXT,
+                    title TEXT,
+                    FOREIGN KEY (video_id) REFERENCES videos(id)
+                )
+            """)
+        else:
+            expected_columns = [
+                ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"), ("video_id", "TEXT"), ("clip_path", "TEXT"),
+                ("description", "TEXT"), ("true_transcript", "TEXT"), ("title", "TEXT")
+            ]
+            cursor.execute("PRAGMA table_info(clip_info)")
+            existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
+            for col_name, col_type in expected_columns:
+                if col_name not in existing_columns:
+                    cursor.execute(f"ALTER TABLE clip_info ADD COLUMN {col_name} {col_type}")
 
         conn.commit()
-        print(f"Database '{db_name}' created successfully.")
+        print(f"Database '{db_name}' created or updated successfully.")
 
     except sqlite3.Error as e:
         print(f"An error occurred: {e}")
-        conn.rollback()  # Rollback changes in case of error
+        conn.rollback()
 
     finally:
         conn.close()
@@ -99,21 +142,48 @@ def add_clip_info(info_data, db_name="aiclipcreator.db"):
         if not all(key in info_data for key in required_keys):
             raise ValueError("Missing required keys in info_data")
 
+        # Check if an entry for the given video_id and clip_path exists
         cursor.execute(
             """
-            INSERT INTO clip_info (video_id, clip_path, description, true_transcript, title)
-            VALUES (?, ?, ?, ?, ?)
+            SELECT id FROM clip_info WHERE video_id = ? AND clip_path = ?
             """,
-            (
-                info_data["video_id"],
-                info_data["clip_path"],
-                info_data["description"],
-                info_data["true_transcript"],
-                info_data["title"],
-            ),
+            (info_data["video_id"], info_data["clip_path"]),
         )
+        existing = cursor.fetchone()
+
+        if existing:
+            clip_info_id = existing[0]
+            cursor.execute(
+                """
+                UPDATE clip_info
+                SET description = ?, true_transcript = ?, title = ?
+                WHERE id = ?
+                """,
+                (
+                    info_data["description"],
+                    info_data["true_transcript"],
+                    info_data["title"],
+                    clip_info_id
+                ),
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO clip_info (video_id, clip_path, description, true_transcript, title)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    info_data["video_id"],
+                    info_data["clip_path"],
+                    info_data["description"],
+                    info_data["true_transcript"],
+                    info_data["title"],
+                ),
+            )
+            clip_info_id = cursor.lastrowid
+
         conn.commit()
-        return cursor.lastrowid
+        return clip_info_id
 
     except sqlite3.Error as e:
         print(f"Database error: {e}")
@@ -453,3 +523,58 @@ def find_clip(video_id, start_time, db_path="aiclipcreator.db"):
         if conn:
             conn.close()
         return None
+def get_all_clips_df(db_name="aiclipcreator.db"):
+    """
+    Retrieves all rows from the clips table into a pandas DataFrame.
+
+    Args:
+        db_name: Name of the SQLite database file.
+
+    Returns:
+        A pandas DataFrame containing all rows from the clips table.
+    """
+    try:
+        conn = sqlite3.connect(db_name)
+        df = pd.read_sql_query("SELECT * FROM clips", conn)
+        return df
+    except Exception as e:
+        print(f"Error: {e}")
+        return pd.DataFrame()
+    finally:
+        if conn:
+            conn.close()
+def update_post_status(video_id, platform, status, db_path="aiclipcreator.db"):
+    """
+    Updates the post status (post_tiktok, post_instagram, post_youtube) for a given video_id.
+
+    Args:
+        db_path (str): Path to the SQLite database file.
+        video_id (str): The video_id to identify the row.
+        platform (str): The platform to update ('tiktok', 'instagram', or 'youtube').
+        status (str): The new status ('True' or 'False' or other values as needed).
+    Returns:
+        bool: True if the update was successful, False otherwise.
+    """
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        platform_column = f"post_{platform}"
+
+        
+        cursor.execute(f"""
+                UPDATE clips
+                SET {platform_column} = ?
+                WHERE video_id = ?
+            """, (status, video_id))
+
+        conn.commit()
+        return True
+
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+        return False
+
+    finally:
+        if conn:
+            conn.close()

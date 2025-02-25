@@ -3,6 +3,8 @@ import json
 import os
 import time
 
+from datetime import datetime
+
 from clip_creator.ai import ask_if_comment_in_transcript, find_sections, create_clip_description
 from clip_creator.conf import (
     CLIPS_FOLDER,
@@ -19,12 +21,16 @@ from clip_creator.db.db import (
     find_clip,
     add_clip_info,
     get_all_video_ids,
-    get_all_videos_df
+    get_all_videos_df,
+    get_all_clips_df,
+    update_post_status
 )
 from clip_creator.social.reddit import check_top_comment, search_reddit
-from clip_creator.social.tiktok import post_to_tiktok
+from clip_creator.social.custom_tiktok import upload_video_tt
+from clip_creator.social.insta import InstaGramUp
 from clip_creator.utils.files import copy_to_tmp, save_space
 from clip_creator.utils.path_setup import check_and_create_dirs, get_unused_videos
+from clip_creator.utils.schedules import get_timestamps
 from clip_creator.utils.scan_text import (
     clean_text,
     convert_timestamp_to_seconds,
@@ -101,6 +107,8 @@ def main():
         # videos = [video for video in videos if is_trending(video['id']['videoId'])]
     else:
         videos.extend(un_used_videos)
+    with open("running_videos.json", "w") as f:
+        json.dump(videos, f)
     ################################
     # Get Transcripts
     ################################    
@@ -330,6 +338,26 @@ def main():
         if reddit_comments[id]:
             best_comment[id] = str(top_reddit_comment[id])
     ######################################
+    # Compile Description
+    ######################################
+    descriptions = {}
+    for id, script in formated_transcripts.items():
+        descriptions[id] = (
+            "#fyp #gaming #clip #fyppppppppppppp\ncredit"
+            f" {video_info[id]['creator']}'s {video_info[id]['video_name']}"
+        )
+    for id, clipy in clips.items():
+        if clipy:
+            clip_info = {
+                "video_id": id,
+                "clip_path": clip_paths[id],
+                "description": descriptions[id],
+                "true_transcript": json.dumps(true_transcripts[id]),
+                "title": best_comment[id],
+            }
+            add_clip_info(clip_info)
+    LOGGER.info("Descriptions: %s", descriptions)
+    ######################################
     # Edit Videos
     ######################################
     clip_paths = {}
@@ -368,35 +396,59 @@ def main():
                 "clip_transcript": json.dumps(clip),
             }
             create_or_update_clip(clip_dict)
-    ######################################
-    # Compile Description
-    ######################################
-    descriptions = {}
-    for id, script in formated_transcripts.items():
-        descriptions[id] = (
-            "#fyp #gaming #clip #fyppppppppppppp\ncredit"
-            f" {video_info[id]['creator']}'s {video_info[id]['video_name']}"
-        )
-    for id, clipy in clips.items():
-        if clipy:
-            clip_info = {
-                "video_id": id,
-                "clip_path": clip_paths[id],
-                "description": descriptions[id],
-                "true_transcript": json.dumps(true_transcripts[id]),
-                "title": best_comment[id],
-            }
-            add_clip_info(clip_info)
-    LOGGER.info("Descriptions: %s", descriptions)
-    ########################################
-    # Post to TikTok
-    ########################################
-    for id, clipy in clips.items():
-        if clipy:
             with open(clip_paths[id].replace("mp4", "txt"), "w") as f:
                 f.write(descriptions[id])
-            #post_to_tiktok(clip_paths[id], title=descriptions[id]) #add schedule
-            # add to db when is scheduled
+    ########################################
+    # Check for unused clips
+    ########################################
+    clips_df = get_all_clips_df()
+    for clip in clips_df.to_dict(orient="records"):
+        if not clip["post_tiktok"] and os.path.exists(f"{CLIPS_FOLDER}/{clip['video_id']}.mp4"):
+            clip_paths[clip["video_id"]] = f"{CLIPS_FOLDER}/{clip['video_id']}.mp4"
+            descriptions[clip["video_id"]] = open(f"{CLIPS_FOLDER}/{clip['video_id']}.txt", "r").read()
+            clips[clip["video_id"]] = json.loads(clip["clip_transcript"])
+            clip_info = {
+                "video_id": clip["video_id"],
+                "clip_path": clip_paths[clip["video_id"]],
+                "description": descriptions[clip["video_id"]],
+                #"true_transcript": json.dumps(true_transcripts[id]),
+                #"title": best_comment[id],
+            }
+            add_clip_info(clip_info)
+    ########################################
+    # Calc time to post
+    ########################################
+    schedules = {}
+    number_clips = 0
+    for id, clip in clips.items():
+        if clip:
+            number_clips += 1
+    allsched = get_timestamps(number_clips-1)
+    allsched_idx = 0
+    for id, clip in clips.items():
+        if clip:
+            if allsched_idx < len(allsched):
+
+                schedules[id] = allsched[allsched_idx]
+                allsched_idx += 1
+            else:
+                LOGGER.error("Not enough timestamps for %s", id)
+                schedules[id] = None
+        else:
+            schedules[id] = None
+    
+        
+    ########################################
+    # Post to TikTok & Instagram
+    ########################################
+    insta = InstaGramUp()
+    for id, clipy in clips.items():
+        if clipy:
+            upload_video_tt(clip_paths[id], schedules[id], descriptions[id], submit=True)
+            update_post_status(id, "tiktok", schedules[id].strftime("%Y-%m-%d %H:%M:%S"))
+            #insta.upload_to_insta(clip_paths[id], descriptions[id])
+            #update_post_status(id, "instagram", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            
     
 
 if __name__ == "__main__":
