@@ -1,10 +1,11 @@
 import datetime
 import sqlite3
 import pandas as pd
+import json
 
 
 def create_database(db_name="aiclipcreator.db"):
-    """Creates or updates the aiclipcreator database with videos, clips, and clip_info tables."""
+    """Creates or updates the aiclipcreator database with videos, clips, clip_info, and error_log tables."""
 
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
@@ -108,6 +109,28 @@ def create_database(db_name="aiclipcreator.db"):
                 if col_name not in existing_columns:
                     cursor.execute(f"ALTER TABLE clip_info ADD COLUMN {col_name} {col_type}")
 
+        # Check and create/update error_log table
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='error_log'")
+        if cursor.fetchone() is None:
+            cursor.execute("""
+                CREATE TABLE error_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    video_id TEXT,
+                    log TEXT,
+                    datetime TEXT,
+                    error_type TEXT
+                )
+            """)
+        else:
+            expected_columns = [
+                ("id", "INTEGER PRIMARY KEY AUTOINCREMENT"), ("video_id", "TEXT"), ("log", "TEXT"), ("datetime", "TEXT"), ("error_type", "TEXT")
+            ]
+            cursor.execute("PRAGMA table_info(error_log)")
+            existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
+            for col_name, col_type in expected_columns:
+                if col_name not in existing_columns:
+                    cursor.execute(f"ALTER TABLE error_log ADD COLUMN {col_name} {col_type}")
+
         conn.commit()
         print(f"Database '{db_name}' created or updated successfully.")
 
@@ -118,6 +141,47 @@ def create_database(db_name="aiclipcreator.db"):
     finally:
         conn.close()
 
+
+def add_error_log(vid, error_type, error, db_name="aiclipcreator.db"):
+    """
+    Adds a new row to the error_log table.
+
+    Args:
+        db_name (str): The name of the database file.
+        video_id (str): The ID of the video associated with the error.
+        log_data (dict or str): The error log data (can be a dictionary or a string).
+    """
+    conn = sqlite3.connect(db_name)
+    cursor = conn.cursor()
+
+    try:
+        current_datetime = datetime.datetime.now().isoformat()
+        if isinstance(error, dict):
+            log_json = json.dumps(error)  # Serialize dictionary to JSON string
+        elif isinstance(error, list):
+            log_json = json.dumps(error)
+        elif isinstance(error, str):
+            log_json = error
+        else:
+            log_json = json.dumps({"error": "log_data must be dict or str"})
+
+        cursor.execute(
+            """
+            INSERT INTO error_log (video_id, log, datetime, error_type)
+            VALUES (?, ?, ?, ?)
+            """,
+            (vid, log_json, current_datetime, error_type),
+        )
+
+        conn.commit()
+        print("Error log added successfully.")
+
+    except sqlite3.Error as e:
+        print(f"An error occurred while adding error log: {e}")
+        conn.rollback()
+
+    finally:
+        conn.close()
 def add_clip_info(info_data, db_name="aiclipcreator.db"):
     """
     Inserts a new row into the clip_info table.

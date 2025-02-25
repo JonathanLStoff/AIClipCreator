@@ -104,3 +104,5 @@ POSTABLE_TIMES = [
         [""], # Time frame 3
     ],
 ]
+
+ERRORS_TYPES = ["minor", "major", "critical"]

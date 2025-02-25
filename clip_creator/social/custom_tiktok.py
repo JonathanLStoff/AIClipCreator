@@ -282,20 +282,58 @@ def scroll_to_timepicker_options(driver, hour, min):
         wait = WebDriverWait(driver, 10)  # Adjust timeout as needed
 
         timepicker_lists = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "tiktok-timepicker-option-list")))
-
+        script = """
+                    function simulateWheel(element, deltaX, deltaY, deltaZ) {
+                    var event = new WheelEvent('wheel', {
+                        deltaX: deltaX,
+                        deltaY: deltaY,
+                        deltaZ: deltaZ,
+                        bubbles: true,
+                        cancelable: true,
+                        view: window
+                    });
+                    element.dispatchEvent(event);
+                    }
+                    simulateWheel(arguments[0], arguments[1], arguments[2], arguments[3]);
+                """
         for timepicker_list in timepicker_lists:
-            actions = ActionChains(driver)
+            
             children_count = driver.execute_script("return arguments[0].childElementCount;", timepicker_list)
+            parent_element = driver.execute_script("return arguments[0].parentElement;", timepicker_list)
+            
+            LOGGER.info("Parent element found with tag: %s", parent_element.tag_name)
+            
+            time.sleep(1)
             if children_count == 24:
-                actions.move_to_element(timepicker_list).scroll_by_amount(0, -(datetime.now().hour - hour)).perform()
+                mins_to_scroll = -(datetime.now().hour+1 - hour) if datetime.now().minute > 40 else  -(datetime.now().hour - hour)
+                # Execute the JavaScript, passing the element and delta values
+                for i in range(abs(mins_to_scroll)):
+                    driver.execute_script(script, parent_element, 0, mins_to_scroll*10000, 0)
+                    time.sleep(.2)
                 LOGGER.info("Scrolled for hour: %s",-(datetime.now().hour - hour))
+                LOGGER.info("hour: %s", hour)
             else:
-                adjusted_minute = math.ceil((datetime.now().minute + 15) / 5) * 5
-                actions.move_to_element(timepicker_list).scroll_by_amount(0, -( (adjusted_minute - min)/5)).perform()
-                LOGGER.info("Scrolled for minute: %s",-( (adjusted_minute - min)/5))
+                # Execute the JavaScript, passing the element and delta values
+                if datetime.now().minute > 55:
+                    tmp_min = 15
+                elif datetime.now().minute > 50:
+                    tmp_min = 10
+                elif datetime.now().minute > 45:
+                    tmp_min = 5
+                elif datetime.now().minute > 40:
+                    tmp_min = 0
+                else:
+                    tmp_min = math.ceil((datetime.now().minute + 15) / 5) * 5
+                
+                mins_to_scroll = -int((tmp_min - min)/5)
+                for i in range(abs(mins_to_scroll)):
+                    driver.execute_script(script, parent_element, 0, mins_to_scroll*10000, 0)
+                    time.sleep(.2)
+                
+                LOGGER.info("Scrolled for minute: %s",mins_to_scroll)
+                LOGGER.info("minute: %s", min)
             
 
-            print("Scrolled timepicker list.")
 
     except Exception as e:
         print(f"Error scrolling timepicker options: {e}")
