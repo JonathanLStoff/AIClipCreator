@@ -2,6 +2,16 @@ import shutil
 import os
 import time
 from clip_creator.conf import LOGGER
+def clean_up_files():
+    """
+    Remove the files needed
+    """
+    for file in os.listdir("tmp"):
+        if file.endswith(".mp4") or file.endswith(".mp3"):
+            try:
+                os.remove(f"tmp/{file}")
+            except Exception as e:
+                LOGGER.error(f"Error removing file: {e}")
 def copy_to_tmp(dl_fl:str, tmp_dl_fl:str):
     """
     Remove the files needed

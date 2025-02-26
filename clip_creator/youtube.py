@@ -348,6 +348,7 @@ def get_comments(video_id, max_comments=100):  # Added max_comments
 def get_top_comment(comments: list[dict], max_words: int, creator: str) -> str:
     """Get the top comment from a list of comments."""
     top_comment = ""
+    backup_comment = ""
     top_comment_upvotes = 0
     top_ts_comment_uv = 0
     running_average = 0
@@ -370,14 +371,13 @@ def get_top_comment(comments: list[dict], max_words: int, creator: str) -> str:
                 LOGGER.info("Top comment found: %s, vid creator: %s", comment, creator)
                 top_comment = str(comment["text"])
                 top_comment_upvotes = upvotes
-                
+                backup_comment = top_comment
             if upvotes > running_average * 3 and upvotes > top_ts_comment_uv:
                 if find_timestamps(comment["text"]):
                     top_ts_comment_uv = upvotes
                     top_comment = str(comment["text"])
                     
-    print(top_comment_upvotes)
-    return top_comment
+    return top_comment, backup_comment
 
 
 if __name__ == "__main__":

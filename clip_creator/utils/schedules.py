@@ -13,8 +13,10 @@ def get_timestamps(sections: int) -> list:
     If sections is 3, for example, the interval is divided into 3 equal parts,
     resulting in 4 timestamps (including both endpoints).
     """
-    sh = 5 if datetime.now().hour < 5 else datetime.now().hour if datetime.now().min < 40 else datetime.now().hour + 1
-    start_minutes = 5 * 60         # 5:00 AM in minutes (300)
+    dtnh = int(datetime.now().hour)
+    dtnm = int(datetime.now().minute)
+    sh = 5 if dtnh < 5 else dtnh if dtnm < 40 else dtnh + 1
+    start_minutes = sh * 60         # 5:00 AM in minutes (300)
     end_minutes = (23 * 60) + 59   # Midnight in minutes (1439)
     total = end_minutes - start_minutes  # Total minutes in the interval
     step = total / sections        # Duration of each section in minutes

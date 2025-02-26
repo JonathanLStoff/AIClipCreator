@@ -1,7 +1,7 @@
 import re
 from collections import Counter
 
-from clip_creator.conf import LOGGER, RM_TIMESTAMP_REGEX, TIMESTAMP_REGEX
+from clip_creator.conf import LOGGER, RM_TIMESTAMP_REGEX, TIMESTAMP_REGEX, CURSE_WORDS
 
 
 def most_common_ngrams(text, n=3):
@@ -90,6 +90,25 @@ def find_timestamp_clips(raw_transcript: list, timestamp: int) -> list[dict]:
             clip.append(section)
     return clip
 
+def find_bad_words(true_transcript: list[dict]) -> (list[list[int]], list[dict]):
+    """
+    Find bad words in a text.
+    """
+    bad_words = []
+    ftranscript = []
+    for word_dict in true_transcript:
+        word = word_dict.get("text", "").strip().lower()
+        if word in CURSE_WORDS:
+            bad_words.append(
+                    [
+                        int(float(word_dict.get("start", 0)) * 1000)+50,
+                        int(float(word_dict.get("start", 0)) * 1000)+int(float(word_dict.get("duration", 1)) * 1000)
+                    ]
+                )
+            word_dict["text"] = " ".join(["*" * len(w) for w in word.split()])
+        ftranscript.append(word_dict)
+        
+    return bad_words, ftranscript
 
 def clean_text(text: str) -> str:
     """

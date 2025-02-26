@@ -31,7 +31,7 @@ from clip_creator.db.db import (
 from clip_creator.social.reddit import check_top_comment, search_reddit
 from clip_creator.social.custom_tiktok import upload_video_tt
 from clip_creator.social.insta import InstaGramUp
-from clip_creator.utils.files import copy_to_tmp, save_space
+from clip_creator.utils.files import copy_to_tmp, save_space, clean_up_files
 from clip_creator.utils.path_setup import check_and_create_dirs, get_unused_videos
 from clip_creator.utils.schedules import get_timestamps
 from clip_creator.utils.scan_text import (
@@ -177,11 +177,12 @@ def main():
     # Youtube Comments
     ######################################
     yt_comments = {}
+    backup_yt_comment = {}
     top_yt_comment = {}
     for id, script in formated_transcripts.items():
         try:
             yt_comments[id] = get_comments(id)
-            top_yt_comment[id] = get_top_comment(
+            top_yt_comment[id], backup_yt_comment[id] = get_top_comment(
                 yt_comments[id], 10, video_info[id]["creator"]
             )
             LOGGER.info("Top YT Comment: %s", top_yt_comment[id])
@@ -256,6 +257,8 @@ def main():
             timestamps[id] = find_timestamps(top_yt_comment[id])
             if timestamps[id]:
                 top_yt_comment[id] = clean_text(top_yt_comment[id])
+                if str(top_yt_comment[id]).strip() == "" or not top_yt_comment[id]:
+                    top_yt_comment[id] = backup_yt_comment[id]
                 timestamps[id] = convert_timestamp_to_seconds(timestamps[id])
                 LOGGER.info("Timestamp in sec: %s", timestamps[id])
         except Exception as e:
@@ -506,7 +509,11 @@ def main():
     for id, errors in errors_lot.items():
         for error_type, error in errors.items():
             add_error_log(id, error_type, error)
-
+    ########################################
+    # Clean up
+    ########################################
+    clean_up_files()
+    LOGGER.info("Done")
 if __name__ == "__main__":
     
     main()

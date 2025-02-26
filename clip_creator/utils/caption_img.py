@@ -3,9 +3,28 @@ from queue import Queue
 from tqdm import tqdm
 from threading import Thread
 from random import choice, randint
-from clip_creator.conf import FONT_PATH, LOGGER, COLORS, COLOR_PAIRS
+from clip_creator.conf import FONT_PATH, LOGGER, COLORS, COLOR_PAIRS, CURSE_WORDS
 from PIL import Image, ImageDraw, ImageFont
 
+def remove_curse_words(text: str) -> str:
+    """
+    Removes curse words from a given text.
+    """
+    #LOGGER.info("Removing curse words from text. %s", text)
+    for curse_word in CURSE_WORDS:
+        
+        if isinstance(text, list):
+            tmp_txt = []
+            for word_d in text:
+                if curse_word in word_d.get("text", "").lower():
+                    word_d["text"] =  "*" * len(curse_word)
+                tmp_txt.append(word_d)
+            text = tmp_txt
+        elif isinstance(text, str):
+            replacement = "*" * len(curse_word)
+            text = text.replace(curse_word, replacement)
+            
+    return text
 
 def create_caption_images(prefix: str, captions, max_width, output_dir="."):
     """Creates one image *per line* of wrapped text, highlighting current word.
@@ -56,11 +75,12 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
     for j, line in tqdm(enumerate(lines_text), total=len(lines_text), desc="Create Images"):
         img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
-
+        line = remove_curse_words(line)
         # Calculate line heights
         max_ascent = 0
         max_descent = 0
         for word in line:
+            
             bbox = draw.textbbox((0, padding), word.get("text"), font=font, align="center")
             ascent = padding - bbox[1]
             descent = bbox[3] - padding

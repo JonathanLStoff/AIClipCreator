@@ -3542,6 +3542,17 @@ files = [
 typing-extensions = ">=4.6.0,<4.7.0 || >4.7.0"
 
 [[package]]
+name = "pydub"
+version = "0.25.1"
+description = "Manipulate audio with an simple and easy high level interface"
+optional = false
+python-versions = "*"
+files = [
+    {file = "pydub-0.25.1-py2.py3-none-any.whl", hash = "sha256:65617e33033874b59d87db603aa1ed450633288aefead953b30bded59cb599a6"},
+    {file = "pydub-0.25.1.tar.gz", hash = "sha256:980a33ce9949cab2a569606b65674d748ecbca4f0796887fd6f46173a7b0d30f"},
+]
+
+[[package]]
 name = "pyee"
 version = "12.1.1"
 description = "A rough port of Node.js's EventEmitter to Python with a few tricks of its own"
@@ -5445,4 +5456,4 @@ test = ["pytest (>=8.1,<9.0)", "pytest-rerunfailures (>=14.0,<15.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.12,<3.13"
-content-hash = "4f45a193c9886b2665aec69e1a95f2126903b597a4fdf187671225b828b128e5"
+content-hash = "775fce39b5fcd157ff8034e12f36d2d9bc5f4dd980d58d3476307f7710da14ac"
