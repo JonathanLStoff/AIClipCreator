@@ -146,18 +146,20 @@ def edit_video(
             # Emoji text clip
             emoji_commm = TextClip( #img_width, img_height = size
                 font=E_FONT_PATH,
+                text_align="center",
+                vertical_align="top",
                 method="caption",
                 size=(
                     int(len(emojis) * pixels_per_char),
-                    int(pixels_per_char * 1.5),
+                    int(pixels_per_char*1.2),
                 ),
                 text=emojis.strip(),
-                margin=(5, 20),
+                margin=(20, 20, 20, 20), # (left, top, right, bottom)
                 font_size=90,
                 bg_color="white",
                 color=(255, 0, 0),
                 duration=cropped_clip.duration,
-            ).with_position((text_commm.w/2, int((th / 7) - (text_commm.size[1]/2)))).rotated(rotate_tilt, expand=True) #Place above normal text.
+            ).with_position((text_commm.w/2, int((th / 7) - (text_commm.h/2)))).rotated(rotate_tilt, expand=True) #Place above normal text.
     cropped_clip.audio.write_audiofile(
         audio_file, codec="libmp3lame"
     )

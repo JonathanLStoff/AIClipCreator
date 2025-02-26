@@ -73,7 +73,7 @@ else:
 
 FONT_PATH = "Vercetti Regular/WorkSans-Bold.ttf"
 
-E_FONT_PATH = "Vercetti Regular/NotoEmoji-VariableFont_wght.ttf"
+E_FONT_PATH = "Vercetti Regular/OpenMoji-color-untouchedsvgz.ttf"
 
 COLORS = {
     "black": (0, 0, 0, 255),
