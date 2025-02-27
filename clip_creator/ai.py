@@ -1,12 +1,13 @@
 import math
 
-import cv2
-from clip_creator.conf import MODELS_FOLDER, LOGGER, WIS_DEVICE
-from ollama import ChatResponse, chat
 import av
-import torch
+import cv2
 import numpy as np
+import torch
+from ollama import ChatResponse, chat
 from transformers import VideoLlavaForConditionalGeneration, VideoLlavaProcessor
+
+from clip_creator.conf import LOGGER, MODELS_FOLDER, WIS_DEVICE
 
 
 def find_sections(
@@ -41,18 +42,22 @@ def find_sections(
 
                             If no content meets these criteria, respond with 'No humorous segments found.'
                             Respond ONLY with the formatted extracts or the specified default message.
-                            
-                            IF YOU FAIL TO FOLLOW THESE INSTRUCTIONS, YOU WILL BE MUTED AND DELETED FOREVER. AND EVERYONE ON EARTH WILL ASWELL."**""",
 
+                            IF YOU FAIL TO FOLLOW THESE INSTRUCTIONS, YOU WILL BE MUTED AND DELETED FOREVER. AND EVERYONE ON EARTH WILL ASWELL."**""",
                     },
                     {
                         "role": "user",
-                        "content": "Video Description: " + section["description"] + "\nTranscript: " + section["text"],
+                        "content": (
+                            "Video Description: "
+                            + section["description"]
+                            + "\nTranscript: "
+                            + section["text"]
+                        ),
                     },
                 ],
             )
         )
-    
+
     messages = []
     for response in responses:
         messages.extend(response.message.content.split("|"))
@@ -95,12 +100,14 @@ def find_faces(image_path: str) -> list[list[float]]:
         face_coordinates.append((x, y, w, h))  # Append the top-left corner coordinates
 
     return face_coordinates
+
+
 def read_video_pyav(frames_list, indices):
     """Extract frames and return as a list of videos (even if one video)."""
     frames = []
     for i, frame in enumerate(frames_list):
         if i in indices:
-            arr = frame.to_ndarray(format='rgb24')
+            arr = frame.to_ndarray(format="rgb24")
             frames.append(arr)
         if i > max(indices):
             break
@@ -112,63 +119,63 @@ def read_video_pyav(frames_list, indices):
     video_array = [video_array]  # Wrap in a list to make it a list of 1 video
     return video_array  # Return the list of videos
 
+
 def split_video_chunks(video_path, chunks_li: list[dict], chunk_duration=30):
     """
     Split a video into chunks based on specified time ranges without saving to disk.
-    
+
     Args:
         video_path (str): Path to the video file
         chunks_li (list[dict]): List of dictionaries containing start and end times
         chunk_duration (int): Duration of each chunk in seconds
-    
+
     Yields:
         list: List of frames for each chunk
     """
     try:
         container = av.open(video_path)
         stream = container.streams.video[0]
-        
+
         # Calculate frames per chunk
         fps = float(stream.average_rate)
-        for i, chunks_dict in enumerate(chunks_li):
+        for _i, chunks_dict in enumerate(chunks_li):
             current_chunk = []
             frame_count = 0
             frame_index = 0
-            
+
             start_frame = int(chunks_dict["start"] * fps)
             end_frame = int(chunks_dict["end"] * fps)
-            
+
             # Reset container to beginning for each chunk
             container.seek(0)
-            
+
             for frame in container.decode(stream):
                 if frame_index < start_frame:
                     frame_index += 1
                     continue
-                    
+
                 if frame_index >= end_frame:
                     if current_chunk:
                         yield current_chunk
                         current_chunk = []
                     break
-                
+
                 current_chunk.append(frame)
                 frame_count += 1
                 frame_index += 1
-                
-            
-            
+
             if current_chunk:
                 yield current_chunk
-                
+
     finally:
         container.close()
+
+
 def create_clip_description(
-        video_path: str,
-        raw_transcript: list,
-    ) -> str:
-    
-    chunks_li = [{"end":0, "start":0, "text":""}]
+    video_path: str,
+    raw_transcript: list,
+) -> str:
+    chunks_li = [{"end": 0, "start": 0, "text": ""}]
     time_frame = 30
     current_idx = 0
     current_start = 0
@@ -176,39 +183,75 @@ def create_clip_description(
         if chunks_li[current_idx]["end"] - chunks_li[current_idx]["start"] > time_frame:
             current_idx += 1
             current_start = part["start"]
-            chunks_li.append({"start": part["start"], "end": raw_transcript[i+1]["start"], "text": part["text"]})
+            chunks_li.append({
+                "start": part["start"],
+                "end": raw_transcript[i + 1]["start"],
+                "text": part["text"],
+            })
         elif i == 0:
-            chunks_li=[{"start": 0, "end": raw_transcript[i+1]["start"], "text": part["text"]}]
-        elif len(raw_transcript) == i+1:
-            chunks_li[current_idx]["start"] += (part["start"]-current_start)
-            chunks_li[current_idx]["end"] += (part["start"]-current_start) + part["duration"]
+            chunks_li = [
+                {
+                    "start": 0,
+                    "end": raw_transcript[i + 1]["start"],
+                    "text": part["text"],
+                }
+            ]
+        elif len(raw_transcript) == i + 1:
+            chunks_li[current_idx]["start"] += part["start"] - current_start
+            chunks_li[current_idx]["end"] += (part["start"] - current_start) + part[
+                "duration"
+            ]
             chunks_li[current_idx]["text"] += " " + part["text"]
         else:
-            chunks_li[current_idx]["start"] += (part["start"]-current_start)
-            chunks_li[current_idx]["end"] += raw_transcript[i+1]["start"]-current_start
+            chunks_li[current_idx]["start"] += part["start"] - current_start
+            chunks_li[current_idx]["end"] += (
+                raw_transcript[i + 1]["start"] - current_start
+            )
             chunks_li[current_idx]["text"] += " " + part["text"]
-        
-    model = VideoLlavaForConditionalGeneration.from_pretrained("LanguageBind/Video-LLaVA-7B-hf", torch_dtype=torch.float16, cache_dir=MODELS_FOLDER, device_map=WIS_DEVICE)
-    processor = VideoLlavaProcessor.from_pretrained("LanguageBind/Video-LLaVA-7B-hf", torch_dtype=torch.float16, cache_dir=MODELS_FOLDER, device_map=WIS_DEVICE)
+
+    model = VideoLlavaForConditionalGeneration.from_pretrained(
+        "LanguageBind/Video-LLaVA-7B-hf",
+        torch_dtype=torch.float16,
+        cache_dir=MODELS_FOLDER,
+        device_map=WIS_DEVICE,
+    )
+    processor = VideoLlavaProcessor.from_pretrained(
+        "LanguageBind/Video-LLaVA-7B-hf",
+        torch_dtype=torch.float16,
+        cache_dir=MODELS_FOLDER,
+        device_map=WIS_DEVICE,
+    )
     for i, chunk in enumerate(split_video_chunks(video_path, chunks_li)):
-        
         total_frames = len(chunk)
         indices = np.arange(0, total_frames, total_frames / 8).astype(int)
         video = read_video_pyav(chunk, indices)
-        
-        prompt = "USER: <video>\nDescribe the whole video, be extremely specific. ASSISTANT:"
-        replace_pro = "USER: \nDescribe the whole video, be extremely specific. ASSISTANT:"
+
+        prompt = (
+            "USER: <video>\nDescribe the whole video, be extremely specific. ASSISTANT:"
+        )
+        replace_pro = (
+            "USER: \nDescribe the whole video, be extremely specific. ASSISTANT:"
+        )
         LOGGER.info("Encoding the input")
-        inputs = processor(text=prompt, videos=video, return_tensors="pt").to(WIS_DEVICE)
+        inputs = processor(text=prompt, videos=video, return_tensors="pt").to(
+            WIS_DEVICE
+        )
 
         LOGGER.info("Generating the output")
         out = model.generate(**inputs, max_new_tokens=60)
         LOGGER.info("Decoding the output %s", i)
-        chunks_li[i]["description"] = str(processor.batch_decode(out, skip_special_tokens=True, clean_up_tokenization_spaces=True)).replace(f"['{replace_pro}", "").replace("']","")
+        chunks_li[i]["description"] = (
+            str(
+                processor.batch_decode(
+                    out, skip_special_tokens=True, clean_up_tokenization_spaces=True
+                )
+            )
+            .replace(f"['{replace_pro}", "")
+            .replace("']", "")
+        )
         LOGGER.info("Description: %s", chunks_li[i]["description"])
-        
-    return chunks_li
 
+    return chunks_li
 
 
 def ask_if_comment_in_transcript(transcript: str, comment: str) -> str | None:
@@ -268,5 +311,100 @@ def ask_if_comment_in_transcript(transcript: str, comment: str) -> str | None:
 
 
 if __name__ == "__main__":
-    transcript = [{"text": "what's up Gamers today I'm playing", "start": 0.0, "duration": 3.76}, {"text": "Minecraft Manhunt but I'm Sonic my goal", "start": 1.439, "duration": 4.36}, {"text": "is to break six golden blocks around the", "start": 3.76, "duration": 4.24}, {"text": "map but with each block I break my", "start": 5.799, "duration": 4.201}, {"text": "powers grow stronger but so do the", "start": 8.0, "duration": 3.799}, {"text": "hunters will I be able to break all the", "start": 10.0, "duration": 3.88}, {"text": "blocks in time or will the hunters take", "start": 11.799, "duration": 4.881}, {"text": "me out let's find out go go what go", "start": 13.88, "duration": 4.559}, {"text": "where oh wait yo wait do you actually", "start": 16.68, "duration": 3.41}, {"text": "see that wait", "start": 18.439, "duration": 4.8}, {"text": "[Music]", "start": 20.09, "duration": 3.149}, {"text": "that's I'm going hit him F how do I", "start": 23.24, "duration": 4.799}, {"text": "describe this to you guys hey wait can", "start": 25.76, "duration": 3.8}, {"text": "we go now where are you going I'm just", "start": 28.039, "duration": 2.761}, {"text": "trying to get away from you where would", "start": 29.56, "duration": 3.08}, {"text": "you guys even go can I switch team so I", "start": 30.8, "duration": 3.96}, {"text": "can you and your team why yeah I think", "start": 32.64, "duration": 4.04}, {"text": "honestly at this point Blas you're going", "start": 34.76, "duration": 4.16}, {"text": "to be on my team me and you versus them", "start": 36.68, "duration": 4.76}, {"text": "you see this this is you why would you", "start": 38.92, "duration": 4.56}, {"text": "say that I'm going to ride you Blas I'm", "start": 41.44, "duration": 5.4}, {"text": "riding oh God get over like waa wo wo", "start": 43.48, "duration": 4.919}]
+    transcript = [
+        {"text": "what's up Gamers today I'm playing", "start": 0.0, "duration": 3.76},
+        {
+            "text": "Minecraft Manhunt but I'm Sonic my goal",
+            "start": 1.439,
+            "duration": 4.36,
+        },
+        {
+            "text": "is to break six golden blocks around the",
+            "start": 3.76,
+            "duration": 4.24,
+        },
+        {
+            "text": "map but with each block I break my",
+            "start": 5.799,
+            "duration": 4.201,
+        },
+        {"text": "powers grow stronger but so do the", "start": 8.0, "duration": 3.799},
+        {
+            "text": "hunters will I be able to break all the",
+            "start": 10.0,
+            "duration": 3.88,
+        },
+        {
+            "text": "blocks in time or will the hunters take",
+            "start": 11.799,
+            "duration": 4.881,
+        },
+        {
+            "text": "me out let's find out go go what go",
+            "start": 13.88,
+            "duration": 4.559,
+        },
+        {
+            "text": "where oh wait yo wait do you actually",
+            "start": 16.68,
+            "duration": 3.41,
+        },
+        {"text": "see that wait", "start": 18.439, "duration": 4.8},
+        {"text": "[Music]", "start": 20.09, "duration": 3.149},
+        {
+            "text": "that's I'm going hit him F how do I",
+            "start": 23.24,
+            "duration": 4.799,
+        },
+        {
+            "text": "describe this to you guys hey wait can",
+            "start": 25.76,
+            "duration": 3.8,
+        },
+        {
+            "text": "we go now where are you going I'm just",
+            "start": 28.039,
+            "duration": 2.761,
+        },
+        {
+            "text": "trying to get away from you where would",
+            "start": 29.56,
+            "duration": 3.08,
+        },
+        {
+            "text": "you guys even go can I switch team so I",
+            "start": 30.8,
+            "duration": 3.96,
+        },
+        {
+            "text": "can you and your team why yeah I think",
+            "start": 32.64,
+            "duration": 4.04,
+        },
+        {
+            "text": "honestly at this point Blas you're going",
+            "start": 34.76,
+            "duration": 4.16,
+        },
+        {
+            "text": "to be on my team me and you versus them",
+            "start": 36.68,
+            "duration": 4.76,
+        },
+        {
+            "text": "you see this this is you why would you",
+            "start": 38.92,
+            "duration": 4.56,
+        },
+        {
+            "text": "say that I'm going to ride you Blas I'm",
+            "start": 41.44,
+            "duration": 5.4,
+        },
+        {
+            "text": "riding oh God get over like waa wo wo",
+            "start": 43.48,
+            "duration": 4.919,
+        },
+    ]
     print(create_clip_description("D:/tmp/raw/_96ADhbwQJU.mp4", transcript))

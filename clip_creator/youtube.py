@@ -1,6 +1,6 @@
+import json
 import os
 import time
-import json
 import traceback
 from datetime import UTC, datetime, timedelta
 
@@ -16,7 +16,6 @@ from yt_dlp import YoutubeDL
 
 from clip_creator.conf import API_KEY, LOGGER
 from clip_creator.utils.scan_text import find_timestamps
-
 
 
 def Download(video_id: str, path: str = "videos", filename: str | None = None):
@@ -84,14 +83,16 @@ def get_latest_videos(channel_id, used_ids, video_df_info, max_results=10):
         time.sleep(0.5)
         if entry == []:
             continue
-        if entry.get("id", {}).get("videoId") not in used_ids and entry.get("id", {}).get("videoId"):
+        if entry.get("id", {}).get("videoId") not in used_ids and entry.get(
+            "id", {}
+        ).get("videoId"):
             length_vid = 0
             if entry["id"]["videoId"] in video_df_info.index.values:
                 LOGGER.info("Video already exists in the database")
                 existing_row = video_df_info.loc[entry["id"]["videoId"]]
                 LOGGER.info("Existing video details: %s", existing_row)
-                length_vid = (json.loads(existing_row["transcript"]))[-1]['start']
-            if length_vid/60 > 15:
+                length_vid = (json.loads(existing_row["transcript"]))[-1]["start"]
+            if length_vid / 60 > 15:
                 list_videos.append(entry)
             elif is_duration_over_minutes(get_video_len(entry["id"]["videoId"]), 15):
                 list_videos.append(entry)
@@ -125,7 +126,9 @@ def is_duration_over_minutes(duration_iso8601, length: int = 15):
         return False
 
 
-def get_subscriptions_videos(used_ids, skip_time_check=False, video_df_info=None, max_results=40):
+def get_subscriptions_videos(
+    used_ids, skip_time_check=False, video_df_info=None, max_results=40
+):
     """Gets the latest videos from the user's YouTube subscriptions."""
     subscriptions_list = subscriptions()
     videos = []
@@ -138,10 +141,13 @@ def get_subscriptions_videos(used_ids, skip_time_check=False, video_df_info=None
         ).replace(tzinfo=UTC)
         LOGGER.info("Published At: %s", dt_object)
         LOGGER.info("Current Time: %s", datetime.now(UTC))
-        if (datetime.now(UTC) - dt_object > timedelta(minutes=10) and datetime.now(
-            UTC
-        ) - dt_object < timedelta(days=1)) or skip_time_check:
-            videos.extend(get_latest_videos(channel_id, used_ids, video_df_info, max_results))
+        if (
+            datetime.now(UTC) - dt_object > timedelta(minutes=10)
+            and datetime.now(UTC) - dt_object < timedelta(days=1)
+        ) or skip_time_check:
+            videos.extend(
+                get_latest_videos(channel_id, used_ids, video_df_info, max_results)
+            )
             if len(videos) >= max_results:
                 break
     LOGGER.info("Videos: %s", videos)
@@ -192,7 +198,7 @@ def is_trending(video_id):
                 api_inx += 1
                 if api_inx == len(API_KEY):
                     break
-        
+
         items = response.get("items", [])
         if items:
             video_stats = items[0]["statistics"]
@@ -253,7 +259,7 @@ def get_video_info(video_id):
             "likes": like_count,
             "video_name": video_name,
         }
-    except Exception as e:
+    except Exception:
         print(f"Error getting video info: {traceback.format_exc()}")
         return None
 
@@ -287,7 +293,7 @@ def get_transcript(video_id):
         transcript = youtube_transcript_api.YouTubeTranscriptApi.get_transcript(
             video_id
         )
-        
+
         return transcript
     except youtube_transcript_api.TranscriptsDisabled:
         LOGGER.info("Transcripts are disabled for this video.")
@@ -312,9 +318,9 @@ def get_comments(video_id, max_comments=100):  # Added max_comments
         while True:
             yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
             request = yt.commentThreads().list(
-            part="snippet",
-            videoId=video_id,
-            maxResults=max_comments,  # Limit the number of comments retrieved
+                part="snippet",
+                videoId=video_id,
+                maxResults=max_comments,  # Limit the number of comments retrieved
             )
             response = request.execute()
             if response.get("items"):
@@ -356,9 +362,11 @@ def get_top_comment(comments: list[dict], max_words: int, creator: str) -> str:
         if i == 0:
             running_average = comment.get("likeCount", 0)
         else:
-            running_average = (running_average * i + comment.get("likeCount", 0))/(i+1)
+            running_average = (running_average * i + comment.get("likeCount", 0)) / (
+                i + 1
+            )
     LOGGER.info("Running average: %s", running_average)
-    for comment in comments:    
+    for comment in comments:
         words = comment["text"].split()
         if (
             len(words) <= max_words
@@ -376,7 +384,7 @@ def get_top_comment(comments: list[dict], max_words: int, creator: str) -> str:
                 if find_timestamps(comment["text"]):
                     top_ts_comment_uv = upvotes
                     top_comment = str(comment["text"])
-                    
+
     return top_comment, backup_comment
 
 

@@ -24,9 +24,9 @@ def check_and_create_dirs(base_dir="tmp"):
             print(f"Created directory: {path}")
         else:
             print(f"Directory already exists: {path}")
-            
 
-def get_unused_videos(used_videos:list[str], raw_dir:str):
+
+def get_unused_videos(used_videos: list[str], raw_dir: str):
     """
     Get a list of unused videos in the raw directory.
 
@@ -38,9 +38,11 @@ def get_unused_videos(used_videos:list[str], raw_dir:str):
         list[str]: A list of unused video filenames.
     """
     all_files = os.listdir(raw_dir)
-    all_videos = [file.replace(".mp4", "") for file in all_files if file.endswith(".mp4")]
+    all_videos = [
+        file.replace(".mp4", "") for file in all_files if file.endswith(".mp4")
+    ]
     unused_videos = [video for video in all_videos if video not in used_videos]
     dict_unused_videos = []
     for vid in unused_videos:
-        dict_unused_videos.append({"id": {"videoId":vid}})
+        dict_unused_videos.append({"id": {"videoId": vid}})
     return dict_unused_videos, unused_videos

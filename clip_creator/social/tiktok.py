@@ -12,7 +12,6 @@ def post_to_tiktok(
     video_path,
     title,
     schedule: datetime | None = None,
-
 ):
     """
     Posts a video to TikTok using the TikTok Open API.
@@ -32,11 +31,28 @@ def post_to_tiktok(
     """
     cookies_list = get_tiktok_cookies()
     if not cookies_list:
-        upload_video(video_path, title, username=os.environ.get("TIKTOK_USERNAME"), password=os.environ.get("TIKTOK_P"), schedule=schedule, )
+        upload_video(
+            video_path,
+            title,
+            username=os.environ.get("TIKTOK_USERNAME"),
+            password=os.environ.get("TIKTOK_P"),
+            schedule=schedule,
+        )
     elif schedule:
-        upload_video(video_path, title, username=os.environ.get("TIKTOK_USERNAME"), password=os.environ.get("TIKTOK_P"), cookies_list=cookies_list, schedule=schedule, )
+        upload_video(
+            video_path,
+            title,
+            username=os.environ.get("TIKTOK_USERNAME"),
+            password=os.environ.get("TIKTOK_P"),
+            cookies_list=cookies_list,
+            schedule=schedule,
+        )
     else:
-        upload_video(video_path, title, cookies_list=cookies_list, )
+        upload_video(
+            video_path,
+            title,
+            cookies_list=cookies_list,
+        )
 
 
 def get_tiktok_cookies(url="https://www.tiktok.com"):
@@ -79,6 +95,10 @@ def get_tiktok_cookies(url="https://www.tiktok.com"):
             driver.quit()
         return None
 
+
 if __name__ == "__main__":
-    post_to_tiktok("tmp/clips/5FctraXMT-E.mp4", "#fyp #gaming #clip #fyppppppppppppp \n credit SMii7Yplus's Fortnite Counter-Strike is Crazy")
-    
+    post_to_tiktok(
+        "tmp/clips/5FctraXMT-E.mp4",
+        "#fyp #gaming #clip #fyppppppppppppp \n credit SMii7Yplus's Fortnite"
+        " Counter-Strike is Crazy",
+    )

@@ -1,25 +1,26 @@
-from math import floor
 from datetime import datetime
+
 
 def round_to_nearest_5(minutes: float) -> int:
     # Rounds minutes (as float) down to the nearest 5-minute mark.
     return int(minutes // 5) * 5
 
+
 def get_timestamps(sections: int) -> list:
     """
     Divides the interval between 5:00 (AM) and midnight (24:00) into equal sections.
     Returns a list of timestamps formatted as "HH:MM" (rounded to the nearest 5 minutes).
-    
+
     If sections is 3, for example, the interval is divided into 3 equal parts,
     resulting in 4 timestamps (including both endpoints).
     """
     dtnh = int(datetime.now().hour)
     dtnm = int(datetime.now().minute)
     sh = 5 if dtnh < 5 else dtnh if dtnm < 40 else dtnh + 1
-    start_minutes = sh * 60         # 5:00 AM in minutes (300)
-    end_minutes = (23 * 60) + 59   # Midnight in minutes (1439)
+    start_minutes = sh * 60  # 5:00 AM in minutes (300)
+    end_minutes = (23 * 60) + 59  # Midnight in minutes (1439)
     total = end_minutes - start_minutes  # Total minutes in the interval
-    step = total / sections        # Duration of each section in minutes
+    step = total / sections  # Duration of each section in minutes
 
     timestamps = []
     for i in range(sections + 1):
@@ -32,9 +33,12 @@ def get_timestamps(sections: int) -> list:
             rounded_minutes %= 1440
         hour = rounded_minutes // 60
         minute = rounded_minutes % 60
-        timestamps.append(datetime.now().replace(hour=hour, minute=minute, second=0, microsecond=0))
-        
+        timestamps.append(
+            datetime.now().replace(hour=hour, minute=minute, second=0, microsecond=0)
+        )
+
     return timestamps
+
 
 # Example usage:
 if __name__ == "__main__":

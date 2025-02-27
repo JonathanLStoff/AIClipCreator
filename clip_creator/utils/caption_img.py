@@ -1,34 +1,44 @@
 import os
 from queue import Queue
-from tqdm import tqdm
-from threading import Thread
 from random import choice, randint
-from clip_creator.conf import FONT_PATH, LOGGER, COLORS, COLOR_PAIRS, CURSE_WORDS
+from threading import Thread
+
 from PIL import Image, ImageDraw, ImageFont
+from pilmoji import Pilmoji
+from tqdm import tqdm
+
+from clip_creator.conf import (
+    COLOR_PAIRS,
+    COLORS,
+    CURSE_WORDS,
+    E_FONT_PATH,
+    FONT_PATH,
+)
+
 
 def remove_curse_words(text: str) -> str:
     """
     Removes curse words from a given text.
     """
-    #LOGGER.info("Removing curse words from text. %s", text)
+    # LOGGER.info("Removing curse words from text. %s", text)
     for curse_word in CURSE_WORDS:
-        
         if isinstance(text, list):
             tmp_txt = []
             for word_d in text:
                 if curse_word in word_d.get("text", "").lower():
-                    word_d["text"] =  "*" * len(curse_word)
+                    word_d["text"] = "*" * len(curse_word)
                 tmp_txt.append(word_d)
             text = tmp_txt
         elif isinstance(text, str):
             replacement = "*" * len(curse_word)
             text = text.replace(curse_word, replacement)
-            
+
     return text
+
 
 def create_caption_images(prefix: str, captions, max_width, output_dir="."):
     """Creates one image *per line* of wrapped text, highlighting current word.
-    
+
     caption: List of dictionaries with "start" and "text" keys.
     """
     try:
@@ -49,7 +59,9 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
     lines_index = 0
 
     # Find each line of text
-    for i, caption in tqdm(enumerate(captions), total=len(captions), desc="Find each line of text"):
+    for i, caption in tqdm(
+        enumerate(captions), total=len(captions), desc="Find each line of text"
+    ):
         lines_text[lines_index].append({"text": caption.get("text", ""), "index": i})
         temp_x = h_padding
         # Create a dummy image and draw context for calculations
@@ -58,21 +70,28 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
 
         # Build up the current line using dummy context
         for word in lines_text[lines_index]:
-            bbox = dummy_draw.textbbox((0, padding), word.get("text", ""), font=font, align="center")
+            bbox = dummy_draw.textbbox(
+                (0, padding), word.get("text", ""), font=font, align="center"
+            )
             word_width = bbox[2] - bbox[0]
             temp_x += word_width + word_spacing
 
-        if (temp_x > max_width - h_padding and len(lines_text[lines_index]) > 0):
+        if temp_x > max_width - h_padding and len(lines_text[lines_index]) > 0:
             lines_text[lines_index].pop(-1)
             lines_index += 1
             lines_text.append([{"text": caption.get("text", ""), "index": i}])
-        if "." in caption.get("text", "") or "!" in caption.get("text", "") or "?" in caption.get("text", ""):
+        if (
+            "." in caption.get("text", "")
+            or "!" in caption.get("text", "")
+            or "?" in caption.get("text", "")
+        ):
             lines_index += 1
             lines_text.append([])
-        
 
     # Process each line
-    for j, line in tqdm(enumerate(lines_text), total=len(lines_text), desc="Create Images"):
+    for j, line in tqdm(
+        enumerate(lines_text), total=len(lines_text), desc="Create Images"
+    ):
         img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
         line = remove_curse_words(line)
@@ -80,8 +99,9 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
         max_ascent = 0
         max_descent = 0
         for word in line:
-            
-            bbox = draw.textbbox((0, padding), word.get("text"), font=font, align="center")
+            bbox = draw.textbbox(
+                (0, padding), word.get("text"), font=font, align="center"
+            )
             ascent = padding - bbox[1]
             descent = bbox[3] - padding
             max_ascent = max(max_ascent, ascent)
@@ -98,18 +118,20 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
         word_widths = []
         total_line_width = 0
         for word in line:
-            bbox = final_draw.textbbox((0, padding), word.get('text'), font=font, align="center")
+            bbox = final_draw.textbbox(
+                (0, padding), word.get("text"), font=font, align="center"
+            )
             w = bbox[2] - bbox[0]
             word_widths.append(w)
             total_line_width += w
-        
+
         if len(line) > 1:
             total_line_width += word_spacing * (len(line) - 1)
         ran_check = randint(1, 10)
         word_to_change = None
         word_to_change_color = None
         if ran_check < 2:
-            word_to_change = randint(0,len(line)-1)
+            word_to_change = randint(0, len(line) - 1)
             word_to_change_color = choice(list(COLOR_PAIRS["white"]))
             bg_choiced_color = "white"
             paired = "red"
@@ -127,8 +149,7 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
             word_index = caption_ult.get("index", "")
             x = (new_width - total_line_width) // 2
             current_y = padding
-            
-            
+
             # Draw each word in the line
             for k, caption in enumerate(line):
                 word = caption.get("text", "")
@@ -138,22 +159,27 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
                 # Draw outline
                 for dx in range(-outline_width, outline_width + 1):
                     for dy in range(-outline_width, outline_width + 1):
-                        final_draw.text((x + dx, current_y + dy), word, font=font, fill="black", align="center")
-                
+                        final_draw.text(
+                            (x + dx, current_y + dy),
+                            word,
+                            font=font,
+                            fill="black",
+                            align="center",
+                        )
+
                 # Draw text
-                final_draw.text((x, current_y), word, font=font, fill=color, align="center")
+                final_draw.text(
+                    (x, current_y), word, font=font, fill=color, align="center"
+                )
                 # Key fix: Use k instead of i for word_widths index
                 x += word_widths[k] + word_spacing
 
             filename = f"{prefix}_line{j}_word{word_index}.jpg"
             file_path = os.path.join(output_dir, filename)
-            
+
             final_img.convert("RGB").save(file_path, "JPEG", quality=70)
-            #print(f"Saved {file_path}")
+            # print(f"Saved {file_path}")
 
-         
-
-    
 
 def create_caption_images_thread(prefix: str, captions, max_width, output_dir="."):
     """Creates one image per line of wrapped text, highlighting current word using parallel processing."""
@@ -248,7 +274,7 @@ def create_caption_images_thread(prefix: str, captions, max_width, output_dir=".
         file_path = os.path.join(output_dir, filename)
         resized_img = final_img.resize((final_img.width // 2, final_img.height // 2), 1)
         resized_img.convert("RGB").save(file_path, "JPEG", quality=40)
-        #print(f"Saved {file_path}")
+        # print(f"Saved {file_path}")
 
     def worker():
         """Thread worker that processes tasks from the queue."""
@@ -329,18 +355,58 @@ def create_caption_images_thread(prefix: str, captions, max_width, output_dir=".
         t.join()
 
 
+def create_emojis(text: str, vid: str, w: int = 90, h: int = 90) -> str:
+    """
+    Creats image from emojis.
+    args:
+        text: str: text to convert to emojis
+    return:
+        str: image path
+    """
+    image_path = f"tmp/emojis_{vid}.png"
+    with Image.new("RGBA", (w, h), (255, 255, 255, 0)) as image:
+        font = ImageFont.truetype(E_FONT_PATH, 400)
+
+        with Pilmoji(image) as pilmoji:
+            pilmoji.text(
+                xy=(0, 0), text=text.strip(), fill=None, align="center", font=font
+            )
+            image.save(image_path)
+    return image_path
+
+
 if __name__ == "__main__":
     caption_list = [
-        {'text': 'on', 'start': 40.298, 'end': 40.439, 'duration': 0.14099999999999824},
-        {'text': 'them', 'start': 40.479, 'end': 40.659, 'duration': 0.17999999999999972},
-        {'text': 'when', 'start': 40.719, 'end': 40.919, 'duration': 0.19999999999999574},
-        {'text': 'I', 'start': 40.979, 'end': 41.059, 'duration': 0.0799999999999983},
-        {'text': 'win', 'start': 41.139, 'end': 41.399, 'duration': 0.259999999999998},
-        {'text': 'the', 'start': 41.459, 'end': 41.62, 'duration': 0.16099999999999426},
-        {'text': 'round.', 'start': 41.64, 'end': 42.04, 'duration': 0.3999999999999986},
-        {'text': 'Sign', 'start': 42.28, 'end': 42.681, 'duration': 0.40099999999999625},
+        {"text": "on", "start": 40.298, "end": 40.439, "duration": 0.14099999999999824},
+        {
+            "text": "them",
+            "start": 40.479,
+            "end": 40.659,
+            "duration": 0.17999999999999972,
+        },
+        {
+            "text": "when",
+            "start": 40.719,
+            "end": 40.919,
+            "duration": 0.19999999999999574,
+        },
+        {"text": "I", "start": 40.979, "end": 41.059, "duration": 0.0799999999999983},
+        {"text": "win", "start": 41.139, "end": 41.399, "duration": 0.259999999999998},
+        {"text": "the", "start": 41.459, "end": 41.62, "duration": 0.16099999999999426},
+        {
+            "text": "round.",
+            "start": 41.64,
+            "end": 42.04,
+            "duration": 0.3999999999999986,
+        },
+        {
+            "text": "Sign",
+            "start": 42.28,
+            "end": 42.681,
+            "duration": 0.40099999999999625,
+        },
     ]
     max_width = 1080  # Set maximum width for wrapping
-    output_directory = "tmp\caps_img"
+    output_directory = r"tmp\caps_img"
     prefix = "test_"
     create_caption_images(prefix, caption_list, max_width, output_directory)

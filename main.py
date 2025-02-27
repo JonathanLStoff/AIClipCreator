@@ -4,36 +4,37 @@ import os
 import time
 import traceback
 
-from datetime import datetime
-
-from clip_creator.ai import ask_if_comment_in_transcript, find_sections, create_clip_description
+from clip_creator.ai import (
+    ask_if_comment_in_transcript,
+    create_clip_description,
+    find_sections,
+)
 from clip_creator.conf import (
     CLIPS_FOLDER,
     DOWNLOAD_FOLDER,
+    ERRORS_TYPES,
     LOGGER,
     SECTIONS_TYPES,
     TMP_CLIPS_FOLDER,
     TMP_DOWNLOAD_FOLDER,
-    ERRORS_TYPES
 )
 from clip_creator.db.db import (
+    add_clip_info,
+    add_error_log,
     add_video_entry,
     create_database,
     create_or_update_clip,
     find_clip,
-    add_clip_info,
+    get_all_clips_df,
     get_all_video_ids,
     get_all_videos_df,
-    get_all_clips_df,
     update_post_status,
-    add_error_log
 )
-from clip_creator.social.reddit import check_top_comment, search_reddit
 from clip_creator.social.custom_tiktok import upload_video_tt
 from clip_creator.social.insta import InstaGramUp
-from clip_creator.utils.files import copy_to_tmp, save_space, clean_up_files
+from clip_creator.social.reddit import check_top_comment, search_reddit
+from clip_creator.utils.files import clean_up_files, copy_to_tmp, save_space
 from clip_creator.utils.path_setup import check_and_create_dirs, get_unused_videos
-from clip_creator.utils.schedules import get_timestamps
 from clip_creator.utils.scan_text import (
     clean_text,
     convert_timestamp_to_seconds,
@@ -42,9 +43,10 @@ from clip_creator.utils.scan_text import (
     most_common_ngrams,
     sanitize_filename,
 )
+from clip_creator.utils.schedules import get_timestamps
 from clip_creator.utils.text_to_video import find_text_sec
 from clip_creator.utils.video_tools import convert_webm_to_mp4
-from clip_creator.video_edit import edit_video
+from clip_creator.video_edit import edit_vid_orchestrator
 from clip_creator.youtube import (
     Download,
     get_comments,
@@ -73,14 +75,16 @@ def main():
     )
     parser.add_argument("--inputvideoid", type=str, help="Path to the input video")
     parser.add_argument(
-        "--skiptimecheck", action="store_true", help="Retrieve new videos from YouTube if set"
+        "--skiptimecheck",
+        action="store_true",
+        help="Retrieve new videos from YouTube if set",
     )
     args = parser.parse_args()
     LOGGER.info("Arguments: %s", args)
     #####################################
     # Set up paths
     #####################################
-    errors_lot:dict[str,dict[str,str]] = {}
+    errors_lot: dict[str, dict[str, str]] = {}
     check_and_create_dirs()
     #####################################
     # Create database
@@ -88,7 +92,9 @@ def main():
     create_database()
     used_videos = get_all_video_ids()
     video_df_info = get_all_videos_df()
-    un_used_videos, un_used_videos_li = get_unused_videos(used_videos, raw_dir=DOWNLOAD_FOLDER)
+    un_used_videos, un_used_videos_li = get_unused_videos(
+        used_videos, raw_dir=DOWNLOAD_FOLDER
+    )
     #####################################
     # Get videos and transcripts
     #####################################
@@ -103,7 +109,13 @@ def main():
         else:
             # videos.extend(search_videos("gaming", time_range=1))
             videos.extend(un_used_videos)
-            videos.extend(get_subscriptions_videos(used_ids=used_videos+un_used_videos_li, skip_time_check=args.skiptimecheck, video_df_info=video_df_info))
+            videos.extend(
+                get_subscriptions_videos(
+                    used_ids=used_videos + un_used_videos_li,
+                    skip_time_check=args.skiptimecheck,
+                    video_df_info=video_df_info,
+                )
+            )
             LOGGER.info("Videos: %s", videos)
             if args.numvid:
                 videos = videos[: args.numvid]
@@ -112,11 +124,11 @@ def main():
     else:
         videos.extend(un_used_videos)
     with open("running_videos.json", "w") as f:
-        tmp_vid_list = [vid['id']['videoId'] for vid in videos]
+        tmp_vid_list = [vid["id"]["videoId"] for vid in videos]
         json.dump(tmp_vid_list, f)
     ################################
     # Get Transcripts
-    ################################    
+    ################################
     raw_transcripts = {}
     formated_transcripts = {}
     for video in videos:
@@ -126,13 +138,20 @@ def main():
             raw_transcripts[video["id"]["videoId"]] = get_transcript(
                 video["id"]["videoId"]
             )  # {'text': 'out our other man outs right over here', 'start': 1060.84, 'duration': 3.52}
-            formated_transcripts[video["id"]["videoId"]] = "disabled" if "disabled" == raw_transcripts[video["id"]["videoId"]] else join_transcript(
-                raw_transcripts[video["id"]["videoId"]]
+            formated_transcripts[video["id"]["videoId"]] = (
+                "disabled"
+                if "disabled" == raw_transcripts[video["id"]["videoId"]]
+                else join_transcript(raw_transcripts[video["id"]["videoId"]])
             )
-        except Exception as e:
-            LOGGER.error("Error getting transcript: %s, for %s", traceback.format_exc(), video["id"]["videoId"])
-            errors_lot[video["id"]["videoId"]][ERRORS_TYPES[2]] = f"Error getting transcript {traceback.format_exc()}"
-    
+        except Exception:
+            LOGGER.error(
+                "Error getting transcript: %s, for %s",
+                traceback.format_exc(),
+                video["id"]["videoId"],
+            )
+            errors_lot[video["id"]["videoId"]][
+                ERRORS_TYPES[2]
+            ] = f"Error getting transcript {traceback.format_exc()}"
 
     ######################################
     # Get video info
@@ -143,19 +162,22 @@ def main():
     for id, script in formated_transcripts.items():
         try:
             if id in video_df_info.index:
-                
                 video_info[id] = {
-                "creator": video_df_info.loc[id]['video_creator'],
-                "views": video_df_info.loc[id]['views'],
-                "likes": video_df_info.loc[id]['likes'],
-                "video_name": video_df_info.loc[id]['name'],
-            }
+                    "creator": video_df_info.loc[id]["video_creator"],
+                    "views": video_df_info.loc[id]["views"],
+                    "likes": video_df_info.loc[id]["likes"],
+                    "video_name": video_df_info.loc[id]["name"],
+                }
             else:
                 video_info[id] = get_video_info(id)
             LOGGER.info("Video Info: %s", video_info[id])
-        except Exception as e:
-            LOGGER.error("Error getting video info: %s, for %s", traceback.format_exc(), id)
-            errors_lot[id][ERRORS_TYPES[1]] = f"Error getting video info {traceback.format_exc()}"
+        except Exception:
+            LOGGER.error(
+                "Error getting video info: %s, for %s", traceback.format_exc(), id
+            )
+            errors_lot[id][
+                ERRORS_TYPES[1]
+            ] = f"Error getting video info {traceback.format_exc()}"
 
     ######################################
     # Reddit Comments
@@ -166,13 +188,19 @@ def main():
     for id, script in formated_transcripts.items():
         try:
             top_posts = search_reddit(videoid=id)
-            top_reddit_comment[id], reddit_comments[id], posts_url[id] = check_top_comment(
-                top_posts, 10
-            )
+            (
+                top_reddit_comment[id],
+                reddit_comments[id],
+                posts_url[id],
+            ) = check_top_comment(top_posts, 10)
             LOGGER.info("Top Reddit Comment: %s", top_reddit_comment[id])
-        except Exception as e:
-            LOGGER.error("Error getting reddit comments: %s, for %s", traceback.format_exc(), id)
-            errors_lot[id][ERRORS_TYPES[0]] = f"Error getting reddit comments {traceback.format_exc()}"
+        except Exception:
+            LOGGER.error(
+                "Error getting reddit comments: %s, for %s", traceback.format_exc(), id
+            )
+            errors_lot[id][
+                ERRORS_TYPES[0]
+            ] = f"Error getting reddit comments {traceback.format_exc()}"
     ######################################
     # Youtube Comments
     ######################################
@@ -186,9 +214,13 @@ def main():
                 yt_comments[id], 10, video_info[id]["creator"]
             )
             LOGGER.info("Top YT Comment: %s", top_yt_comment[id])
-        except Exception as e:
-            LOGGER.error("Error getting youtube comments: %s, for %s", traceback.format_exc(), id)
-            errors_lot[id][ERRORS_TYPES[1]] = f"Error getting youtube comments {traceback.format_exc()}"
+        except Exception:
+            LOGGER.error(
+                "Error getting youtube comments: %s, for %s", traceback.format_exc(), id
+            )
+            errors_lot[id][
+                ERRORS_TYPES[1]
+            ] = f"Error getting youtube comments {traceback.format_exc()}"
     #########################################
     # Compile comments into words and counts
     #########################################
@@ -217,9 +249,13 @@ def main():
                 all_ngrams["3-gram"]["count"],
             ) = most_common_ngrams(running_words, 3)
             most_common_videos[id]: dict = all_ngrams
-        except Exception as e:
-            LOGGER.error("Error getting common words: %s, for %s", traceback.format_exc(), id)
-            errors_lot[id][ERRORS_TYPES[0]] = f"Error getting common words {traceback.format_exc()}"
+        except Exception:
+            LOGGER.error(
+                "Error getting common words: %s, for %s", traceback.format_exc(), id
+            )
+            errors_lot[id][
+                ERRORS_TYPES[0]
+            ] = f"Error getting common words {traceback.format_exc()}"
     ######################################
     # Add to DB
     ######################################
@@ -243,9 +279,11 @@ def main():
                 "video_creator": video_info[id]["creator"],
             }
             add_video_entry(data_entry)
-        except Exception as e:
+        except Exception:
             LOGGER.error("Error adding data: %s, for %s", traceback.format_exc(), id)
-            errors_lot[id][ERRORS_TYPES[1]] = f"Error add_video_entry data {traceback.format_exc()}"
+            errors_lot[id][
+                ERRORS_TYPES[1]
+            ] = f"Error add_video_entry data {traceback.format_exc()}"
         # LOGGER.info("Added data %s", data_entry)
 
     ######################################
@@ -261,9 +299,13 @@ def main():
                     top_yt_comment[id] = backup_yt_comment[id]
                 timestamps[id] = convert_timestamp_to_seconds(timestamps[id])
                 LOGGER.info("Timestamp in sec: %s", timestamps[id])
-        except Exception as e:
-            LOGGER.error("Error finding timestamps: %s, for %s", traceback.format_exc(), id)
-            errors_lot[id][ERRORS_TYPES[1]] = f"Error finding timestamps {traceback.format_exc()}"
+        except Exception:
+            LOGGER.error(
+                "Error finding timestamps: %s, for %s", traceback.format_exc(), id
+            )
+            errors_lot[id][
+                ERRORS_TYPES[1]
+            ] = f"Error finding timestamps {traceback.format_exc()}"
             timestamps[id] = None
 
     ######################################
@@ -272,29 +314,35 @@ def main():
     clips = {}
     for id, script in raw_transcripts.items():
         try:
-            if timestamps[id]: # Add more checks
+            if timestamps[id]:  # Add more checks
                 if "disabled" != script:
                     clips[id] = find_timestamp_clips(script, timestamps[id])
                 else:
-                    LOGGER.info("Transcript is disabled, add download and transcribe function here")
+                    LOGGER.info(
+                        "Transcript is disabled, add download and transcribe function"
+                        " here"
+                    )
                     clips[id] = None
             else:
                 clips[id] = None
             LOGGER.info("Clips: %s", clips[id])
-        except Exception as e:
+        except Exception:
             LOGGER.error("Error finding clips: %s, for %s", traceback.format_exc(), id)
-            errors_lot[id][ERRORS_TYPES[1]] = f"Error finding clips {traceback.format_exc()}"
+            errors_lot[id][
+                ERRORS_TYPES[1]
+            ] = f"Error finding clips {traceback.format_exc()}"
             clips[id] = None
-        
+
     #######################################
     # Use ai to describe the video
-    #######################################  
+    #######################################
     video_descriptions = {}
     if not args.noai:
         for id, script in raw_transcripts.items():
-            video_descriptions[id] = create_clip_description(f"{DOWNLOAD_FOLDER}/{id}.mp4", script)
-            
-    
+            video_descriptions[id] = create_clip_description(
+                f"{DOWNLOAD_FOLDER}/{id}.mp4", script
+            )
+
     ######################################
     # Find comment section in video #2 Reason to CLIP
     ######################################
@@ -333,7 +381,9 @@ def main():
         try:
             if clips[id]:
                 if not os.path.exists(f"{DOWNLOAD_FOLDER}/{id}.mp4"):
-                    LOGGER.info("not found: %s, downloading", f"{DOWNLOAD_FOLDER}/{id}.mp4")
+                    LOGGER.info(
+                        "not found: %s, downloading", f"{DOWNLOAD_FOLDER}/{id}.mp4"
+                    )
                     Download(id, path=TMP_DOWNLOAD_FOLDER, filename=id)
                     # Convert webm to mp4
                     convert_webm_to_mp4(
@@ -342,10 +392,13 @@ def main():
                     )
                     os.remove(f"{TMP_DOWNLOAD_FOLDER}/{id}.webm")
                 time.sleep(5)
-        except Exception as e:
-            LOGGER.error("Error downloading video: %s, for %s", traceback.format_exc(), id)
-            errors_lot[id][ERRORS_TYPES[2]] = f"Error downloading video {traceback.format_exc()}"
-
+        except Exception:
+            LOGGER.error(
+                "Error downloading video: %s, for %s", traceback.format_exc(), id
+            )
+            errors_lot[id][
+                ERRORS_TYPES[2]
+            ] = f"Error downloading video {traceback.format_exc()}"
 
     ######################################
     # Format Clips into chunks
@@ -362,7 +415,7 @@ def main():
                 clips_chunks[id] = None
         else:
             clips_chunks[id] = None
-            
+
     ######################################
     # Best overall comment
     ######################################
@@ -376,18 +429,17 @@ def main():
     ######################################
     descriptions = {}
     for id, script in formated_transcripts.items():
-        
         descriptions[id] = (
             "#fyp #gaming #clip #fyppppppppppppp\ncredit"
             f" {video_info[id]['creator']}'s {video_info[id]['video_name']}"
         )
-    
+
     ######################################
     # Edit Videos
     ######################################
     clip_paths = {}
     true_transcripts = {}
-    
+
     for id, clip in clips.items():
         if clip and clips_chunks[id]:
             if ERRORS_TYPES[2] in errors_lot[id].keys():
@@ -401,7 +453,7 @@ def main():
                 copy_to_tmp(
                     f"{DOWNLOAD_FOLDER}/{id}.mp4", f"{TMP_DOWNLOAD_FOLDER}/{id}.mp4"
                 )
-                clip_paths[id],true_transcripts[id] = edit_video(
+                clip_paths[id], true_transcripts[id] = edit_vid_orchestrator(
                     sanitize_filename(id),
                     f"{TMP_DOWNLOAD_FOLDER}/{id}.mp4",
                     f"{TMP_CLIPS_FOLDER}/{id}.mp4",
@@ -409,7 +461,6 @@ def main():
                     start_time=clips_chunks[id]["start"],
                     end_time=clips_chunks[id]["end"],
                     text=best_comment[id],
-                    transcript=clips[id],
                 )
                 save_space(
                     f"{DOWNLOAD_FOLDER}/{id}.mp4",
@@ -427,9 +478,13 @@ def main():
                 create_or_update_clip(clip_dict)
                 with open(clip_paths[id].replace("mp4", "txt"), "w") as f:
                     f.write(descriptions[id])
-            except Exception as e:
-                LOGGER.error("Error editing video: %s, for %s", traceback.format_exc(), id)
-                errors_lot[id][ERRORS_TYPES[2]] = f"Error editing video {traceback.format_exc()}"
+            except Exception:
+                LOGGER.error(
+                    "Error editing video: %s, for %s", traceback.format_exc(), id
+                )
+                errors_lot[id][
+                    ERRORS_TYPES[2]
+                ] = f"Error editing video {traceback.format_exc()}"
                 clip_paths[id] = None
     for id, clipy in clips.items():
         if clipy:
@@ -449,16 +504,20 @@ def main():
     ########################################
     clips_df = get_all_clips_df()
     for clip in clips_df.to_dict(orient="records"):
-        if not clip["post_tiktok"] and os.path.exists(f"{CLIPS_FOLDER}/{clip['video_id']}.mp4"):
+        if not clip["post_tiktok"] and os.path.exists(
+            f"{CLIPS_FOLDER}/{clip['video_id']}.mp4"
+        ):
             clip_paths[clip["video_id"]] = f"{CLIPS_FOLDER}/{clip['video_id']}.mp4"
-            descriptions[clip["video_id"]] = open(f"{CLIPS_FOLDER}/{clip['video_id']}.txt", "r").read()
+            descriptions[clip["video_id"]] = open(
+                f"{CLIPS_FOLDER}/{clip['video_id']}.txt"
+            ).read()
             clips[clip["video_id"]] = json.loads(clip["clip_transcript"])
             clip_info = {
                 "video_id": clip["video_id"],
                 "clip_path": clip_paths[clip["video_id"]],
                 "description": descriptions[clip["video_id"]],
-                #"true_transcript": json.dumps(true_transcripts[id]),
-                #"title": best_comment[id],
+                # "true_transcript": json.dumps(true_transcripts[id]),
+                # "title": best_comment[id],
             }
             add_clip_info(clip_info)
     ########################################
@@ -469,14 +528,13 @@ def main():
     for id, clip in clips.items():
         if clip:
             number_clips += 1
-    allsched = get_timestamps(number_clips-1)
+    allsched = get_timestamps(number_clips - 1)
     allsched_idx = 0
     for id, clip in clips.items():
         if ERRORS_TYPES[2] in errors_lot[id].keys():
             continue
         if clip:
             if allsched_idx < len(allsched):
-
                 schedules[id] = allsched[allsched_idx]
                 allsched_idx += 1
             else:
@@ -484,8 +542,7 @@ def main():
                 schedules[id] = None
         else:
             schedules[id] = None
-    
-        
+
     ########################################
     # Post to TikTok & Instagram
     ########################################
@@ -493,16 +550,24 @@ def main():
     for id, clipy in clips.items():
         try:
             if ERRORS_TYPES[2] in errors_lot[id].keys():
-                    continue
+                continue
             if clipy:
-                upload_video_tt(clip_paths[id], schedules[id], descriptions[id], submit=True)
-                update_post_status(id, "tiktok", schedules[id].strftime("%Y-%m-%d %H:%M:%S"))
-                #insta.upload_to_insta(clip_paths[id], descriptions[id])
-                #update_post_status(id, "instagram", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        except Exception as e:
-            LOGGER.error("Error posting to social media: %s, for %s", traceback.format_exc(), id)
-            errors_lot[id][ERRORS_TYPES[2]] = f"Error posting to social media {traceback.format_exc()}"
-    
+                upload_video_tt(
+                    clip_paths[id], schedules[id], descriptions[id], submit=True
+                )
+                update_post_status(
+                    id, "tiktok", schedules[id].strftime("%Y-%m-%d %H:%M:%S")
+                )
+                # insta.upload_to_insta(clip_paths[id], descriptions[id])
+                # update_post_status(id, "instagram", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        except Exception:
+            LOGGER.error(
+                "Error posting to social media: %s, for %s", traceback.format_exc(), id
+            )
+            errors_lot[id][
+                ERRORS_TYPES[2]
+            ] = f"Error posting to social media {traceback.format_exc()}"
+
     ########################################
     # Log Errors
     ########################################
@@ -514,6 +579,7 @@ def main():
     ########################################
     clean_up_files()
     LOGGER.info("Done")
+
+
 if __name__ == "__main__":
-    
     main()
