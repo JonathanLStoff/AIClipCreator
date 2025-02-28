@@ -80,7 +80,7 @@ def main():
     ########################################
     # Post to TikTok & Instagram
     ########################################
-    insta = InstaGramUp()
+    #insta = InstaGramUp()
     for id, clipy in clips.items():
         if clipy:
             upload_video_tt(

@@ -136,9 +136,23 @@ def get_info_from_audio(prefix, input_file, start_time=0, end_time=60):
     audio_file = f"./tmp/audio_{prefix}.wav"
     tmp_audio_file = f"./tmp/audio_{prefix}_tmp.wav"
     outputa_file = f"./tmp/audioo_{prefix}.wav"
-    clip = VideoFileClip(input_file).subclipped(start_time, end_time)
-    clip.audio.write_audiofile(audio_file, codec="pcm_s16le")
+    #clip = VideoFileClip(input_file).subclipped(start_time, end_time)
     
+    clip = VideoFileClip(input_file)
+    print(f"Original duration: {clip.duration}, Audio: {clip.audio is not None}")
+
+    # Ensure valid subclip times
+    start, end = 5, 10  # Example valid times
+    assert end < clip.duration, "End time exceeds video duration"
+    
+    subclip = clip.subclip(start, end)
+
+    # Explicitly handle audio (if needed)
+    if subclip.audio is None:
+        raise ValueError("No audio in subclip")
+
+    # Write audio with codec specified
+    subclip.audio.write_audiofile(audio_file, codec="pcm_s16le")
     secs_per_segment = 30
     number_runs = math.ceil(clip.duration / secs_per_segment)
     lengthed = clip.duration
@@ -217,7 +231,7 @@ def edit_video(
         if chars_in_line > max_chars:
             lines_total += 1
             chars_in_line = 0
-        if lines_total > 6:
+        if lines_total == 4:
             text = text[:i] + "..."
             break
     # Create TextClip
@@ -254,6 +268,11 @@ def edit_video(
             )
         ) / 4
         text_commm_pos = text_commm.with_position((pos_x, int(th / 10)))
+        if text_commm_pos.w + pos_x > tw or pos_x < 0:
+            if text_commm_pos.w > tw:
+                text_commm_pos = text_commm.with_position((0, int(th / 10))).with_effects(Resize((tw, text_commm.h)))
+            else:
+                text_commm_pos = text_commm.with_position((0, int(th / 10)))
         if len(emojis) > 5:
             emojis = emojis[:5]
 
@@ -267,15 +286,16 @@ def edit_video(
             )
             emoji_commm = (
                 ImageClip(output_e_file, duration=cropped_clip.duration
-                    ).with_position((int(text_commm.w / 2), int((th / 10) - (pixels_per_char * 3))))
+                    ).with_position((int(text_commm.w / 2)-len(emojis) * pixels_per_char, int((th / 10) - (pixels_per_char * 3))))
                 .rotated(rotate_tilt, expand=True).with_effects([Resize((
                         int(len(emojis) * (pixels_per_char * 3.5)),
                         int(pixels_per_char * 3.5)
-                        ))])
+                    ))])
             )  # Place above normal text.
             os.remove(output_e_file)
 
     shutil.copyfile(audio_file, tmp_audio_file)
+    old_audio_file = audio_file
     true_transcript, audio_file = censor_words(
         true_transcript, audio_file, outputa_file, tmp_audio_file
     )
@@ -327,7 +347,7 @@ def edit_video(
         if prefix in str(img):
             os.remove(os.path.join(output_dir_img, img))
     os.remove(audio_file)
-    #os.remove(outputa_file)
+    os.remove(old_audio_file)
     return output_file, true_transcript
 
 

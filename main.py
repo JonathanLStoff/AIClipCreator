@@ -319,6 +319,8 @@ def main():
                 if timestamps[id]:  # Add more checks
                     if "disabled" != script:
                         clips[id] = find_timestamp_clips(script, timestamps[id])
+                        if clips[id] != [] and clips[id]:
+                            errors_lot[id] = [] 
                     else:
                         LOGGER.info(
                             "Transcript is disabled, add download and transcribe function"
