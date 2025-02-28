@@ -253,7 +253,7 @@ def edit_video(
                 else int(((target_h / max_chars) * len(text)) / 2)
             )
         ) / 4
-        text_commm_pos = text_commm.with_position((pos_x, int(th / 8)))
+        text_commm_pos = text_commm.with_position((pos_x, int(th / 10)))
         if len(emojis) > 5:
             emojis = emojis[:5]
 
@@ -267,7 +267,7 @@ def edit_video(
             )
             emoji_commm = (
                 ImageClip(output_e_file, duration=cropped_clip.duration
-                    ).with_position((int(text_commm.w / 2), int((th / 8) - (pixels_per_char * 3))))
+                    ).with_position((int(text_commm.w / 2), int((th / 10) - (pixels_per_char * 3))))
                 .rotated(rotate_tilt, expand=True).with_effects([Resize((
                         int(len(emojis) * (pixels_per_char * 3.5)),
                         int(pixels_per_char * 3.5)
