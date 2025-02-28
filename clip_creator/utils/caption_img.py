@@ -30,8 +30,12 @@ def remove_curse_words(text: str) -> str:
                 tmp_txt.append(word_d)
             text = tmp_txt
         elif isinstance(text, str):
-            replacement = "*" * len(curse_word)
-            text = text.replace(curse_word, replacement)
+            if curse_word in text.lower():
+                tmp_txt = ""
+                for word in text.split():
+                    tmp_txt += "*" * len(curse_word) if curse_word in word.lower() else word
+                    tmp_txt += " "
+                text = tmp_txt.strip()
 
     return text
 

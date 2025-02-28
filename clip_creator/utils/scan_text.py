@@ -101,15 +101,16 @@ def find_bad_words(true_transcript: list[dict]) -> (list[list[int]], list[dict])
     ftranscript = []
     for word_dict in true_transcript:
         word = word_dict.get("text", "").strip().lower()
+        LOGGER.info("Word: %s", word)
         if word in CURSE_WORDS:
             bad_words.append([
                 int(float(word_dict.get("start", 0)) * 1000),
                 int(float(word_dict.get("start", 0)) * 1000)
                 + int(float(word_dict.get("duration", 1)) * 1000),
             ])
-            word_dict["text"] = " ".join(["*" * len(w) for w in word.split()])
+            word_dict["text"] =  "*" * len(word)
         ftranscript.append(word_dict)
-
+    LOGGER.info("Bad words: %s", bad_words)
     return bad_words, ftranscript
 
 

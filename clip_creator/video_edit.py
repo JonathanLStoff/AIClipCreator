@@ -46,8 +46,7 @@ def edit_vid_orchestrator(
     #########################################
     # Make my own transcription for captions
     #########################################
-    #audio_file, outputa_file, number_runs, secs_per_segment, duration = "tmp/raw/audio_l6oJa69LFuI_whis_err.wav", "tmp/raw/audio_l6oJa69LFuI_whis_err.wav", 1, 30, 8
-    audio_file, outputa_file, number_runs, secs_per_segment, duration = get_info_from_audio(prefix, input_file, start_time, end_time)
+    audio_file, outputa_file, number_runs, secs_per_segment, duration, tmp_audio_file = get_info_from_audio(prefix, input_file, start_time, end_time)
     #LOGGER.info("stuff1: %s %s %s %s %s", audio_file, outputa_file, number_runs, secs_per_segment, duration)
     true_transcript = []
     timestamps_obj = timestamps()
@@ -64,7 +63,7 @@ def edit_vid_orchestrator(
         time.sleep(1)
         # Adjust timestamps for the segment offset
         true_transcript.extend(transcript_segment)
-        os.remove(segment_file)  
+        os.remove(segment_file)
     return edit_video(
             prefix,
             input_file,
@@ -77,6 +76,7 @@ def edit_vid_orchestrator(
             true_transcript=true_transcript,
             audio_file=audio_file,
             outputa_file=outputa_file,
+            tmp_audio_file=tmp_audio_file
         )
 
 def remove_bad_audio(audio_file):
@@ -128,12 +128,13 @@ def create_aud_seg(number_runs, secs_per_segment, prefix, audio_file):
 
         segment.export(segment_file, format="wav")
         segment_files.append(segment_file)
-
+    del full_audio
     return segment_files
 def get_info_from_audio(prefix, input_file, start_time=0, end_time=60):
     
 
     audio_file = f"./tmp/audio_{prefix}.wav"
+    tmp_audio_file = f"./tmp/audio_{prefix}_tmp.wav"
     outputa_file = f"./tmp/audioo_{prefix}.wav"
     clip = VideoFileClip(input_file).subclipped(start_time, end_time)
     clip.audio.write_audiofile(audio_file, codec="pcm_s16le")
@@ -141,10 +142,11 @@ def get_info_from_audio(prefix, input_file, start_time=0, end_time=60):
     secs_per_segment = 30
     number_runs = math.ceil(clip.duration / secs_per_segment)
     lengthed = clip.duration
+    clip.audio.close()
     clip.close()  # Close the video clip to release resources
     del clip
     
-    return audio_file, outputa_file, number_runs, secs_per_segment, lengthed
+    return audio_file, outputa_file, number_runs, secs_per_segment, lengthed, tmp_audio_file
 
 def edit_video(
     prefix: str,
@@ -157,6 +159,7 @@ def edit_video(
     text: str = "",
     audio_file: str = "",
     outputa_file: str = "",
+    tmp_audio_file: str = "",
     true_transcript: list[dict] | None = None
 ):
     """
@@ -272,10 +275,11 @@ def edit_video(
             )  # Place above normal text.
             os.remove(output_e_file)
 
-
+    shutil.copyfile(audio_file, tmp_audio_file)
     true_transcript, audio_file = censor_words(
-        true_transcript, audio_file, outputa_file
+        true_transcript, audio_file, outputa_file, tmp_audio_file
     )
+    
     if text.strip() != "" and len(emojis) > 0:
         final_clip = CompositeVideoClip(
             [
@@ -327,13 +331,14 @@ def edit_video(
     return output_file, true_transcript
 
 
-def censor_words(transcript, audio_file, output_file):
+def censor_words(transcript, audio_file, output_file, tmp_audio_file):
     ts_bw, ftranscript = find_bad_words(transcript)
-    audio_file_out = mute_sections(audio_file, output_file, ts_bw)
+    LOGGER.info("Bad words: %s",ts_bw)
+    audio_file_out = mute_sections(audio_file, output_file, ts_bw, tmp_audio_file)
     return ftranscript, audio_file_out
 
 
-def mute_sections(input_file, output_file, mute_section):
+def mute_sections(input_file, output_file, mute_section, tmp_audio_file):
     """
     Mute specific sections of an MP3 file
 
@@ -343,7 +348,7 @@ def mute_sections(input_file, output_file, mute_section):
     mute_sections (list): List of tuples with (start_ms, end_ms) to mute
     """
     # Load the audio file
-    audio = AudioSegment.from_file(input_file, format="wav")
+    audio = AudioSegment.from_file(tmp_audio_file, format="wav")
 
     # Convert audio to numpy array for easier manipulation
     samples = np.array(audio.get_array_of_samples())
@@ -360,7 +365,8 @@ def mute_sections(input_file, output_file, mute_section):
         # Convert milliseconds to sample indices
         start_sample = int(start_ms * samples_per_ms)
         end_sample = int(end_ms * samples_per_ms)
-
+        LOGGER.info(f"Muting section: {start_sample} to {end_sample}")
+        
         # Ensure indices are within bounds
         start_sample = max(0, start_sample)
         end_sample = min(len(samples), end_sample)

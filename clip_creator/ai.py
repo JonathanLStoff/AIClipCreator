@@ -181,8 +181,8 @@ def create_clip_description(
     current_start = 0
     for i, part in enumerate(raw_transcript):
         if chunks_li[current_idx]["end"] - chunks_li[current_idx]["start"] > time_frame:
-            LOGGER.info("Chunk %s is longer than %s seconds", i, time_frame)
-            LOGGER.info("%s %s",current_idx,current_start)
+            LOGGER.debug("Chunk %s is longer than %s seconds", i, time_frame)
+            LOGGER.debug("%s %s",current_idx,current_start)
             current_idx += 1
             current_start = part["start"]
             if len(raw_transcript) == i + 1:
