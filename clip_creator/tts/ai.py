@@ -1,20 +1,56 @@
 import torch
-import torchaudio
-from zonos.model import Zonos
-from zonos.conditioning import make_cond_dict
+import sounddevice as sd
+import soundfile as sf
+from transformers import VitsModel, AutoTokenizer
 
-def tts(text: str, speaker: torch.Tensor, language: str = "en-us"):
-    model = Zonos.from_pretrained("Zyphra/Zonos-v0.1-hybrid", device="cuda")
-    # model = Zonos.from_pretrained("Zyphra/Zonos-v0.1-transformer", device="cuda")
+class TTSModel:
+    def __init__(self):
+        # Model and tokenizer (choose a VITS model that sounds similar)
+        self.model_name = "facebook/mms-tts-eng"  # Example: A multilingual VITS model
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.model = VitsModel.from_pretrained(self.model_name)
 
-    wav, sampling_rate = torchaudio.load("assets/exampleaudio.mp3")
-    speaker = model.make_speaker_embedding(wav, sampling_rate)
+    def text_to_speech(self, text, sample_rate=22050):
+        """
+        Generates speech from text using a VITS model.
 
-    cond_dict = make_cond_dict(text="Hello, world!", speaker=speaker, language="en-us")
-    conditioning = model.prepare_conditioning(cond_dict)
+        Args:
+            text (str): The text to convert to speech.
+            sample_rate (int): The desired sample rate of the output audio.
 
-    codes = model.generate(conditioning)
+        Returns:
+            numpy.ndarray: The audio waveform as a NumPy array.
+        """
+        inputs = self.tokenizer(text, return_tensors="pt")
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+            waveform = outputs.waveform[0].numpy()  # Extract the waveform
 
-    wavs = model.autoencoder.decode(codes).cpu()
-    torchaudio.save("sample.wav", wavs[0], model.autoencoder.sampling_rate)
+        return waveform, sample_rate
 
+    def play_audio(self, waveform, sample_rate):
+        """
+        Plays the generated audio.
+
+        Args:
+            waveform (numpy.ndarray): The audio waveform.
+            sample_rate (int): The sample rate of the audio.
+        """
+        sd.play(waveform, samplerate=sample_rate)
+        sd.wait()  # Wait until playback is finished
+    def run_it(self):
+        text = "Hello, this is a test of the AI voice."
+
+        try:
+            waveform, sample_rate = self.text_to_speech(text)
+            self.play_audio(waveform, sample_rate)
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+        # Example of saving the audio to a file
+        
+        filename = "output.wav"
+        sf.write(filename, waveform, sample_rate)
+        print(f"Audio saved to {filename}")
+    

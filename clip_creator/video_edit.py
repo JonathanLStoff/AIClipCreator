@@ -26,6 +26,7 @@ from clip_creator.conf import (
     LOW_CPU_MEM,
     NUM_CORES,
 )
+from clip_creator.utils.forcealign import force_align
 from clip_creator.utils.caption_img import (
     create_caption_images,
     create_emojis,
@@ -42,28 +43,31 @@ def edit_vid_orchestrator(
     start_time=0,
     end_time=60,
     text: str = "",
+    ft_transcript: str = "",
 ):
     #########################################
     # Make my own transcription for captions
     #########################################
-    audio_file, outputa_file, number_runs, secs_per_segment, duration, tmp_audio_file = get_info_from_audio(prefix, input_file, start_time, end_time)
+    device = "cpu"
+    if torch.cuda.is_available():
+        device = "cuda:0"
+        torch.cuda.empty_cache()
+    ft_transcript = ft_transcript.replace("[\u00a0__\u00a0]", "****")
+    audio_file, outputa_file = get_info_from_audio(prefix, input_file, start_time, end_time)
     #LOGGER.info("stuff1: %s %s %s %s %s", audio_file, outputa_file, number_runs, secs_per_segment, duration)
-    true_transcript = []
+    #true_transcript = []
     timestamps_obj = timestamps()
     # if run, will cause openai to fail
-    segment_files = create_aud_seg(number_runs, secs_per_segment, prefix, audio_file)
-            
-    
-    for i, segment_file in enumerate(segment_files):
-        transcript_segment = timestamps_obj.get_word_timestamps_openai(
-            segment_file,
-            audio_clip_length=duration,
-            time_add=(i * secs_per_segment),
-        )
-        time.sleep(1)
-        # Adjust timestamps for the segment offset
-        true_transcript.extend(transcript_segment)
-        os.remove(segment_file)
+    #segment_files = create_aud_seg(number_runs, secs_per_segment, prefix, audio_file)
+    uncensored_transcript = timestamps_obj.get_word_timestamps_openai(
+            audio_file,
+            audio_clip_length=end_time-start_time,
+            time_add=0,
+        )     
+    LOGGER.info("uncensored_transcript: %s", uncensored_transcript)
+    #exit()
+    true_transcript = force_align(audio_file, ft_transcript, device)
+
     return edit_video(
             prefix,
             input_file,
@@ -76,7 +80,7 @@ def edit_vid_orchestrator(
             true_transcript=true_transcript,
             audio_file=audio_file,
             outputa_file=outputa_file,
-            tmp_audio_file=tmp_audio_file
+            uncensored_transcript = uncensored_transcript
         )
 
 def remove_bad_audio(audio_file):
@@ -133,34 +137,32 @@ def create_aud_seg(number_runs, secs_per_segment, prefix, audio_file):
 def get_info_from_audio(prefix, input_file, start_time=0, end_time=60):
     
 
-    audio_file = f"./tmp/audio_{prefix}.wav"
-    tmp_audio_file = f"./tmp/audio_{prefix}_tmp.wav"
-    outputa_file = f"./tmp/audioo_{prefix}.wav"
-    #clip = VideoFileClip(input_file).subclipped(start_time, end_time)
+    audio_file = f"./tmp/audio_{prefix}.mp3"
+    outputa_file = f"./tmp/audioo_{prefix}.mp3"
     
     clip = VideoFileClip(input_file)
-    print(f"Original duration: {clip.duration}, Audio: {clip.audio is not None}")
+    LOGGER.debug(f"Original duration: {clip.duration}, Audio: {clip.audio is not None}")
 
     # Ensure valid subclip times
-    start, end = 5, 10  # Example valid times
-    assert end < clip.duration, "End time exceeds video duration"
+    assert end_time < clip.duration, "End time exceeds video duration"
     
-    subclip = clip.subclip(start, end)
+    subclip = clip.subclipped(start_time, end_time)
 
     # Explicitly handle audio (if needed)
     if subclip.audio is None:
         raise ValueError("No audio in subclip")
 
     # Write audio with codec specified
-    subclip.audio.write_audiofile(audio_file, codec="pcm_s16le")
-    secs_per_segment = 30
-    number_runs = math.ceil(clip.duration / secs_per_segment)
-    lengthed = clip.duration
+    subclip.audio.write_audiofile(audio_file, codec="libmp3lame")
+    subclip.audio.close()
+    subclip.close()  # Close the video clip to release resources
+    del subclip
     clip.audio.close()
     clip.close()  # Close the video clip to release resources
+    
     del clip
     
-    return audio_file, outputa_file, number_runs, secs_per_segment, lengthed, tmp_audio_file
+    return audio_file, outputa_file
 
 def edit_video(
     prefix: str,
@@ -173,8 +175,8 @@ def edit_video(
     text: str = "",
     audio_file: str = "",
     outputa_file: str = "",
-    tmp_audio_file: str = "",
-    true_transcript: list[dict] | None = None
+    true_transcript: list[dict] | None = None,
+    uncensored_transcript: list[dict] | None = None,
 ):
     """
     Crops a landscape video to a portrait orientation and “zooms in” on the center portion.
@@ -234,7 +236,9 @@ def edit_video(
         if lines_total == 4:
             text = text[:i] + "..."
             break
-    # Create TextClip
+    #############################
+    # Create text and emojis
+    #############################
     if text.strip() != "":
         rotate_tilt = randint(-10, 10)
         text_commm = TextClip(  # img_width, img_height = size
@@ -294,10 +298,9 @@ def edit_video(
             )  # Place above normal text.
             os.remove(output_e_file)
 
-    shutil.copyfile(audio_file, tmp_audio_file)
     old_audio_file = audio_file
     true_transcript, audio_file = censor_words(
-        true_transcript, audio_file, outputa_file, tmp_audio_file
+        true_transcript, audio_file, outputa_file, uncensored_transcript
     )
     
     if text.strip() != "" and len(emojis) > 0:
@@ -351,14 +354,14 @@ def edit_video(
     return output_file, true_transcript
 
 
-def censor_words(transcript, audio_file, output_file, tmp_audio_file):
-    ts_bw, ftranscript = find_bad_words(transcript)
+def censor_words(transcript, audio_file, output_file, uncensored_transcript):
+    ts_bw, ftranscript = find_bad_words(transcript, uncensored_transcript)
     LOGGER.info("Bad words: %s",ts_bw)
-    audio_file_out = mute_sections(audio_file, output_file, ts_bw, tmp_audio_file)
+    audio_file_out = mute_sections(audio_file, output_file, ts_bw)
     return ftranscript, audio_file_out
 
 
-def mute_sections(input_file, output_file, mute_section, tmp_audio_file):
+def mute_sections(input_file, output_file, mute_section:list[list[float]]):
     """
     Mute specific sections of an MP3 file
 
@@ -368,7 +371,7 @@ def mute_sections(input_file, output_file, mute_section, tmp_audio_file):
     mute_sections (list): List of tuples with (start_ms, end_ms) to mute
     """
     # Load the audio file
-    audio = AudioSegment.from_file(tmp_audio_file, format="wav")
+    audio = AudioSegment.from_file(input_file, format="mp3")
 
     # Convert audio to numpy array for easier manipulation
     samples = np.array(audio.get_array_of_samples())
@@ -381,7 +384,8 @@ def mute_sections(input_file, output_file, mute_section, tmp_audio_file):
     samples_per_ms = frame_rate * channels / 1000
 
     # Mute the specified sections
-    for start_ms, end_ms in mute_section:
+    for muted_list in mute_section:
+        start_ms, end_ms = muted_list[0], muted_list[1]
         # Convert milliseconds to sample indices
         start_sample = int(start_ms * samples_per_ms)
         end_sample = int(end_ms * samples_per_ms)
@@ -398,7 +402,7 @@ def mute_sections(input_file, output_file, mute_section, tmp_audio_file):
     modified_audio = audio._spawn(samples.tobytes())
 
     # Export the modified audio
-    modified_audio.export(output_file, format="wav")
+    modified_audio.export(output_file, format="mp3")
     LOGGER.info(f"Successfully created edited file: {output_file}")
     return output_file
 

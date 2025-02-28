@@ -93,13 +93,24 @@ def find_timestamp_clips(raw_transcript: list, timestamp: int) -> list[dict]:
     return clip
 
 
-def find_bad_words(true_transcript: list[dict]) -> (list[list[int]], list[dict]):
+def find_bad_words(true_transcript: list[dict], uncensored_transcript) -> (list[list[int]], list[dict]):
     """
     Find bad words in a text.
     """
     bad_words = []
     ftranscript = []
     for word_dict in true_transcript:
+        word = word_dict.get("text", "").strip().lower()
+        LOGGER.debug("Word: %s", word)
+        if word in CURSE_WORDS:
+            bad_words.append([
+                int(float(word_dict.get("start", 0)) * 1000),
+                int(float(word_dict.get("start", 0)) * 1000)
+                + int(float(word_dict.get("duration", 1)) * 1000),
+            ])
+            word_dict["text"] =  "*" * len(word)
+        ftranscript.append(word_dict)
+    for word_dict in uncensored_transcript:
         word = word_dict.get("text", "").strip().lower()
         LOGGER.info("Word: %s", word)
         if word in CURSE_WORDS:

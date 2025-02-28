@@ -152,3 +152,17 @@ EMOJIS_RE = re.compile(
 CURSE_WORDS = (
     open("clip_creator/utils/OffensiveWords-comma-separated-text.txt").read().split(",")
 )
+
+SUB_REDDITS = [ 
+    "amitheasshole",
+    "askreddit",
+    "confessions",
+    "stories",
+    "todayilearned",
+    "unpopularopinion",
+    
+]
+
+REDDIT_DOMAIN = "https://www.reddit.com/svc/shreddit/community-more-posts/hot/?t=DAY&name="
+REDDIT_POST_DOMAIN = "https://www.reddit.com" # + /[0]r/[1]stories/[2]comments/[3]1izveyu/sounds_too_cheesy_to_be_real_but_it_is/
+# example use: REDDIT_DOMAIN+"amitheasshole"

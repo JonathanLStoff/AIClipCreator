@@ -1,5 +1,9 @@
 import json
-
+import time
+from tqdm import tqdm
+import traceback
+from datetime import datetime
+from clip_creator.conf import LOGGER, SUB_REDDITS, REDDIT_DOMAIN, REDDIT_POST_DOMAIN
 import requests
 from bs4 import BeautifulSoup
 
@@ -186,3 +190,147 @@ def check_top_comment(
             top_comment_upvotes = comment["upvotes"]
             top_comment_url = comment["url"]
     return top_comment, comments, top_comment_url
+
+def next_page_finder(soup: BeautifulSoup, prefix: str):
+    for element in soup.find_all('faceplate-partial'):
+        if element.get('id') and element.get('id', "").startswith(prefix):
+            return element.get('id',"").replace(prefix, '')
+    return ""
+
+def find_sub_reddit_posts(used_posts:list[str], min_posts:int=10) -> list[str]:
+    """
+    Find posts from a list of subreddits.
+    """
+    prefix = "partial-more-posts-"
+    next_view = {}
+    href_list:list[str] = []
+    number_runs = 0
+    while len(href_list) < min_posts:
+        for suby in tqdm(SUB_REDDITS, desc="Subreddit, finding posts"):
+            try:
+                if number_runs == 0:
+                    response = requests.get(REDDIT_DOMAIN+suby)
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    next_view[suby] = next_page_finder(soup, prefix)
+                else:
+                    response = requests.get(REDDIT_DOMAIN+suby+"&after="+next_view[suby]+"%3D%3D")
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    next_view[suby] = next_page_finder(soup, prefix)
+            
+                
+                # Find all article elements containing posts
+                for article in soup.find_all('article', class_='w-full'):
+                    # Extract the shreddit-post element
+                    post = article.find('shreddit-post')
+                    
+                    if post:
+                        post_id = post.get('id')
+                        
+                        # Skip if post ID is already processed
+                        if post_id in used_posts:
+                            continue
+                            
+                        # Find the href in either of these locations
+                        href = post.get('permalink') or \
+                            post.find('a', {'slot': 'full-post-link'}).get('href')
+                        
+                        if href:
+                            href_list.append(href)
+                            used_posts.append(post_id)
+            except Exception as e:
+                LOGGER.error(f"Error processing subreddit {suby}: {traceback.format_exc()}")
+                time.sleep(15)
+        if number_runs > 10:
+            break
+        time.sleep(5)
+        number_runs += 1
+        
+    return href_list
+def extract_text_from_element(html_string):
+    """
+    Extracts text from a specified HTML element using BeautifulSoup.
+
+    Args:
+        html_string: The HTML string to parse.
+        tag_name: The name of the HTML tag (e.g., 'p', 'div', 'span').
+        attributes: A dictionary of attributes to filter the element.
+
+    Returns:
+        The text content of the found element, or None if not found.
+    """
+    soup = BeautifulSoup(html_string, 'html.parser')
+
+    text_body_div = soup.find('div', class_='text-neutral-content', attrs={'slot': 'text-body'})
+
+    if text_body_div:
+        md_div = text_body_div.find('div', class_='md')
+        if md_div:
+            paragraphs = md_div.find_all('p')
+            text = '\n'.join(p.get_text() for p in paragraphs)
+            return text
+        else:
+            LOGGER.error("Could not find the 'md' div.")
+            
+    else:
+        LOGGER.error("Could not find the 'text-neutral-content' div.")
+    return None
+def extract_title_from_element(html_string):
+    soup = BeautifulSoup(html_string, 'html.parser')
+
+    title_h1 = soup.find('h1', id='post-title-t3_1j0dzp4', attrs={'slot': 'title'})
+
+    if title_h1:
+        text = title_h1.get_text(strip=True)
+        LOGGER.debug("title: %s",text)
+        return text
+    else:
+        LOGGER.error("Could not find the reddit post title element. %s", html_string)
+        return None
+def extract_all(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    post = soup.find('shreddit-post')
+
+    if post:
+        data = {
+            'author-id': post.get('author-id'),
+            'post-title': post.get('post-title'),
+            'comment-count': int(post.get('comment-count', 0)),
+            'created-timestamp': post.get('created-timestamp'),
+            'score': int(post.get('score', 0))
+        }
+        LOGGER.debug(data)
+        return data
+    else:
+        LOGGER.error("Post not found")
+        return None
+def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> list[dict]:
+    """
+    Orchestrates the process of finding Reddit posts.
+    """
+    href_list = find_sub_reddit_posts(used_posts, min_post)
+    posts = []
+    for i, href in tqdm(enumerate(href_list), desc="Processing posts"):
+        try:
+            response = requests.get(REDDIT_POST_DOMAIN+href)
+            datasx = extract_all(response.content)
+            post = {
+                'title': datasx.get("post-title", ""),
+                'content': extract_text_from_element(response.content),
+                'upvotes': datasx.get('score', 0),
+                'comments': datasx.get('comment-count', 0),
+                'nsfw': False if not 'reason="nsfw"' in str(response.content) else True,
+                'posted_at': datasx.get('created-timestamp', datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")),
+                'url': href,
+            }
+            posts.append(post)
+            LOGGER.info(f"Processed post: {post}")
+        except Exception as e:
+            LOGGER.error(f"Error processing post {href}: {traceback.format_exc()}")
+            time.sleep(15)
+        time.sleep(5)
+        if i >= max_post:
+            break
+    return posts
+
+if __name__ == "__main__":
+    print(reddit_posts_orch([], 2))

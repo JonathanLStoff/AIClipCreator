@@ -12,6 +12,6 @@ def force_align(file:str, yt_ft_transcript:str, device:str):
     # Show predicted word-level alignments
     ts_trans = []
     for word in words:
-        LOGGER.info(f"Word: {word.word}, Start: {word.time_start}s, End: {word.time_end}s")
-        ts_trans.append({"text": word.word, "start": word.time_start, "end": word.time_end})
+        LOGGER.debug(f"Word: {word.word}, Start: {word.time_start}s, End: {word.time_end}s")
+        ts_trans.append({"text": word.word, "start": word.time_start, "end": word.time_end, "duration": word.time_end - word.time_start})
     return ts_trans
