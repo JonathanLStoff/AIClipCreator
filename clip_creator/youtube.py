@@ -44,6 +44,7 @@ def subscriptions():
     response = None
     api_inx = 0
     while True:
+        
         yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
         request = yt.subscriptions().list(
             part="snippet",
@@ -92,19 +93,19 @@ def get_latest_videos(channel_id, used_ids, video_df_info, max_results=10):
                 existing_row = video_df_info.loc[entry["id"]["videoId"]]
                 LOGGER.info("Existing video details: %s", existing_row)
                 length_vid = (json.loads(existing_row["transcript"]))[-1]["start"]
-            if length_vid / 60 > 15:
+            if length_vid / 60 > 9:
                 list_videos.append(entry)
-            elif is_duration_over_minutes(get_video_len(entry["id"]["videoId"]), 15):
+            elif is_duration_over_minutes(get_video_len(entry["id"]["videoId"]), 9):
                 list_videos.append(entry)
             else:
-                LOGGER.info("Video is less than 15 minutes long")
-        if len(list_videos) == max_results:
+                LOGGER.info("Video is less than 9 minutes long")
+        if len(list_videos) >= max_results:
             break
 
     return list_videos
 
 
-def is_duration_over_minutes(duration_iso8601, length: int = 15):
+def is_duration_over_minutes(duration_iso8601, length: int = 9):
     """
     Checks if a duration in ISO 8601 format is over 15 minutes.
 
@@ -127,7 +128,7 @@ def is_duration_over_minutes(duration_iso8601, length: int = 15):
 
 
 def get_subscriptions_videos(
-    used_ids, skip_time_check=False, video_df_info=None, max_results=40
+    used_ids, skip_time_check=False, video_df_info=None, max_results=70
 ):
     """Gets the latest videos from the user's YouTube subscriptions."""
     subscriptions_list = subscriptions()
@@ -135,7 +136,7 @@ def get_subscriptions_videos(
     LOGGER.info("Subscriptions: %s", subscriptions_list)
     for subscription in subscriptions_list:
         channel_id = subscription["snippet"]["resourceId"]["channelId"]
-        LOGGER.info("Channel ID: %s", channel_id)
+        #LOGGER.info("Channel ID: %s", channel_id)
         dt_object = datetime.strptime(
             subscription["snippet"]["publishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ"
         ).replace(tzinfo=UTC)
@@ -322,7 +323,11 @@ def get_comments(video_id, max_comments=100):  # Added max_comments
                 videoId=video_id,
                 maxResults=max_comments,  # Limit the number of comments retrieved
             )
-            response = request.execute()
+            try:
+                response = request.execute()
+            except Exception as e:
+                if "404" in str(e):
+                    return []
             if response.get("items"):
                 break
             else:
@@ -348,6 +353,7 @@ def get_comments(video_id, max_comments=100):  # Added max_comments
     except Exception as e:
         LOGGER.info(f"Error getting comments: {traceback.format_exc()}")
         LOGGER.info(f"Error getting comments: {e}")
+        
         return []
 
 

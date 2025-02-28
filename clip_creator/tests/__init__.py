@@ -1,0 +1,1 @@
+from clip_creator.tests. test_ai import *

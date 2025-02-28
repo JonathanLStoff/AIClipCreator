@@ -130,7 +130,7 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
         ran_check = randint(1, 10)
         word_to_change = None
         word_to_change_color = None
-        if ran_check < 2:
+        if ran_check < 2 and len(line) > 1:
             word_to_change = randint(0, len(line) - 1)
             word_to_change_color = choice(list(COLOR_PAIRS["white"]))
             bg_choiced_color = "white"

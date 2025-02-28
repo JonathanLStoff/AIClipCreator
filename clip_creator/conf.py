@@ -7,15 +7,18 @@ from os.path import join
 import toml
 
 API_KEY = [
-    os.environ.get("YOUTUBE_API_KEY_1"),
-    os.environ.get("YOUTUBE_API_KEY_2"),
-    os.environ.get("YOUTUBE_API_KEY_3"),
+    os.environ.get("YOUTUBE_API_KEY_1", "AIzaSyAkgL1ASemVitT3Rtv_Teo8Uw8kFiwloR0"),
+    os.environ.get("YOUTUBE_API_KEY_2", "AIzaSyDfWHIwbwlO5GXal7_vfb4CEdfcCVHX7V8"),
+    os.environ.get("YOUTUBE_API_KEY_3", "AIzaSyCEhkfwsn6hCX3l4_HnYZm4bjOjctzTb8k"),
 ]
+
+
 
 SECTIONS_TYPES = ["funny moments"]
 
 LOGGER = logging.getLogger("clip_creator")
 LOGGER.setLevel(logging.INFO)
+logging.getLogger('googleapicliet.discovery_cache').setLevel(logging.ERROR)
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")

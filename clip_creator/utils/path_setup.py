@@ -39,7 +39,7 @@ def get_unused_videos(used_videos: list[str], raw_dir: str):
     """
     all_files = os.listdir(raw_dir)
     all_videos = [
-        file.replace(".mp4", "") for file in all_files if file.endswith(".mp4")
+        file.replace(".mp4", "") for file in all_files if file.endswith(".mp4") and not file.startswith("._")
     ]
     unused_videos = [video for video in all_videos if video not in used_videos]
     dict_unused_videos = []

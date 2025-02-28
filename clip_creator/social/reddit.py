@@ -176,6 +176,8 @@ def check_top_comment(
             continue
 
     for comment in comments:
+        if "height<" in comment["text"]:
+            continue
         if (
             len(comment["text"].split()) <= max_words
             and comment["upvotes"] > top_comment_upvotes

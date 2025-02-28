@@ -10,7 +10,7 @@ def clean_up_files():
     Remove the files needed
     """
     for file in os.listdir("tmp"):
-        if file.endswith(".mp4") or file.endswith(".mp3"):
+        if file.endswith(".mp4") or file.endswith(".mp3") or file.endswith(".wav"):
             try:
                 os.remove(f"tmp/{file}")
             except Exception as e:

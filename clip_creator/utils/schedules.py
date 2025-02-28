@@ -1,3 +1,4 @@
+from clip_creator.conf import LOGGER
 from datetime import datetime
 
 
@@ -20,6 +21,7 @@ def get_timestamps(sections: int) -> list:
     start_minutes = sh * 60  # 5:00 AM in minutes (300)
     end_minutes = (23 * 60) + 59  # Midnight in minutes (1439)
     total = end_minutes - start_minutes  # Total minutes in the interval
+    LOGGER.info("sched: %s, %s, %s, %s, %s, %s", dtnh, dtnm, sh, start_minutes, total, sections)
     step = total / sections  # Duration of each section in minutes
 
     timestamps = []

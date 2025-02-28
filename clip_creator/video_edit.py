@@ -1,6 +1,7 @@
 import math
 import time
 import os
+import shutil
 from random import randint
 
 import numpy as np
@@ -14,6 +15,7 @@ from moviepy import (
 )
 from moviepy.video.fx import Crop, Resize
 from pydub import AudioSegment
+from speechbrain.inference.enhancement import SpectralMaskEnhancement
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
 from clip_creator.conf import (
@@ -44,14 +46,15 @@ def edit_vid_orchestrator(
     #########################################
     # Make my own transcription for captions
     #########################################
-    
+    #audio_file, outputa_file, number_runs, secs_per_segment, duration = "tmp/raw/audio_l6oJa69LFuI_whis_err.wav", "tmp/raw/audio_l6oJa69LFuI_whis_err.wav", 1, 30, 8
     audio_file, outputa_file, number_runs, secs_per_segment, duration = get_info_from_audio(prefix, input_file, start_time, end_time)
+    #LOGGER.info("stuff1: %s %s %s %s %s", audio_file, outputa_file, number_runs, secs_per_segment, duration)
     true_transcript = []
     timestamps_obj = timestamps()
+    # if run, will cause openai to fail
     segment_files = create_aud_seg(number_runs, secs_per_segment, prefix, audio_file)
-    
             
-    time.sleep(1)
+    
     for i, segment_file in enumerate(segment_files):
         transcript_segment = timestamps_obj.get_word_timestamps_openai(
             segment_file,
@@ -61,8 +64,7 @@ def edit_vid_orchestrator(
         time.sleep(1)
         # Adjust timestamps for the segment offset
         true_transcript.extend(transcript_segment)
-        os.remove(segment_file)
-        
+        os.remove(segment_file)  
     return edit_video(
             prefix,
             input_file,
@@ -76,26 +78,65 @@ def edit_vid_orchestrator(
             audio_file=audio_file,
             outputa_file=outputa_file,
         )
+
+def remove_bad_audio(audio_file):
+    device = "cpu"
+    if torch.cuda.is_available():
+        device = "cuda:0"
+        torch.cuda.empty_cache()
+
+    # Reduce Noise
+    model = SpectralMaskEnhancement.from_hparams(
+        "speechbrain/mtl-mimic-voicebank"
+    )
+    model.enhance_file(audio_file, output_filename=audio_file)
+    
+
     
 def create_aud_seg(number_runs, secs_per_segment, prefix, audio_file):
+    """
+    Creates audio segments using pydub.
+
+    Args:
+        number_runs (int): The number of segments to create.
+        secs_per_segment (int): The duration of each segment in seconds.
+        prefix (str): A prefix for the output filenames.
+        audio_file (str): The path to the input audio file.
+
+    Returns:
+        list: A list of paths to the created segment files.
+    """
+    #remove_bad_audio(audio_file, prefix)
     segment_files = []
-    full_audio = AudioFileClip(audio_file)
+    try:
+        full_audio = AudioSegment.from_file(audio_file)
+    except Exception as e:
+        print(f"Error loading audio file: {e}")
+        return []
+
     for i in range(number_runs):
-        segment_start = i * secs_per_segment
-        segment_end = min((i + 1) * secs_per_segment, full_audio.duration)
-        segment_file = f"./tmp/audios/audio_{prefix}_segment_{i}.mp3"
-        segment = full_audio.subclipped(segment_start, segment_end)
-        segment.write_audiofile(segment_file, codec="libmp3lame", logger=None)
+        segment_start_ms = i * secs_per_segment * 1000  # Convert seconds to milliseconds
+        segment_end_ms = min((i + 1) * secs_per_segment * 1000, len(full_audio)) #convert to ms
+        if segment_start_ms == 0 and len(full_audio) == segment_end_ms:
+            shutil.copyfile(audio_file, f"./tmp/audios/audio_{prefix}_segment_{i}.wav")
+            break
+        segment = full_audio[segment_start_ms:segment_end_ms]
+        segment_file = f"./tmp/audios/audio_{prefix}_segment_{i}.wav"
+        
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(segment_file), exist_ok=True)
+
+        segment.export(segment_file, format="wav")
         segment_files.append(segment_file)
-    full_audio.close()
+
     return segment_files
 def get_info_from_audio(prefix, input_file, start_time=0, end_time=60):
     
 
-    audio_file = f"./tmp/audio_{prefix}.mp3"
-    outputa_file = f"./tmp/audioo_{prefix}.mp3"
+    audio_file = f"./tmp/audio_{prefix}.wav"
+    outputa_file = f"./tmp/audioo_{prefix}.wav"
     clip = VideoFileClip(input_file).subclipped(start_time, end_time)
-    clip.audio.write_audiofile(audio_file, codec="libmp3lame")
+    clip.audio.write_audiofile(audio_file, codec="pcm_s16le")
     
     secs_per_segment = 30
     number_runs = math.ceil(clip.duration / secs_per_segment)
@@ -104,6 +145,7 @@ def get_info_from_audio(prefix, input_file, start_time=0, end_time=60):
     del clip
     
     return audio_file, outputa_file, number_runs, secs_per_segment, lengthed
+
 def edit_video(
     prefix: str,
     input_file,
@@ -162,14 +204,11 @@ def edit_video(
     cropped_clip = cropped.apply(clip)
 
     tw, th = target_size
-    # Create a black background and composite the result on it.
-    # background = ColorClip(size=target_size, color=(0, 0, 0), duration=cropped_clip.duration).with_fps(cropped_clip.fps)
-    # final_clip = background.overlay(cropped_clip, position=("center", "center"))
-    # 3 words per line unless the total of those words is less than 19
+    # Set number of lines
     pixels_per_char = 90
     lines_total = 0
     chars_in_line = 0
-    max_chars = 19
+    max_chars = 16
     for i, _chared in enumerate(text):
         chars_in_line += 1
         if chars_in_line > max_chars:
@@ -178,6 +217,7 @@ def edit_video(
         if lines_total > 6:
             text = text[:i] + "..."
             break
+    # Create TextClip
     if text.strip() != "":
         rotate_tilt = randint(-10, 10)
         text_commm = TextClip(  # img_width, img_height = size
@@ -205,12 +245,12 @@ def edit_video(
         pos_x = (
             cropped_clip.w / 2
             - (
-                int(target_h * 0.93)
+                int(target_h * 0.93) # target h is actually width
                 if lines_total > 1
                 else int(((target_h / max_chars) * len(text)) / 2)
             )
-        ) / 3
-        text_commm_pos = text_commm.with_position((pos_x, int(th / 7)))
+        ) / 4
+        text_commm_pos = text_commm.with_position((pos_x, int(th / 8)))
         if len(emojis) > 5:
             emojis = emojis[:5]
 
@@ -224,7 +264,7 @@ def edit_video(
             )
             emoji_commm = (
                 ImageClip(output_e_file, duration=cropped_clip.duration
-                    ).with_position((int(text_commm.w / 2), int((th / 7) - (pixels_per_char * 3))))
+                    ).with_position((int(text_commm.w / 2), int((th / 8) - (pixels_per_char * 3))))
                 .rotated(rotate_tilt, expand=True).with_effects([Resize((
                         int(len(emojis) * (pixels_per_char * 3.5)),
                         int(pixels_per_char * 3.5)
@@ -303,7 +343,7 @@ def mute_sections(input_file, output_file, mute_section):
     mute_sections (list): List of tuples with (start_ms, end_ms) to mute
     """
     # Load the audio file
-    audio = AudioSegment.from_file(input_file, format="mp3")
+    audio = AudioSegment.from_file(input_file, format="wav")
 
     # Convert audio to numpy array for easier manipulation
     samples = np.array(audio.get_array_of_samples())
@@ -332,7 +372,7 @@ def mute_sections(input_file, output_file, mute_section):
     modified_audio = audio._spawn(samples.tobytes())
 
     # Export the modified audio
-    modified_audio.export(output_file, format="mp3")
+    modified_audio.export(output_file, format="wav")
     LOGGER.info(f"Successfully created edited file: {output_file}")
     return output_file
 
@@ -562,6 +602,18 @@ class timestamps:
         self.model.to(self.device)
         LOGGER.debug("Model loaded")
         self.processor = AutoProcessor.from_pretrained(self.model_id)
+        LOGGER.debug("Processor loaded")
+            
+        self.pipe = pipeline(
+                "automatic-speech-recognition",
+                model=self.model,
+                tokenizer=self.processor.tokenizer,
+                feature_extractor=self.processor.feature_extractor,
+                torch_dtype=self.torch_dtype,
+                device=self.device,
+                #stride_length_s=chunk_length_s * 0.15,  # 15% overlap for better continuity
+                #chunk_length_s=chunk_length_s,
+            )
     def get_word_timestamps_openai(
         self,
         audio_path,
@@ -588,19 +640,10 @@ class timestamps:
         retries = 0
         while True:
             
-            LOGGER.debug("Processor loaded")
-            pipe = pipeline(
-                "automatic-speech-recognition",
-                model=self.model,
-                tokenizer=self.processor.tokenizer,
-                feature_extractor=self.processor.feature_extractor,
-                torch_dtype=self.torch_dtype,
-                device=self.device,
-                #stride_length_s=chunk_length_s * 0.15,  # 15% overlap for better continuity
-                #chunk_length_s=chunk_length_s,
-            )
+            #LOGGER.info("MP3 STats %s", os.stat(audio_path))
             LOGGER.debug("Pipeline loaded")
-            result = pipe(
+            time.sleep(10)
+            result = self.pipe(
                 audio_path,
                 batch_size=64,
                 return_timestamps="word",
