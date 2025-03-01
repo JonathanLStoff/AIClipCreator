@@ -218,3 +218,15 @@ def sanitize_filename(filename: str) -> str:
         cleaned = f"_{cleaned}"
 
     return cleaned
+def sort_and_loop_by_max_int_key(data:list[dict]) -> list[dict]:
+
+    """
+    Sorts a list of dictionaries by the 'score' key in descending order and loops through it.
+
+    Args:
+        data: A list of dictionaries, where each dictionary has a 'score' key with an integer value.
+    """
+    
+    sorted_data = sorted(data, key=lambda x: x.get('score', 0), reverse=True) #default to 0 if score isn't there
+
+    return sorted_data

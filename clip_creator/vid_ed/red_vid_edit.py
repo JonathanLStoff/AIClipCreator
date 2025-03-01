@@ -1,5 +1,7 @@
-from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip
+from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, ImageClip
+from moviepy.video.fx import Resize
 from pydub import AudioSegment
+import os
 from clip_creator.utils.caption_img import (
         create_caption_images,
         create_emojis,
@@ -14,9 +16,15 @@ def get_audio_duration(audio_path):
 def create_reddit_video(video_path, audio_path, output_path, start_time, end_time, pid, transcript, th, tw):
     video = VideoFileClip(video_path).subclipped(start_time, end_time).with_audio(
         AudioFileClip(audio_path)
-    )
+    ).with_effects([Resize(height=th, width=tw)])
     cap_clips = create_captions(pid, transcript=transcript, target_size=(th, tw))
-    final_clip = CompositeVideoClip([video, *cap_clips])
+    output_dir, final_clip = CompositeVideoClip([video, *cap_clips])
+    final_clip.write_videofile(output_path, codec="libx264")
+    
+    for file in os.listdir(output_dir):
+        if pid in file:
+            os.remove(os.path.join(output_dir, file))
+            
 def create_captions(
     prefix: str,
     transcript: list[dict],
@@ -67,7 +75,7 @@ def create_captions(
         file_path = os.path.join(output_dir, file_name)
         caption_clip = ImageClip(file_path, duration=duration)
         # Position the image so that its center is at 6/7th of the video’s height.
-        pos_y = int(target_size[1] * 11 / 14 - caption_clip.h / 2)
+        pos_y = int(target_size[1] / 2 - caption_clip.h)
         caption_clip = (
             caption_clip.with_start(section["start"])
             .with_position(("center", pos_y))

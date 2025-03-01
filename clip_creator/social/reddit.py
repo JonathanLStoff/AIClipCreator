@@ -1,5 +1,6 @@
 import json
 import time
+import html
 from tqdm import tqdm
 import traceback
 from datetime import datetime
@@ -331,6 +332,68 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> l
         if i >= max_post:
             break
     return posts
+def reddit_get_comments(html_str) -> list[dict]:
+    """
+    Get comments from a Reddit post.
+    """
+    soup = BeautifulSoup(html_str, 'html.parser')
 
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    comments = soup.find_all('shreddit-comment')
+    comments_list = []
+    for comment in comments:
+        if 'slot' not in comment.attrs or not comment.attrs['slot'].startswith('children-'):
+            author = comment.get('author')
+            score = comment.get('score')
+            p_tag = comment.find('p')
+            if p_tag:
+                text = p_tag.get_text(strip=True)
+                comments_list.append({
+                    'author': author,
+                    'score': score,
+                    'text': text
+                })
+                
+    return comments_list
+def format_href(href: str) -> str:
+    """
+    Format the href for a Reddit post to get comment url.
+    """
+    tmp_href = ""
+    for i, url_part in enumerate(href.split("/")):
+        if i < 3:
+            tmp_href +="/" + url_part
+    return tmp_href
+def reddit_coms_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> list[dict]:
+    """
+    Orchestrates the process of finding Reddit posts.
+    """
+    href_list = find_sub_reddit_posts(used_posts, min_post)
+    posts = []
+    for i, href in tqdm(enumerate(href_list), desc="Processing posts"):
+        try:
+            response = requests.get(REDDIT_POST_DOMAIN+href)
+            datasx = extract_all(response.content)
+            com_res = requests.get(REDDIT_POST_DOMAIN+format_href(href))
+            reddit_get_comments
+            post = {
+                'title': datasx.get("post-title", ""),
+                'content': extract_text_from_element(response.content),
+                'upvotes': datasx.get('score', 0),
+                'comments': datasx.get('comment-count', 0),
+                'nsfw': False if not 'reason="nsfw"' in str(response.content) else True,
+                'posted_at': datasx.get('created-timestamp', datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")),
+                'url': href,
+            }
+            posts.append(post)
+            LOGGER.info(f"Processed post: {post}")
+        except Exception as e:
+            LOGGER.error(f"Error processing post {href}: {traceback.format_exc()}")
+            time.sleep(15)
+        time.sleep(5)
+        if i >= max_post:
+            break
+    return posts
 if __name__ == "__main__":
     print(reddit_posts_orch([], 2))

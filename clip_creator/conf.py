@@ -157,12 +157,17 @@ CURSE_WORDS = (
 
 SUB_REDDITS = [ 
     "amitheasshole",
-    "askreddit",
     "confessions",
     "stories",
     "todayilearned",
     "unpopularopinion",
+    "AITAH",
     
+]
+SUB_REDDITS_COM = [ 
+    "askreddit",
+    "nostupidquestions",
+
 ]
 BAD_WORD_SUB = "[\u00a0__\u00a0]"
 REDDIT_DOMAIN = "https://www.reddit.com/svc/shreddit/community-more-posts/hot/?t=DAY&name="
