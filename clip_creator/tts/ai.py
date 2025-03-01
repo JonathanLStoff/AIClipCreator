@@ -1,8 +1,9 @@
 import torch
+from random import choice
 from kokoro import KPipeline
 
 import soundfile as sf
-from clip_creator.conf import LOGGER
+from clip_creator.conf import LOGGER, TTS_VOICES
 from transformers import VitsModel, AutoTokenizer
 import numpy as np
 
@@ -45,11 +46,16 @@ class TTSModel:
         LOGGER.info(f"Audio saved to {filename}")
 
 class TTSModelKokoro:
-    def __init__(self):
+    def __init__(self, voice:int|None=None):
         # Model and tokenizer (choose a VITS model that sounds similar)
         self.kp = KPipeline(lang_code='a')
-
-    def text_to_speech(self, text, sample_rate=44100):
+        if not voice:
+            selection = choice(TTS_VOICES)
+            
+        else:
+            selection = TTS_VOICES[voice]
+        self.speaker, self.speed = selection[0], selection[1]
+    def text_to_speech(self, text, sample_rate=24000):
         """
         Generates speech from text using a VITS model.
 
@@ -61,8 +67,8 @@ class TTSModelKokoro:
             numpy.ndarray: The audio waveform as a NumPy array.
         """
         generator = self.kp(
-                            text, voice='am_eric', # <= change voice here: af_alloy, af_heart, af_aoede, af_bella, am_echo, am_adam, am_eric
-                            speed=.5, split_pattern=r'\n+'
+                            text, voice=self.speaker, # <= change voice here: af_alloy, af_heart, af_aoede, af_bella, am_echo, am_adam, am_eric
+                            speed=self.speed, split_pattern=r'\n+'
                         )
         
         audios = []

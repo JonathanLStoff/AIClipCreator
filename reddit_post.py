@@ -1,9 +1,11 @@
 import torch
+import argparse
+import uuid
 import os
 import shutil
 from random import choice, randint
 from clip_creator.conf import LOGGER, REDDIT_TEMPLATE_FOLDER, CLIPS_FOLDER
-from clip_creator.tts.ai import TTSModel
+from clip_creator.tts.ai import TTSModelKokoro
 from clip_creator.utils.forcealign import force_align
 from clip_creator.social.custom_tiktok import upload_video_tt
 from clip_creator.social.reddit import reddit_posts_orch
@@ -19,6 +21,24 @@ from clip_creator.db.db import (
     get_all_post_ids_red,
 )
 def main_reddit_posts_orch():
+    parser = argparse.ArgumentParser(description="AI Clip Creator")
+    parser.add_argument(
+        "--noretrieve",
+        action="store_true",
+        help="Retrieve new videos from YouTube if not set",
+    )
+    parser.add_argument("--numvid", type=int, help="Path to the input video")
+    parser.add_argument(
+        "--noai", action="store_true", help="Retrieve new videos from YouTube if set"
+    )
+    parser.add_argument("--inputvideoid", type=str, help="Path to the input video")
+    parser.add_argument(
+        "--skiptimecheck",
+        action="store_true",
+        help="Retrieve new videos from YouTube if set",
+    )
+    args = parser.parse_args()
+    LOGGER.info("Arguments: %s", args)
     #####################################
     # Set up paths
     #####################################
@@ -30,39 +50,47 @@ def main_reddit_posts_orch():
     create_database()
     found_posts = get_all_post_ids_red()
     
+    if not args.noretrieve:
+        netw_redd_posts = reddit_posts_orch(found_posts, min_post=10, max_post=20)
     
-    netw_redd_posts = reddit_posts_orch(found_posts, min_post=10, max_post=20)
     
-    
-    #####################################
-    # Add posts to database
-    #####################################
-    for post in netw_redd_posts:
-        if "/" in post['url']:
-            if post['url'].split("/")[3] in found_posts:
-                LOGGER.error(f"ITEM ADDED FROM POSTS IS ALREADY IN DB: {post['url']}")
+        #####################################
+        # Add posts to database
+        #####################################
+        for post in netw_redd_posts:
+            if "/" in post['url']:
+                if post['url'].split("/")[3] in found_posts:
+                    LOGGER.error(f"ITEM ADDED FROM POSTS IS ALREADY IN DB: {post['url']}")
+                else:
+                    LOGGER.info("Adding Post to DB %s", post['url'])
+                    do_it = False
+                    post_id = str(uuid.uuid4())
+                    for party in post['url'].split("/"):
+                        if "comment" in party.lower():
+                            do_it=True
+                        elif do_it:
+                            post_id = party
+                            break
+                    add_reddit_post_clip(
+                        post_id=post_id,
+                        title=post['title'],
+                        posted_at=post['posted_at'],
+                        content=post['content'],
+                        url=post['url'],
+                        upvotes=post['upvotes'],
+                        comments=post['comments'],
+                        nsfw=post['nsfw'],
+                        )
+                    
             else:
-                LOGGER.info("Adding Post to DB %s", post['url'])
-                add_reddit_post_clip(
-                    post_id=post['url'].split("/")[3], 
-                    title=post['title'], 
-                    posted_at=post['posted_at'],
-                    content=post['content'], 
-                    url=post['url'], 
-                    upvotes=post['upvotes'],
-                    comments=post['comments'],
-                    nsfw=post['nsfw'],
-                    )
-                
-        else:
-            LOGGER.error(f"Invalid URL: {post['url']}")
+                LOGGER.error(f"Invalid URL: {post['url']}")
     #####################################
     # Remove from list if 160 words not met
     #####################################
     unused_posts = get_rows_where_tiktok_null_or_empty()
     posts_to_use = {}
     for post in unused_posts:
-        if post.get('content', "").split() > 160 and not post['nsfw']: # 160 minium words in a post
+        if len(post.get('content', "").split()) > 160 and not post['nsfw']: # 160 minium words in a post
             LOGGER.info("Post to use %s", post['post_id'])
             posts_to_use[post['post_id']] = (post)
             
@@ -76,7 +104,7 @@ def main_reddit_posts_orch():
     # Create Audio using TTS
     #####################################
     
-    tts_model = TTSModel()
+    tts_model = TTSModelKokoro()
     for pid, post in posts_to_use.items():
         LOGGER.info("Creating Audio for %s", pid)
         posts_to_use[pid]['filename'] = f"tmp/audios/{pid}_tts.wav"

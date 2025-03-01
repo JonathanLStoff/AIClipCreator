@@ -4,7 +4,7 @@ import html
 from tqdm import tqdm
 import traceback
 from datetime import datetime
-from clip_creator.conf import LOGGER, SUB_REDDITS, REDDIT_DOMAIN, REDDIT_POST_DOMAIN
+from clip_creator.conf import LOGGER, SUB_REDDITS, REDDIT_DOMAIN, REDDIT_POST_DOMAIN, SUB_REDDITS_COM
 import requests
 from bs4 import BeautifulSoup
 
@@ -338,8 +338,6 @@ def reddit_get_comments(html_str) -> list[dict]:
     """
     soup = BeautifulSoup(html_str, 'html.parser')
 
-    soup = BeautifulSoup(html_content, 'html.parser')
-
     comments = soup.find_all('shreddit-comment')
     comments_list = []
     for comment in comments:
@@ -365,6 +363,55 @@ def format_href(href: str) -> str:
         if i < 3:
             tmp_href +="/" + url_part
     return tmp_href
+def find_sub_reddit_coms(used_posts:list[str], min_posts:int=10) -> list[str]:
+    """
+    Find posts from a list of subreddits.
+    """
+    prefix = "partial-more-posts-"
+    next_view = {}
+    href_list:list[str] = []
+    number_runs = 0
+    while len(href_list) < min_posts:
+        for suby in tqdm(SUB_REDDITS_COM, desc="Subreddit, finding posts"):
+            try:
+                if number_runs == 0:
+                    response = requests.get(REDDIT_DOMAIN+suby)
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    next_view[suby] = next_page_finder(soup, prefix)
+                else:
+                    response = requests.get(REDDIT_DOMAIN+suby+"&after="+next_view[suby]+"%3D%3D")
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    next_view[suby] = next_page_finder(soup, prefix)
+            
+                
+                # Find all article elements containing posts
+                for article in soup.find_all('article', class_='w-full'):
+                    # Extract the shreddit-post element
+                    post = article.find('shreddit-post')
+                    
+                    if post:
+                        post_id = post.get('id')
+                        
+                        # Skip if post ID is already processed
+                        if post_id in used_posts:
+                            continue
+                            
+                        # Find the href in either of these locations
+                        href = post.get('permalink') or \
+                            post.find('a', {'slot': 'full-post-link'}).get('href')
+                        
+                        if href:
+                            href_list.append(href)
+                            used_posts.append(post_id)
+            except Exception as e:
+                LOGGER.error(f"Error processing subreddit {suby}: {traceback.format_exc()}")
+                time.sleep(15)
+        if number_runs > 10:
+            break
+        time.sleep(5)
+        number_runs += 1
+        
+    return href_list
 def reddit_coms_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> list[dict]:
     """
     Orchestrates the process of finding Reddit posts.
@@ -376,7 +423,7 @@ def reddit_coms_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> li
             response = requests.get(REDDIT_POST_DOMAIN+href)
             datasx = extract_all(response.content)
             com_res = requests.get(REDDIT_POST_DOMAIN+format_href(href))
-            reddit_get_comments
+            comments = reddit_get_comments(com_res.content)
             post = {
                 'title': datasx.get("post-title", ""),
                 'content': extract_text_from_element(response.content),
@@ -385,6 +432,7 @@ def reddit_coms_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> li
                 'nsfw': False if not 'reason="nsfw"' in str(response.content) else True,
                 'posted_at': datasx.get('created-timestamp', datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")),
                 'url': href,
+                'comments_list': comments,
             }
             posts.append(post)
             LOGGER.info(f"Processed post: {post}")

@@ -32,7 +32,7 @@ def main_reddit_posts_orch():
     found_posts = get_all_post_ids_red_com()
     
     
-    netw_redd_posts = reddit_posts_orch(found_posts, min_post=10, max_post=20)
+    netw_redd_posts = reddit_coms_orch(found_posts, min_post=10, max_post=20)
     
     
     #####################################
