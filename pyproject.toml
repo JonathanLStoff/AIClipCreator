@@ -36,7 +36,8 @@ emoji = "1.6.3"
 noisereduce = "^3.0.3"
 pilmoji = "^2.0.4"
 speechbrain = "^1.0.2"
-sounddevice = "*"
+forcealign = "*"
+nltk = "*"
 
 
 [tool.poetry.group.dev.dependencies]

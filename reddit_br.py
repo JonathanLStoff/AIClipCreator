@@ -1,10 +1,13 @@
 import torch
-from clip_creator.conf import LOGGER
+import os
+from random import choice, randint
+from clip_creator.conf import LOGGER, REDDIT_TEMPLATE_FOLDER
 from clip_creator.tts.ai import TTSModel
 from clip_creator.utils.forcealign import force_align
 from clip_creator.social.reddit import reddit_posts_orch
 from clip_creator.utils.path_setup import check_and_create_dirs
 from clip_creator.utils.scan_text import reddit_remove_bad_words
+from clip_creator.vid_ed.red_vid_edit import get_clip_duration, get_audio_duration, create_reddit_video
 from clip_creator.db.db import (
     update_reddit_post_clip,
     create_database,
@@ -83,7 +86,26 @@ def main_reddit_posts_orch():
     #####################################
     # Create video
     #####################################
+    mpfours = [file for file in os.listdir(REDDIT_TEMPLATE_FOLDER) if file.endswith(".mp4")]
+    for pid, post in posts_to_use.items():
+        background = choice(mpfours)
+        clip_length = get_clip_duration(background)
+        # Grab random part from mc parkor/subway surfers/temple run
+        posts_to_use[pid]['audio_length'] = get_audio_duration(post['filename'])
+        start = randint(0, int(clip_length - posts_to_use[pid]['audio_length']))
+        end = start + posts_to_use[pid]['audio_length']
+        # run video creator that combines video with audio with transcript
+        create_reddit_video(
+            video_path=os.path.join(REDDIT_TEMPLATE_FOLDER, background),
+            audio_path=post['filename'],
+            output_path=f"tmp/clips/{pid}.mp4",
+            start_time=start,
+            end_time=end,
+            pid=pid,
+            transcript=post['aligned_ts'],
+            th=1080,
+            tw=1920,
+        )
     
-    # Grab random part from mc parkor/subway surfers/temple run
     
-    # run video creator that combines video with audio with transcript
+        

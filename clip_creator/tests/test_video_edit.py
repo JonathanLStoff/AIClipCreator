@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from clip_creator.conf import CURSE_WORDS
 from moviepy import VideoFileClip
 
-from clip_creator.video_edit import (
+from clip_creator.vid_ed.video_edit import (
     edit_vid_orchestrator,
     timestamps
 )

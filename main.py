@@ -46,7 +46,7 @@ from clip_creator.utils.scan_text import (
 from clip_creator.utils.schedules import get_timestamps
 from clip_creator.utils.text_to_video import find_text_sec
 from clip_creator.utils.video_tools import convert_webm_to_mp4
-from clip_creator.video_edit import edit_vid_orchestrator
+from clip_creator.vid_ed.video_edit import edit_vid_orchestrator
 from clip_creator.youtube import (
     Download,
     get_comments,

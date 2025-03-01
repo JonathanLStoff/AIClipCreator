@@ -6,7 +6,7 @@ from clip_creator.conf import (
 from clip_creator.utils.scan_text import (
     sanitize_filename,
 )
-from clip_creator.video_edit import edit_vid_orchestrator, timestamps
+from clip_creator.vid_ed.video_edit import edit_vid_orchestrator, timestamps
 
 def main():
     # No text
