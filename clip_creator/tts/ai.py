@@ -1,5 +1,4 @@
 import torch
-import sounddevice as sd
 import soundfile as sf
 from transformers import VitsModel, AutoTokenizer
 
@@ -28,29 +27,16 @@ class TTSModel:
 
         return waveform, sample_rate
 
-    def play_audio(self, waveform, sample_rate):
-        """
-        Plays the generated audio.
-
-        Args:
-            waveform (numpy.ndarray): The audio waveform.
-            sample_rate (int): The sample rate of the audio.
-        """
-        sd.play(waveform, samplerate=sample_rate)
-        sd.wait()  # Wait until playback is finished
-    def run_it(self):
-        text = "Hello, this is a test of the AI voice."
+    def run_it(self, filename, text):
 
         try:
             waveform, sample_rate = self.text_to_speech(text)
-            self.play_audio(waveform, sample_rate)
 
         except Exception as e:
             print(f"An error occurred: {e}")
 
         # Example of saving the audio to a file
         
-        filename = "output.wav"
         sf.write(filename, waveform, sample_rate)
         print(f"Audio saved to {filename}")
     

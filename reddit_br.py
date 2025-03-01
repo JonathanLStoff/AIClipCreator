@@ -1,8 +1,10 @@
+import torch
 from clip_creator.conf import LOGGER
 from clip_creator.tts.ai import TTSModel
 from clip_creator.utils.forcealign import force_align
 from clip_creator.social.reddit import reddit_posts_orch
 from clip_creator.utils.path_setup import check_and_create_dirs
+from clip_creator.utils.scan_text import reddit_remove_bad_words
 from clip_creator.db.db import (
     update_reddit_post_clip,
     create_database,
@@ -60,17 +62,24 @@ def main_reddit_posts_orch():
     #####################################
     for pid, post in posts_to_use.items():
         # run video creator that combines video with audio with transcript
-        pass
+        posts_to_use[pid]['content'] = reddit_remove_bad_words(post['content'])
     #####################################
     # Create Audio using TTS
     #####################################
     
     tts_model = TTSModel()
-    
+    for pid, post in posts_to_use.items():
+        posts_to_use[pid]['filename'] = f"tmp/audios/{pid}_tts.wav"
+        tts_model.run_it(posts_to_use[pid]['filename'], post['content'])
     #####################################
     # Force align text to audio
     #####################################
-    force_align
+    device = "cpu"
+    if torch.cuda.is_available():
+        device = "cuda:0"
+        torch.cuda.empty_cache()
+    for pid, post in posts_to_use.items():
+        posts_to_use[pid]['aligned_ts'] = force_align(device=device, file=post['filename'], yt_ft_transcript=post['content'])
     #####################################
     # Create video
     #####################################

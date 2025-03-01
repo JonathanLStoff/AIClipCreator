@@ -91,7 +91,16 @@ def find_timestamp_clips(raw_transcript: list, timestamp: int) -> list[dict]:
         if i >= item_index and section["start"] < timestamp + 61:
             clip.append(section)
     return clip
-
+def reddit_remove_bad_words(text: str) -> str:
+    """
+    Remove bad words from a text.
+    """
+    for word in text.split():
+        for curse_word in CURSE_WORDS:
+            if curse_word in word:
+                text = text.replace(word, "naughty word")
+    
+    return text
 
 def find_bad_words(true_transcript: list[dict], uncensored_transcript) -> (list[list[int]], list[dict]):
     """
