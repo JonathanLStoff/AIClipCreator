@@ -8,7 +8,7 @@ from clip_creator.utils.forcealign import force_align
 from clip_creator.social.custom_tiktok import upload_video_tt
 from clip_creator.social.reddit import reddit_posts_orch
 from clip_creator.utils.path_setup import check_and_create_dirs
-from clip_creator.utils.scan_text import reddit_remove_bad_words
+from clip_creator.utils.scan_text import reddit_remove_bad_words, reddit_acronym
 from clip_creator.vid_ed.red_vid_edit import get_clip_duration, get_audio_duration, create_reddit_video
 from clip_creator.utils.schedules import get_timestamps
 from clip_creator.db.db import (
@@ -71,7 +71,7 @@ def main_reddit_posts_orch():
     #####################################
     for pid, post in posts_to_use.items():
         # run video creator that combines video with audio with transcript
-        posts_to_use[pid]['content'] = reddit_remove_bad_words(post['content'])
+        posts_to_use[pid]['content'] = reddit_acronym(reddit_remove_bad_words(post['title'] + " " +post['content']))
     #####################################
     # Create Audio using TTS
     #####################################
@@ -97,7 +97,8 @@ def main_reddit_posts_orch():
     mpfours = [file for file in os.listdir(REDDIT_TEMPLATE_FOLDER) if file.endswith(".mp4")]
     for pid, post in posts_to_use.items():
         background = choice(mpfours)
-        clip_length = get_clip_duration(background)
+        clip_length = get_clip_duration(os.path.join(REDDIT_TEMPLATE_FOLDER, background))
+        LOGGER.info("Clip, length: %s, %s",background, clip_length)
         # Grab random part from mc parkor/subway surfers/temple run
         posts_to_use[pid]['audio_length'] = get_audio_duration(post['filename'])
         start = randint(0, int(clip_length - posts_to_use[pid]['audio_length']+1))

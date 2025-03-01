@@ -1,7 +1,7 @@
 import re
 from collections import Counter
 
-from clip_creator.conf import CURSE_WORDS, LOGGER, RM_TIMESTAMP_REGEX, TIMESTAMP_REGEX
+from clip_creator.conf import CURSE_WORDS, LOGGER, RM_TIMESTAMP_REGEX, TIMESTAMP_REGEX, REDDIT_ACCRO_SUB
 
 
 def most_common_ngrams(text, n=3):
@@ -101,7 +101,15 @@ def reddit_remove_bad_words(text: str) -> str:
                 text = text.replace(word, "naughty word")
     
     return text
-
+def reddit_acronym(text: str) -> str:
+    """
+    Replace acronyms in a text.
+    """
+    for acronym, full in REDDIT_ACCRO_SUB.items():
+        for word in text.split():
+            if acronym == word.upper():
+                text = text.replace(word, full)
+    return text
 def find_bad_words(true_transcript: list[dict], uncensored_transcript) -> (list[list[int]], list[dict]):
     """
     Find bad words in a text.
