@@ -25,6 +25,7 @@ from clip_creator.conf import (
     LOGGER,
     LOW_CPU_MEM,
     NUM_CORES,
+    BAD_WORD_SUB
 )
 from clip_creator.utils.forcealign import force_align
 from clip_creator.utils.caption_img import (
@@ -44,6 +45,7 @@ def edit_vid_orchestrator(
     end_time=60,
     text: str = "",
     ft_transcript: str = "",
+    yt_transcript: list[dict] = [],
 ):
     #########################################
     # Make my own transcription for captions
@@ -80,7 +82,9 @@ def edit_vid_orchestrator(
             true_transcript=true_transcript,
             audio_file=audio_file,
             outputa_file=outputa_file,
-            uncensored_transcript = uncensored_transcript
+            uncensored_transcript = uncensored_transcript,
+            ft_transcript = ft_transcript,
+            yt_transcript = yt_transcript   
         )
 
 def remove_bad_audio(audio_file):
@@ -177,6 +181,8 @@ def edit_video(
     outputa_file: str = "",
     true_transcript: list[dict] | None = None,
     uncensored_transcript: list[dict] | None = None,
+    ft_transcript: str = "",
+    yt_transcript: list[dict] = [],
 ):
     """
     Crops a landscape video to a portrait orientation and “zooms in” on the center portion.
@@ -300,7 +306,7 @@ def edit_video(
 
     old_audio_file = audio_file
     true_transcript, audio_file = censor_words(
-        true_transcript, audio_file, outputa_file, uncensored_transcript
+        true_transcript, audio_file, outputa_file, uncensored_transcript, ft_transcript, yt_transcript
     )
     
     if text.strip() != "" and len(emojis) > 0:
@@ -354,13 +360,63 @@ def edit_video(
     return output_file, true_transcript
 
 
-def censor_words(transcript, audio_file, output_file, uncensored_transcript):
+def censor_words(transcript, audio_file, output_file, uncensored_transcript, ft_transcript, yt_transcript):
     ts_bw, ftranscript = find_bad_words(transcript, uncensored_transcript)
     LOGGER.info("Bad words: %s",ts_bw)
+    if BAD_WORD_SUB in ft_transcript:
+        ts_bw.extend(infer_bad_words(transcript, uncensored_transcript, ft_transcript, yt_transcript))
     audio_file_out = mute_sections(audio_file, output_file, ts_bw)
     return ftranscript, audio_file_out
 
+def infer_bad_words(transcript:list[dict], uncensored_transcript, ft_transcript, yt_transcript):
+    """_summary_
 
+    Args:
+        transcript (_type_): transcript created by me
+        uncensored_transcript (_type_): another transcript created by me
+        ft_transcript (_type_): string version of the yt transcript
+        yt_transcript (_type_): transcript from youtube
+    """
+    bad_word_sections = []
+    for i, part in enumerate(yt_transcript): # part == {text: "text in a sentence", start: 0.0, duration: 0.0}
+        if BAD_WORD_SUB in part['text']:
+            part['index'] = part['text'].index(BAD_WORD_SUB)
+            bad_word_sections.append(part)
+            # Check for length of context, if less than 3 words, check previous and next sections
+            if i > 0 and i < len(yt_transcript)-1 and (part['text'].split() < 3 or part['index'] < 3):
+                bad_word_sections[-1]['text'] = yt_transcript[i-1]['text'] + " " + part['text']
+                bad_word_sections[-1]['start'] = yt_transcript[i-1]['start']
+                bad_word_sections[-1]['duration'] = part['duration'] + yt_transcript[i-1]['duration']
+                part['index'] = bad_word_sections[-1]['text'].index(BAD_WORD_SUB)
+    mute_sexz = []
+    for i, part in enumerate(bad_word_sections):
+        phrase = part['text'].split(" ")[0:part['index']]
+        words_to_match = len(phrase)
+        matchesz = 0
+        for j, word in enumerate(phrase):
+            for k, parttwo in enumerate(transcript):
+                if parttwo['text'].lower() == word.lower():
+                    matchesz += 1
+                    if matchesz == words_to_match:
+                        # get the time stamp from this and the next parttwo to infer the time
+                        if k + 1 < len(transcript):
+                            mute_sexz.append(
+                                [
+                                    (parttwo['start'] + parttwo['duration'])*1000, 
+                                    transcript[k+1]['start']*1000
+                                ]
+                                )
+                        else:
+                            mute_sexz.append(
+                                [
+                                    parttwo['start'] + parttwo['duration']*1000, 
+                                    (transcript[k]['start'] + transcript[k]['duration'] + 2.0)*1000]
+                                )
+                        matchesz = 0
+                else:
+                    matchesz = 0
+    return mute_sexz
+    
 def mute_sections(input_file, output_file, mute_section:list[list[float]]):
     """
     Mute specific sections of an MP3 file

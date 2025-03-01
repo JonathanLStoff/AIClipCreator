@@ -162,7 +162,7 @@ SUB_REDDITS = [
     "unpopularopinion",
     
 ]
-
+BAD_WORD_SUB = "[\u00a0__\u00a0]"
 REDDIT_DOMAIN = "https://www.reddit.com/svc/shreddit/community-more-posts/hot/?t=DAY&name="
 REDDIT_POST_DOMAIN = "https://www.reddit.com" # + /[0]r/[1]stories/[2]comments/[3]1izveyu/sounds_too_cheesy_to_be_real_but_it_is/
 # example use: REDDIT_DOMAIN+"amitheasshole"

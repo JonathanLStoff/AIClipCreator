@@ -106,7 +106,7 @@ def find_bad_words(true_transcript: list[dict], uncensored_transcript) -> (list[
             bad_words.append([
                 int(float(word_dict.get("start", 0)) * 1000),
                 int(float(word_dict.get("start", 0)) * 1000)
-                + int(float(word_dict.get("duration", 1)) * 1000),
+                + int(float(word_dict.get("duration", 1)+0.5) * 1000),
             ])
             word_dict["text"] =  "*" * len(word)
         ftranscript.append(word_dict)
