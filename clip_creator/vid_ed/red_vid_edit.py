@@ -14,21 +14,28 @@ def get_clip_duration(video_path):
 def get_audio_duration(audio_path):
     audio = AudioSegment.from_file(audio_path)
     return len(audio) / 1000.0
-def create_reddit_video(video_path, audio_path, output_path, start_time, end_time, pid, transcript, th, tw, parts=1):
+def create_reddit_video(video_path, audio_path, output_path, start_time, end_time, pid, transcript, th, tw, paragraph, parts=1):
+    
+    ding = AudioFileClip(REDDIT_TEMPLATE_AUD).subclipped(0, 1.855).with_start(0).with_end(1.855)
+    LOGGER.info("ding: %s", ding.duration)
     if parts > 1:
         for i in range(parts):
-            video = VideoFileClip(video_path).subclipped(start_time+61*i, min(start_time+61*(i+1), end_time)).with_audio(
-                CompositeAudioClip(
+            temp_audio = CompositeAudioClip(
                     [
-                        # TTS Audio
-                        AudioFileClip(audio_path).subclipped(i*61, min((1+i)*61, (end_time-start_time))),
-                        # Background Music
-                        AudioFileClip(REDDIT_TEMPLATE_MUS).with_volume_scaled(0.5).subclipped(0, (end_time-start_time)).with_start(0),
                         # DING
-                        AudioFileClip(REDDIT_TEMPLATE_AUD).with_start(0)
-                    ])
+                        ding.with_start(0).with_end(1.87),
+                        # TTS Audio
+                        AudioFileClip(audio_path).subclipped(i*61, min((1+i)*61, (end_time-start_time))).with_start(0),
+                        # Background Music
+                        AudioFileClip(REDDIT_TEMPLATE_MUS).with_volume_scaled(0.5).subclipped(0, min((1+i)*61, (end_time-start_time))).with_start(0),
+
+                    ]
+                    )
+            temp_audio.write_audiofile(f"tmp/audios/{pid}_aud_{i}.wav")
+            video = VideoFileClip(video_path).subclipped(start_time+61*i, min(start_time+61*(i+1), end_time)).with_audio(
+                AudioFileClip(f"tmp/audios/{pid}_aud_{i}.wav").with_start(0)
             ).with_effects([Resize(height=th, width=tw)])
-            output_dir,cap_clips = create_captions(pid, transcript=transcript, target_size=(th, tw))
+            output_dir,cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(th, tw))
             LOGGER.info("video type: %s", type(video))
             LOGGER.info("cap_clips: %s", type(cap_clips[-1]))
             final_clip = CompositeVideoClip([video, *cap_clips])
@@ -37,18 +44,22 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
                 if pid in file:
                     os.remove(os.path.join(output_dir, file))
     else:
-        video = VideoFileClip(video_path).subclipped(start_time, end_time).with_audio(
-            CompositeAudioClip(
+        temp_audio = CompositeAudioClip(
                 [
+                    # DING
+                    ding.with_start(0).with_end(1.87),
                     # TTS Audio
-                    AudioFileClip(audio_path),
+                    AudioFileClip(audio_path).with_start(0),
                     # Background Music
                     AudioFileClip(REDDIT_TEMPLATE_MUS).with_volume_scaled(0.5).subclipped(0, (end_time-start_time)).with_start(0),
-                    # DING
-                    AudioFileClip(REDDIT_TEMPLATE_AUD).with_start(0)
+                    
+                    
                 ])
+        temp_audio.write_audiofile(f"tmp/audios/{pid}_aud.wav")
+        video = VideoFileClip(video_path).subclipped(start_time, end_time).with_audio(
+            AudioFileClip(f"tmp/audios/{pid}_aud.wav").with_start(0)
         ).with_effects([Resize(height=th, width=tw)])
-        output_dir, cap_clips = create_captions(pid, transcript=transcript, target_size=(th, tw))
+        output_dir, cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(th, tw))
         LOGGER.info("video type: %s", type(video))
         LOGGER.info("cap_clips: %s", type(cap_clips[-1]))
         final_clip = CompositeVideoClip([video]+cap_clips)
@@ -60,6 +71,7 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
             
 def create_captions(
     prefix: str,
+    paragraph: str,
     transcript: list[dict],
     target_size: tuple[int, int],
     output_dir: str = "./tmp/caps_img",
@@ -85,8 +97,15 @@ def create_captions(
     Returns:
         VideoFileClip: The modified video clip with the caption image clips composited on top.
     """
-
-    create_caption_images(prefix, transcript, target_size[0], output_dir)
+    file_to_check = f"word{len((paragraph.split()))-5}.jpg"
+    LOGGER.info("file_to_check and pre: %s %s", file_to_check, prefix)
+    not_found = True
+    for file in os.listdir(output_dir):
+        if file_to_check in file and prefix in file:
+            not_found = False
+            break
+    if not_found:
+        create_caption_images(prefix, transcript, target_size[0], output_dir)
 
     clip_list = []
 

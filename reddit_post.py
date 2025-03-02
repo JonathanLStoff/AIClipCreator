@@ -121,7 +121,7 @@ def main_reddit_posts_orch():
         torch.cuda.empty_cache()
     for pid, post in posts_to_use.items():
         LOGGER.info("Aligning %s", pid)
-        if not post.get('aligned_ts', None):
+        if not post.get('transcript', None):
             LOGGER.info("Aligning %s, %s", post['filename'], type(post['content']))
             posts_to_use[pid]['aligned_ts'] = force_align(device=device, file=str(post['filename']), yt_ft_transcript=str(post['content']))
             if posts_to_use[pid]['aligned_ts'] != []:
@@ -130,6 +130,9 @@ def main_reddit_posts_orch():
                 post_id=pid,
                 transcript=json.dumps(posts_to_use[pid]['aligned_ts'])
             )
+        else:
+            posts_to_use[pid]['aligned_ts'] = json.loads(post
+            ['transcript'])
     #####################################
     # Create video
     #####################################
@@ -137,14 +140,14 @@ def main_reddit_posts_orch():
     for pid, post in posts_to_use.items():
         background = choice(mpfours)
         clip_length = get_clip_duration(os.path.join(REDDIT_TEMPLATE_BG, background))
-        LOGGER.info("Clip, length: %s, %s",background, clip_length)
+        LOGGER.info("Clip, length, pid: %s, %s, %s", background, clip_length, pid)
         # Grab random part from mc parkor/subway surfers/temple run
         posts_to_use[pid]['audio_length'] = get_audio_duration(post['filename'])
         start = randint(0, int(clip_length - posts_to_use[pid]['audio_length']+1))
         end = start + posts_to_use[pid]['audio_length']
         # run video creator that combines video with audio with transcript
         posts_to_use[pid]['vfile'] = f"tmp/clips/reddit_{pid}.mp4"
-        posts_to_use[pid]['parts'] = int(posts_to_use[pid]['audio_length']/61) if posts_to_use[pid]['audio_length'] > 110 else 1
+        posts_to_use[pid]['parts'] = 1 #int(posts_to_use[pid]['audio_length']/61) if posts_to_use[pid]['audio_length'] > 110 else 1
         create_reddit_video(
             video_path=os.path.join(REDDIT_TEMPLATE_BG, background),
             audio_path=post['filename'],
@@ -156,6 +159,7 @@ def main_reddit_posts_orch():
             transcript=post['aligned_ts'],
             th=1080,
             tw=1920,
+            paragraph=post['content']
         )
     ########################################
     # Calc time to post

@@ -43,7 +43,7 @@ if sys.platform.startswith("win"):
     TMP_DOWNLOAD_FOLDER = "tmp/raw"
     TMP_CLIPS_FOLDER = "tmp/clips"
     REDDIT_TEMPLATE_AUD = "D:/tmp/reddit/reddit_music.mp3"
-    REDDIT_TEMPLATE_MUS = "D:/tmp/reddit/ding.mp3"
+    REDDIT_TEMPLATE_MUS = "D:/tmp/reddit/ding_fixed.wav"
     REDDIT_TEMPLATE_BG = "D:/tmp/reddit"
     CLIPS_FOLDER = "D:/tmp/clips"
     MODELS_FOLDER = "D:/models"
@@ -68,7 +68,7 @@ elif sys.platform.startswith("darwin"):
     MODELS_FOLDER = "/Volumes/externalSSD/models"
     DOWNLOAD_FOLDER = "/Volumes/externalSSD/tmp/raw"
     REDDIT_TEMPLATE_AUD = "/Volumes/externalSSD/tmp/reddit/reddit_music.mp3"
-    REDDIT_TEMPLATE_MUS = "/Volumes/externalSSD/tmp/reddit/ding.mp3"
+    REDDIT_TEMPLATE_MUS = "/Volumes/externalSSD/tmp/reddit/ding_fixed.wav"
     REDDIT_TEMPLATE_BG = "/Volumes/externalSSD/tmp/reddit"
     TMP_DOWNLOAD_FOLDER = "tmp/raw"
     TMP_CLIPS_FOLDER = "tmp/clips"
@@ -191,3 +191,4 @@ REDDIT_POST_DOMAIN = "https://www.reddit.com" # + /[0]r/[1]stories/[2]comments/[
 
 REGEX_FOR_UPDATE = r"https:\/\/[^\s]+\s"
 REGEX_FOR_UPDATE_RM = r"[oO]riginal[\s\W]https:\/\/[^\s]+\s"
+
