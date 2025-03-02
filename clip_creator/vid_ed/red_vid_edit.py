@@ -1,6 +1,7 @@
-from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, ImageClip
+from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, ImageClip, CompositeAudioClip
 from moviepy.video.fx import Resize
 from pydub import AudioSegment
+from clip_creator.conf import LOGGER
 import os
 from clip_creator.utils.caption_img import (
         create_caption_images,
@@ -13,17 +14,31 @@ def get_clip_duration(video_path):
 def get_audio_duration(audio_path):
     audio = AudioSegment.from_file(audio_path)
     return len(audio) / 1000.0
-def create_reddit_video(video_path, audio_path, output_path, start_time, end_time, pid, transcript, th, tw):
-    video = VideoFileClip(video_path).subclipped(start_time, end_time).with_audio(
-        AudioFileClip(audio_path)
-    ).with_effects([Resize(height=th, width=tw)])
-    cap_clips = create_captions(pid, transcript=transcript, target_size=(th, tw))
-    output_dir, final_clip = CompositeVideoClip([video, *cap_clips])
-    final_clip.write_videofile(output_path, codec="libx264")
-    
-    for file in os.listdir(output_dir):
-        if pid in file:
-            os.remove(os.path.join(output_dir, file))
+def create_reddit_video(video_path, audio_path, music_path, output_path, start_time, end_time, pid, transcript, th, tw, parts=1):
+    if parts > 1:
+        for i in range(parts):
+            video = VideoFileClip(video_path).subclipped(start_time+61*i, min(start_time+61*(i+1), end_time)).with_audio(
+                CompositeAudioClip([AudioFileClip(audio_path).subclipped(i*61, min((1+i)*61, (end_time-start_time))),
+                                    AudioFileClip(music_path).with_volume_scaled(0.3).subclipped(10, (end_time-start_time)+10)])
+            ).with_effects([Resize(height=th, width=tw)])
+            cap_clips = create_captions(pid, transcript=transcript, target_size=(th, tw))
+            output_dir, final_clip = CompositeVideoClip([video, *cap_clips])
+            final_clip.write_videofile(output_path.replace(f"{pid}", f"{pid}_p{i}"), codec="libx264")
+            for file in os.listdir(output_dir):
+                if pid in file:
+                    os.remove(os.path.join(output_dir, file))
+    else:
+        video = VideoFileClip(video_path).subclipped(start_time, end_time).with_audio(
+            CompositeAudioClip([AudioFileClip(audio_path), AudioFileClip(music_path).with_volume_scaled(0.3).subclipped(10, (end_time-start_time)+10)])
+        ).with_effects([Resize(height=th, width=tw)])
+        cap_clips = create_captions(pid, transcript=transcript, target_size=(th, tw))
+        LOGGER.info("video type: %s", type(video))
+        output_dir, final_clip = CompositeVideoClip([video]+cap_clips)
+        final_clip.write_videofile(output_path, codec="libx264")
+        
+        for file in os.listdir(output_dir):
+            if pid in file:
+                os.remove(os.path.join(output_dir, file))
             
 def create_captions(
     prefix: str,

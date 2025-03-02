@@ -3,8 +3,9 @@ import argparse
 import uuid
 import os
 import shutil
+import json
 from random import choice, randint
-from clip_creator.conf import LOGGER, REDDIT_TEMPLATE_FOLDER, CLIPS_FOLDER
+from clip_creator.conf import LOGGER, REDDIT_TEMPLATE_FOLDER, CLIPS_FOLDER, REDDIT_TEMPLATE_FOLDER_MUS
 from clip_creator.tts.ai import TTSModelKokoro
 from clip_creator.utils.forcealign import force_align
 from clip_creator.social.custom_tiktok import upload_video_tt
@@ -59,18 +60,19 @@ def main_reddit_posts_orch():
         #####################################
         for post in netw_redd_posts:
             if "/" in post['url']:
-                if post['url'].split("/")[3] in found_posts:
+                do_it = False
+                post_id = str(uuid.uuid4())
+                for party in post['url'].split("/"):
+                    if "comment" in party.lower():
+                        do_it=True
+                    elif do_it:
+                        post_id = party
+                        break
+                if post_id in found_posts:
                     LOGGER.error(f"ITEM ADDED FROM POSTS IS ALREADY IN DB: {post['url']}")
                 else:
                     LOGGER.info("Adding Post to DB %s", post['url'])
-                    do_it = False
-                    post_id = str(uuid.uuid4())
-                    for party in post['url'].split("/"):
-                        if "comment" in party.lower():
-                            do_it=True
-                        elif do_it:
-                            post_id = party
-                            break
+                    
                     add_reddit_post_clip(
                         post_id=post_id,
                         title=post['title'],
@@ -108,7 +110,8 @@ def main_reddit_posts_orch():
     for pid, post in posts_to_use.items():
         LOGGER.info("Creating Audio for %s", pid)
         posts_to_use[pid]['filename'] = f"tmp/audios/{pid}_tts.wav"
-        tts_model.run_it(posts_to_use[pid]['filename'], post['content'])
+        if not os.path.exists(f"tmp/audios/{pid}_tts.wav"):
+            tts_model.run_it(posts_to_use[pid]['filename'], post['content'])
     #####################################
     # Force align text to audio
     #####################################
@@ -118,13 +121,23 @@ def main_reddit_posts_orch():
         torch.cuda.empty_cache()
     for pid, post in posts_to_use.items():
         LOGGER.info("Aligning %s", pid)
-        posts_to_use[pid]['aligned_ts'] = force_align(device=device, file=post['filename'], yt_ft_transcript=post['content'])
+        if not post.get('aligned_ts', None):
+            LOGGER.info("Aligning %s, %s", post['filename'], type(post['content']))
+            posts_to_use[pid]['aligned_ts'] = force_align(device=device, file=str(post['filename']), yt_ft_transcript=str(post['content']))
+            if posts_to_use[pid]['aligned_ts'] != []:
+                LOGGER.info("Aligned %s",posts_to_use[pid]['aligned_ts'][-1])
+            update_reddit_post_clip(
+                post_id=pid, 
+                transcript=json.dumps(posts_to_use[pid]['aligned_ts'])
+            )
     #####################################
     # Create video
     #####################################
     mpfours = [file for file in os.listdir(REDDIT_TEMPLATE_FOLDER) if file.endswith(".mp4")]
+    mpthrees = [file for file in os.listdir(REDDIT_TEMPLATE_FOLDER_MUS) if file.endswith(".mp3")]
     for pid, post in posts_to_use.items():
         background = choice(mpfours)
+        music_file = choice(mpthrees)
         clip_length = get_clip_duration(os.path.join(REDDIT_TEMPLATE_FOLDER, background))
         LOGGER.info("Clip, length: %s, %s",background, clip_length)
         # Grab random part from mc parkor/subway surfers/temple run
@@ -132,18 +145,36 @@ def main_reddit_posts_orch():
         start = randint(0, int(clip_length - posts_to_use[pid]['audio_length']+1))
         end = start + posts_to_use[pid]['audio_length']
         # run video creator that combines video with audio with transcript
-        posts_to_use[pid]['vfile'] = f"tmp/clips/reddit_{pid}.mp4"
-        create_reddit_video(
-            video_path=os.path.join(REDDIT_TEMPLATE_FOLDER, background),
-            audio_path=post['filename'],
-            output_path=posts_to_use[pid]['vfile'],
-            start_time=start,
-            end_time=end,
-            pid=pid,
-            transcript=post['aligned_ts'],
-            th=1080,
-            tw=1920,
-        )
+        if posts_to_use[pid]['audio_length'] > 61:
+            posts_to_use[pid]['vfile'] = f"tmp/clips/reddit_{pid}.mp4"
+            posts_to_use[pid]['parts'] = int(posts_to_use[pid]['audio_length']/61)
+            create_reddit_video(
+                video_path=os.path.join(REDDIT_TEMPLATE_FOLDER, background),
+                audio_path=post['filename'],
+                music_path=os.path.join(REDDIT_TEMPLATE_FOLDER_MUS, music_file),
+                output_path=posts_to_use[pid]['vfile'],
+                start_time=start,
+                end_time=end,
+                pid=pid,
+                parts=int(posts_to_use[pid]['audio_length']/61),
+                transcript=post['aligned_ts'],
+                th=1080,
+                tw=1920,
+            )
+        else:
+            posts_to_use[pid]['vfile'] = f"tmp/clips/reddit_{pid}.mp4"
+            create_reddit_video(
+                video_path=os.path.join(REDDIT_TEMPLATE_FOLDER, background),
+                music_path=os.path.join(REDDIT_TEMPLATE_FOLDER_MUS, music_file),
+                audio_path=post['filename'],
+                output_path=posts_to_use[pid]['vfile'],
+                start_time=start,
+                end_time=end,
+                pid=pid,
+                transcript=post['aligned_ts'],
+                th=1080,
+                tw=1920,
+            )
     ########################################
     # Calc time to post
     ########################################
@@ -170,20 +201,37 @@ def main_reddit_posts_orch():
     # Compile Description
     ######################################
     for pid, post in posts_to_use.items():
-        posts_to_use[pid]["desc"] = (
-            "#fyp #gaming #clip #fyppppppppppppp\ncredit"
-            f"{post['title']} on Reddit\n"
-        )    
+        if post[pid].get('parts', 1) > 1:
+            posts_to_use[pid]["desc"] = []
+            for i in range(post[pid]['parts']):
+                posts_to_use[pid]["desc"].append(
+                    f"#part{i+1} #fyp #reddit #clip #fyppppppppppppp\ncredit"
+                    f"{post['title']} on Reddit\n"
+                )  
+        else:
+            posts_to_use[pid]["desc"] = (
+                "#fyp #reddit #clip #fyppppppppppppp\ncredit"
+                f"{post['title']} on Reddit\n"
+            )  
     #####################################
     # Upload tiktok
     #####################################
     for pid, post in posts_to_use.items():
-        upload_video_tt(
-                        post['vfile'], 
+        if post[pid].get('parts', 1) > 1:
+            for i in range(post[pid]['parts']):
+                upload_video_tt(
+                        post['vfile'].replace(f"{pid}", f"{pid}_p{i}"), 
                         post['sched'], 
-                        post["desc"], 
+                        post["desc"][i], 
                         submit=True
                     )
+        else:
+            upload_video_tt(
+                            post['vfile'], 
+                            post['sched'], 
+                            post["desc"], 
+                            submit=True
+                        )
         update_reddit_post_clip(
             post_id=pid, 
             tiktok_posted=post['sched'], 
@@ -194,8 +242,13 @@ def main_reddit_posts_orch():
     # Clean up
     #####################################
     for pid, post in posts_to_use.items():
-        shutil.copyfile(post['vfile'], f"{CLIPS_FOLDER}/reddit_p_{pid}.mp4")
-        os.remove(post['vfile'])
+        if post[pid].get('parts', 1) > 1:
+            for i in range(post[pid]['parts']):
+                shutil.copyfile(post['vfile'].replace(f"{pid}", f"{pid}_p{i}"), f"{CLIPS_FOLDER}/reddit_p_{pid}.mp4")
+                os.remove(post['vfile'].replace(f"{pid}", f"{pid}_p{i}"))
+        else:
+            shutil.copyfile(post['vfile'], f"{CLIPS_FOLDER}/reddit_p_{pid}.mp4")
+            os.remove(post['vfile'])
         os.remove(post['filename'])
     LOGGER.info("Reddit posts done")
     

@@ -22,7 +22,7 @@ yt-dlp = "^2025.1.26"
 bs4 = "^0.0.2"
 librosa = "^0.10.2.post1"
 pandas = "^2.2.3"
-transformers = "^4.49.0"
+transformers = "4.48.0.dev0"
 nltk = "^3.9.1"
 ctranslate2 = "^4.5.0"
 faster-whisper = "^1.1.1"
@@ -39,6 +39,8 @@ speechbrain = "^1.0.2"
 forcealign = "*"
 kokoro = "^0.8.4"
 ipython = "^9.0.0"
+torch = "2.6.0+cu118"
+torchaudio = "2.6.0"
 
 
 [tool.poetry.group.dev.dependencies]

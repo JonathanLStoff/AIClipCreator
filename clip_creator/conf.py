@@ -43,6 +43,7 @@ if sys.platform.startswith("win"):
     TMP_DOWNLOAD_FOLDER = "tmp/raw"
     TMP_CLIPS_FOLDER = "tmp/clips"
     REDDIT_TEMPLATE_FOLDER = "D:/tmp/reddit"
+    REDDIT_TEMPLATE_FOLDER_MUS = "D:/tmp/reddit/music"
     CLIPS_FOLDER = "D:/tmp/clips"
     MODELS_FOLDER = "D:/models"
     WIS_DEVICE = "cuda:0"
@@ -66,6 +67,7 @@ elif sys.platform.startswith("darwin"):
     MODELS_FOLDER = "/Volumes/externalSSD/models"
     DOWNLOAD_FOLDER = "/Volumes/externalSSD/tmp/raw"
     REDDIT_TEMPLATE_FOLDER = "/Volumes/externalSSD/tmp/reddit"
+    REDDIT_TEMPLATE_FOLDER_MUS = "/Volumes/externalSSD/tmp/reddit/music"
     TMP_DOWNLOAD_FOLDER = "tmp/raw"
     TMP_CLIPS_FOLDER = "tmp/clips"
     CLIPS_FOLDER = "/Volumes/externalSSD/tmp/clips"
@@ -171,15 +173,20 @@ SUB_REDDITS_COM = [
 ]
 REDDIT_ACCRO_SUB = {
     "AITA ": "am I the a hole ",
-    "TIL ": "today I learned "
+    "AITHA ": "am I the a hole ",
+    "TIL ": "today I learned ",
+    "WIBTA ": "would I be the a hole ",
 
     
 }
 TTS_VOICES = [
-    ("af_heart",1.5),
-    ("am_adam",1.35),
+    ("af_heart",1.4),
+    ("am_adam",1.2),
 ]
 BAD_WORD_SUB = "[\u00a0__\u00a0]"
 REDDIT_DOMAIN = "https://www.reddit.com/svc/shreddit/community-more-posts/hot/?t=DAY&name="
 REDDIT_POST_DOMAIN = "https://www.reddit.com" # + /[0]r/[1]stories/[2]comments/[3]1izveyu/sounds_too_cheesy_to_be_real_but_it_is/
 # example use: REDDIT_DOMAIN+"amitheasshole"
+
+REGEX_FOR_UPDATE = r"https:\/\/[^\s]+\s"
+REGEX_FOR_UPDATE_RM = r"[oO]riginal[\s\W]https:\/\/[^\s]+\s"

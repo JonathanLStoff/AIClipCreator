@@ -4,6 +4,7 @@ from clip_creator.conf import LOGGER
 def force_align(file:str, yt_ft_transcript:str, device:str):
     
     # Provide path to audio file and corresponding transcript
+    LOGGER.info("Force aligning audio %s, %s", file, yt_ft_transcript)
     align = ForceAlign(audio_file=file, transcript=yt_ft_transcript)
 
     # Run prediction and return alignment results

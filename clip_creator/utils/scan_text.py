@@ -1,7 +1,7 @@
 import re
 from collections import Counter
 
-from clip_creator.conf import CURSE_WORDS, LOGGER, RM_TIMESTAMP_REGEX, TIMESTAMP_REGEX, REDDIT_ACCRO_SUB
+from clip_creator.conf import CURSE_WORDS, LOGGER, RM_TIMESTAMP_REGEX, TIMESTAMP_REGEX, REDDIT_ACCRO_SUB, REGEX_FOR_UPDATE, REGEX_FOR_UPDATE_RM
 
 
 def most_common_ngrams(text, n=3):
@@ -107,7 +107,7 @@ def reddit_acronym(text: str) -> str:
     """
     for acronym, full in REDDIT_ACCRO_SUB.items():
         for word in text.split():
-            if acronym == word.upper():
+            if acronym.upper() == word.upper():
                 text = text.replace(word, full)
     return text
 def find_bad_words(true_transcript: list[dict], uncensored_transcript) -> (list[list[int]], list[dict]):
@@ -238,3 +238,10 @@ def sort_and_loop_by_max_int_key(data:list[dict]) -> list[dict]:
     sorted_data = sorted(data, key=lambda x: x.get('score', 0), reverse=True) #default to 0 if score isn't there
 
     return sorted_data
+
+def reg_get_og(text:str):
+    if "original" in text:
+        matches = re.findall(REGEX_FOR_UPDATE, text)
+        rm_matches = re.findall(REGEX_FOR_UPDATE_RM, text)
+        return ("" if not matches else matches[0]),  text if not matches else text.replace(rm_matches[0], "")
+

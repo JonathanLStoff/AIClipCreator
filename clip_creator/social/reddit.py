@@ -7,6 +7,7 @@ from datetime import datetime
 from clip_creator.conf import LOGGER, SUB_REDDITS, REDDIT_DOMAIN, REDDIT_POST_DOMAIN, SUB_REDDITS_COM
 import requests
 from bs4 import BeautifulSoup
+from clip_creator.utils.scan_text import reg_get_og
 
 
 def search_reddit(videoid: str) -> list[dict]:
@@ -311,24 +312,30 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> l
     href_list = find_sub_reddit_posts(used_posts, min_post)
     posts = []
     for i, href in tqdm(enumerate(href_list), desc="Processing posts"):
-        try:
-            response = requests.get(REDDIT_POST_DOMAIN+href)
-            datasx = extract_all(response.content)
-            post = {
-                'title': datasx.get("post-title", ""),
-                'content': extract_text_from_element(response.content),
-                'upvotes': datasx.get('score', 0),
-                'comments': datasx.get('comment-count', 0),
-                'nsfw': False if not 'reason="nsfw"' in str(response.content) else True,
-                'posted_at': datasx.get('created-timestamp', datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")),
-                'url': href,
-            }
-            posts.append(post)
-            LOGGER.info(f"Processed post: {post}")
-        except Exception as e:
-            LOGGER.error(f"Error processing post {href}: {traceback.format_exc()}")
-            time.sleep(15)
-        time.sleep(5)
+        while True:
+            try:
+                response = requests.get(REDDIT_POST_DOMAIN+href)
+                datasx = extract_all(response.content)
+                og_link, content_text = reg_get_og(extract_text_from_element(response.content))
+                post = {
+                    'title': datasx.get("post-title", ""),
+                    'content': content_text,
+                    'upvotes': datasx.get('score', 0),
+                    'comments': datasx.get('comment-count', 0),
+                    'nsfw': False if not 'reason="nsfw"' in str(response.content) else True,
+                    'posted_at': datasx.get('created-timestamp', datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")),
+                    'url': href,
+                }
+                posts.append(post)
+                LOGGER.info(f"Processed post: {post}")
+            except Exception as e:
+                LOGGER.error(f"Error processing post {href}: {traceback.format_exc()}")
+                time.sleep(15)
+            time.sleep(5)
+            if not og_link or og_link == href or og_link == "":
+                break
+            href = og_link.split("reddit.com")[-1]
+            
         if i >= max_post:
             break
     return posts
