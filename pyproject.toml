@@ -39,7 +39,7 @@ speechbrain = "^1.0.2"
 forcealign = "*"
 kokoro = "^0.8.4"
 ipython = "^9.0.0"
-torch = "2.6.0+cu118"
+torch = ">=2.6.0+cu118"
 torchaudio = "2.6.0"
 
 

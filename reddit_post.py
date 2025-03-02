@@ -127,7 +127,7 @@ def main_reddit_posts_orch():
             if posts_to_use[pid]['aligned_ts'] != []:
                 LOGGER.info("Aligned %s",posts_to_use[pid]['aligned_ts'][-1])
             update_reddit_post_clip(
-                post_id=pid, 
+                post_id=pid,
                 transcript=json.dumps(posts_to_use[pid]['aligned_ts'])
             )
     #####################################
@@ -143,34 +143,20 @@ def main_reddit_posts_orch():
         start = randint(0, int(clip_length - posts_to_use[pid]['audio_length']+1))
         end = start + posts_to_use[pid]['audio_length']
         # run video creator that combines video with audio with transcript
-        if posts_to_use[pid]['audio_length'] > 110:
-            posts_to_use[pid]['vfile'] = f"tmp/clips/reddit_{pid}.mp4"
-            posts_to_use[pid]['parts'] = int(posts_to_use[pid]['audio_length']/61)
-            create_reddit_video(
-                video_path=os.path.join(REDDIT_TEMPLATE_BG, background),
-                audio_path=post['filename'],
-                output_path=posts_to_use[pid]['vfile'],
-                start_time=start,
-                end_time=end,
-                pid=pid,
-                parts=int(posts_to_use[pid]['audio_length']/61),
-                transcript=post['aligned_ts'],
-                th=1080,
-                tw=1920,
-            )
-        else:
-            posts_to_use[pid]['vfile'] = f"tmp/clips/reddit_{pid}.mp4"
-            create_reddit_video(
-                video_path=os.path.join(REDDIT_TEMPLATE_BG, background),
-                audio_path=post['filename'],
-                output_path=posts_to_use[pid]['vfile'],
-                start_time=start,
-                end_time=end,
-                pid=pid,
-                transcript=post['aligned_ts'],
-                th=1080,
-                tw=1920,
-            )
+        posts_to_use[pid]['vfile'] = f"tmp/clips/reddit_{pid}.mp4"
+        posts_to_use[pid]['parts'] = int(posts_to_use[pid]['audio_length']/61) if posts_to_use[pid]['audio_length'] > 110 else 1
+        create_reddit_video(
+            video_path=os.path.join(REDDIT_TEMPLATE_BG, background),
+            audio_path=post['filename'],
+            output_path=posts_to_use[pid]['vfile'],
+            start_time=start,
+            end_time=end,
+            pid=pid,
+            parts=posts_to_use[pid]['parts'],
+            transcript=post['aligned_ts'],
+            th=1080,
+            tw=1920,
+        )
     ########################################
     # Calc time to post
     ########################################
