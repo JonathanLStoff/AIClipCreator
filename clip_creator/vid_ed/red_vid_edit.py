@@ -16,18 +16,15 @@ def get_audio_duration(audio_path):
     return len(audio) / 1000.0
 def create_reddit_video(video_path, audio_path, output_path, start_time, end_time, pid, transcript, th, tw, paragraph, parts=1):
     
-    ding = AudioFileClip(REDDIT_TEMPLATE_AUD).subclipped(0, 1.855).with_start(0).with_end(1.855)
-    LOGGER.info("ding: %s", ding.duration)
     if parts > 1:
         for i in range(parts):
             temp_audio = CompositeAudioClip(
                     [
-                        # DING
-                        ding.with_start(0).with_end(1.87),
+
                         # TTS Audio
                         AudioFileClip(audio_path).subclipped(i*61, min((1+i)*61, (end_time-start_time))).with_start(0),
                         # Background Music
-                        AudioFileClip(REDDIT_TEMPLATE_MUS).with_volume_scaled(0.5).subclipped(0, min((1+i)*61, (end_time-start_time))).with_start(0),
+                        AudioFileClip(REDDIT_TEMPLATE_MUS).subclipped(0, min((1+i)*61, (end_time-start_time))).with_start(0),
 
                     ]
                     )
@@ -46,12 +43,11 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
     else:
         temp_audio = CompositeAudioClip(
                 [
-                    # DING
-                    ding.with_start(0).with_end(1.87),
+
                     # TTS Audio
                     AudioFileClip(audio_path).with_start(0),
                     # Background Music
-                    AudioFileClip(REDDIT_TEMPLATE_MUS).with_volume_scaled(0.5).subclipped(0, (end_time-start_time)).with_start(0),
+                    AudioFileClip(REDDIT_TEMPLATE_MUS).subclipped(0, (end_time-start_time)).with_start(0),
                     
                     
                 ])
