@@ -21,10 +21,10 @@ def create_reddit_video(video_path, audio_path, music_path, output_path, start_t
                 CompositeAudioClip([AudioFileClip(audio_path).subclipped(i*61, min((1+i)*61, (end_time-start_time))),
                                     AudioFileClip(music_path).with_volume_scaled(0.3).subclipped(10, (end_time-start_time)+10)])
             ).with_effects([Resize(height=th, width=tw)])
-            cap_clips = create_captions(pid, transcript=transcript, target_size=(th, tw))
+            output_dir,cap_clips = create_captions(pid, transcript=transcript, target_size=(th, tw))
             LOGGER.info("video type: %s", type(video))
             LOGGER.info("cap_clips: %s", type(cap_clips[-1]))
-            output_dir, final_clip = CompositeVideoClip([video, *cap_clips])
+            final_clip = CompositeVideoClip([video, *cap_clips])
             final_clip.write_videofile(output_path.replace(f"{pid}", f"{pid}_p{i}"), codec="libx264")
             for file in os.listdir(output_dir):
                 if pid in file:
@@ -33,10 +33,10 @@ def create_reddit_video(video_path, audio_path, music_path, output_path, start_t
         video = VideoFileClip(video_path).subclipped(start_time, end_time).with_audio(
             CompositeAudioClip([AudioFileClip(audio_path), AudioFileClip(music_path).with_volume_scaled(0.3).subclipped(10, (end_time-start_time)+10)])
         ).with_effects([Resize(height=th, width=tw)])
-        cap_clips = create_captions(pid, transcript=transcript, target_size=(th, tw))
+        output_dir, cap_clips = create_captions(pid, transcript=transcript, target_size=(th, tw))
         LOGGER.info("video type: %s", type(video))
         LOGGER.info("cap_clips: %s", type(cap_clips[-1]))
-        output_dir, final_clip = CompositeVideoClip([video]+cap_clips)
+        final_clip = CompositeVideoClip([video]+cap_clips)
         final_clip.write_videofile(output_path, codec="libx264")
         
         for file in os.listdir(output_dir):
