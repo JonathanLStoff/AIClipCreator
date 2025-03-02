@@ -2,6 +2,7 @@ import json
 import os
 import time
 import traceback
+
 from datetime import UTC, datetime, timedelta
 
 # import subprocess
@@ -10,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 # from selenium.webdriver.support.ui import WebDriverWait
 # from selenium.webdriver.support import expected_conditions as EC
 import isodate
+from bs4 import BeautifulSoup
 import youtube_transcript_api
 from googleapiclient.discovery import build
 from yt_dlp import YoutubeDL
@@ -37,7 +39,21 @@ def Download(video_id: str, path: str = "videos", filename: str | None = None):
             os.rename(file, f"{path}/{filename}.{file.split('.')[-1]}")
 
     LOGGER.info("Download is completed successfully")
+def get_svg_image_from_html(html_string, output_path="output.png"):
+    """
+    Extracts an SVG from HTML and converts it to a PNG.
 
+    Args:
+        html_string (str): The HTML string containing the SVG.
+        output_path (str): The path to save the PNG image.
+    """
+    soup = BeautifulSoup(html_string, 'html.parser')
+    svg_element = soup.find('svg', class_='ytp-heat-map-svg') # Find the svg with the correct class
+    if svg_element:
+        svg_string = str(svg_element)
+        svg_to_png(svg_string, output_path)
+    else:
+        print("SVG element not found in the HTML.")
 
 def subscriptions():
     """Gets the user's YouTube subscriptions."""
@@ -393,6 +409,22 @@ def get_top_comment(comments: list[dict], max_words: int, creator: str) -> str:
 
     return top_comment, backup_comment
 
+def get_svg_heatmap(html_string): # Returns svg string
+    """
+    Extracts an SVG from HTML and converts it to a PNG.
+
+    Args:
+        html_string (str): The HTML string containing the SVG (Youtube vid).
+    """
+    
+    soup = BeautifulSoup(html_string, 'html.parser')
+    svg_element = soup.find('svg', class_='ytp-heat-map-svg') # Find the svg with the correct class
+    if svg_element:
+        svg_string = str(svg_element) #.encode('utf-8')
+        return svg_string
+    else:
+        LOGGER.error("SVG element not found in the HTML.")
+        return None
 
 if __name__ == "__main__":
     comments = get_comments("Rivbvb2JDCw")

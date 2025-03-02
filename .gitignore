@@ -9,3 +9,5 @@ __pycache__
 *.pyc
 .env
 NotoColorEmoji-Regular.ttf
+*DS_Store
+*.m4a

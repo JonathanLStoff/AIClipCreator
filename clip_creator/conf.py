@@ -42,8 +42,9 @@ if sys.platform.startswith("win"):
     DOWNLOAD_FOLDER = "D:/tmp/raw"
     TMP_DOWNLOAD_FOLDER = "tmp/raw"
     TMP_CLIPS_FOLDER = "tmp/clips"
-    REDDIT_TEMPLATE_FOLDER = "D:/tmp/reddit"
-    REDDIT_TEMPLATE_FOLDER_MUS = "D:/tmp/reddit/music"
+    REDDIT_TEMPLATE_AUD = "D:/tmp/reddit/reddit_music.mp3"
+    REDDIT_TEMPLATE_MUS = "D:/tmp/reddit/ding.mp3"
+    REDDIT_TEMPLATE_BG = "D:/tmp/reddit"
     CLIPS_FOLDER = "D:/tmp/clips"
     MODELS_FOLDER = "D:/models"
     WIS_DEVICE = "cuda:0"
@@ -66,8 +67,9 @@ elif sys.platform.startswith("darwin"):
     CODEC = "libx264"
     MODELS_FOLDER = "/Volumes/externalSSD/models"
     DOWNLOAD_FOLDER = "/Volumes/externalSSD/tmp/raw"
-    REDDIT_TEMPLATE_FOLDER = "/Volumes/externalSSD/tmp/reddit"
-    REDDIT_TEMPLATE_FOLDER_MUS = "/Volumes/externalSSD/tmp/reddit/music"
+    REDDIT_TEMPLATE_AUD = "/Volumes/externalSSD/tmp/reddit/reddit_music.mp3"
+    REDDIT_TEMPLATE_MUS = "/Volumes/externalSSD/tmp/reddit/ding.mp3"
+    REDDIT_TEMPLATE_BG = "/Volumes/externalSSD/tmp/reddit"
     TMP_DOWNLOAD_FOLDER = "tmp/raw"
     TMP_CLIPS_FOLDER = "tmp/clips"
     CLIPS_FOLDER = "/Volumes/externalSSD/tmp/clips"
@@ -176,7 +178,6 @@ REDDIT_ACCRO_SUB = {
     "AITHA ": "am I the a hole ",
     "TIL ": "today I learned ",
     "WIBTA ": "would I be the a hole ",
-
     
 }
 TTS_VOICES = [
