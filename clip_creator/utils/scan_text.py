@@ -97,8 +97,8 @@ def reddit_remove_bad_words(text: str) -> str:
     """
     for word in text.split():
         for curse_word in CURSE_WORDS:
-            if curse_word in word:
-                text = text.replace(word, "naughty word")
+            if curse_word == word.lower():
+                text = text.replace(word, "beep")
     
     return text
 def reddit_acronym(text: str) -> str:
@@ -106,7 +106,7 @@ def reddit_acronym(text: str) -> str:
     Replace acronyms in a text.
     """
     for acronym, full in REDDIT_ACCRO_SUB.items():
-        for word in text.split():
+        for word in text.split(" "):
             if acronym.upper() == word.upper():
                 text = text.replace(word, full)
     return text

@@ -4,7 +4,7 @@ from pydub import AudioSegment
 from clip_creator.conf import LOGGER, REDDIT_TEMPLATE_AUD, REDDIT_TEMPLATE_MUS
 import os
 from clip_creator.utils.caption_img import (
-        create_caption_images,
+        create_caption_images_reddit,
         create_emojis,
         remove_curse_words,
     )
@@ -32,7 +32,7 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
             video = VideoFileClip(video_path).subclipped(start_time+61*i, min(start_time+61*(i+1), end_time)).with_audio(
                 AudioFileClip(f"tmp/audios/{pid}_aud_{i}.wav").with_start(0)
             ).with_effects([Resize(height=th, width=tw)])
-            output_dir,cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(th, tw))
+            output_dir,cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(video.h, video.w))
             LOGGER.info("video type: %s", type(video))
             LOGGER.info("cap_clips: %s", type(cap_clips[-1]))
             final_clip = CompositeVideoClip([video, *cap_clips])
@@ -55,7 +55,7 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
         video = VideoFileClip(video_path).subclipped(start_time, end_time).with_audio(
             AudioFileClip(f"tmp/audios/{pid}_aud.wav").with_start(0)
         ).with_effects([Resize(height=th, width=tw)])
-        output_dir, cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(th, tw))
+        output_dir, cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(video.h, video.w))
         LOGGER.info("video type: %s", type(video))
         LOGGER.info("cap_clips: %s", type(cap_clips[-1]))
         final_clip = CompositeVideoClip([video]+cap_clips)
@@ -93,7 +93,7 @@ def create_captions(
     Returns:
         VideoFileClip: The modified video clip with the caption image clips composited on top.
     """
-    file_to_check = f"word{len((paragraph.split()))-5}.jpg"
+    file_to_check = f"word{len((paragraph.split()))-5}.png"
     LOGGER.info("file_to_check and pre: %s %s", file_to_check, prefix)
     not_found = True
     for file in os.listdir(output_dir):
@@ -101,32 +101,28 @@ def create_captions(
             not_found = False
             break
     if not_found:
-        create_caption_images(prefix, transcript, target_size[0], output_dir)
+        create_caption_images_reddit(prefix, transcript, target_size[1], output_dir)
 
     clip_list = []
 
     for i, section in enumerate(transcript):
         file_name = ""
         for file in os.listdir(output_dir):
-            if f"word{i}.jpg" in file and prefix in file:
+            if f"word{i}.png" in file and prefix in file:
                 file_name = file
-        # if section["end"] > video_obj.duration:
 
         if i + 1 >= len(transcript):
             duration = section["duration"] + 1
         else:
             duration = transcript[i + 1]["start"] - section["start"]
-            # LOGGER.info("transcript[i+1]: %s", transcript[i+1])
             if duration > 3:
                 duration = 3
 
         file_path = os.path.join(output_dir, file_name)
         caption_clip = ImageClip(file_path, duration=duration)
-        # Position the image so that its center is at 6/7th of the video’s height.
-        pos_y = int(target_size[1] / 2 - caption_clip.h)
         caption_clip = (
             caption_clip.with_start(section["start"])
-            .with_position(("center", pos_y))
+            .with_position(("center", "center"))
             .with_layer_index(1)
         )
 
