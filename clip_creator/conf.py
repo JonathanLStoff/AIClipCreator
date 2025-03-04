@@ -184,6 +184,13 @@ REDDIT_ACCRO_SUB = {
     "BIL ": "brother in law",
     "MIL ": "mother in law",
     "FIL ": "father in law",
+    "IDC ": "I don't care",
+    "IDK ": "I don't know",
+    "IMO ": "in my opinion",
+    "IMHO ": "in my humble opinion",
+    "IIRC ": "if I recall correctly",
+    "TL;DR ": "too long didn't read",
+    "OC ": "original content",
     
 }
 TTS_VOICES = [

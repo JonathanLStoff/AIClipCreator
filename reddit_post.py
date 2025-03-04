@@ -120,6 +120,11 @@ def main_reddit_posts_orch():
         for pid, post in posts_to_use.items():
             # run video creator that combines video with audio with transcript
             posts_to_use[pid]['content'] = reddit_acronym(reddit_remove_bad_words(post['title'] + " " + post['content']))
+            LOGGER.info("Censored %s", posts_to_use[pid]['content'].split()[0:10])
+        for pid, post in posts_to_use.items():
+            if posts_to_use[pid]['content'] != post['content']:
+                LOGGER.error("Censored didnt take")
+                exit()
     #####################################
     # Create Audio using TTS
     #####################################
@@ -129,7 +134,7 @@ def main_reddit_posts_orch():
             LOGGER.info("Creating Audio for %s", pid)
             posts_to_use[pid]['filename'] = f"tmp/audios/{pid}_tts.wav"
             if not os.path.exists(f"tmp/audios/{pid}_tts.wav"):
-                tts_model.run_it(posts_to_use[pid]['filename'], post['content'])
+                tts_model.run_it(posts_to_use[pid]['filename'], posts_to_use[pid]['content'])
     #####################################
     # Force align text to audio
     #####################################
@@ -140,8 +145,8 @@ def main_reddit_posts_orch():
     for pid, post in posts_to_use.items():
         LOGGER.info("Aligning %s", pid)
         if not post.get('transcript', None):
-            LOGGER.info("Aligning %s, %s", post['filename'], type(post['content']))
-            posts_to_use[pid]['aligned_ts'] = force_align(device=device, file=str(post['filename']), yt_ft_transcript=str(post['content']))
+            LOGGER.info("Aligning %s, %s", post['filename'], type(posts_to_use[pid]['content']))
+            posts_to_use[pid]['aligned_ts'] = force_align(device=device, file=str(post['filename']), yt_ft_transcript=str(posts_to_use[pid]['content']))
             if posts_to_use[pid]['aligned_ts'] != []:
                 LOGGER.info("Aligned %s",posts_to_use[pid]['aligned_ts'][-1])
             update_reddit_post_clip(
@@ -157,15 +162,30 @@ def main_reddit_posts_orch():
     for pid, post in posts_to_use.items():
         posts_to_use[pid]['audio_length'] = get_audio_duration(post['filename'])
         posts_to_use[pid]['part_start']:list[int] = split_audio(posts_to_use[pid]['audio_length'], post['aligned_ts'])
-        posts_to_use[pid]['parts'] = len(posts_to_use[pid]['part_start'])
+        posts_to_use[pid]['parts'] = 1 #len(posts_to_use[pid]['part_start'])
         LOGGER.info("Audio length, parts: %s, %s, %s", posts_to_use[pid]['audio_length'], posts_to_use[pid]['parts'], posts_to_use[pid]['part_start'])
+    ########################################
+    # Calc time to post
+    ########################################
+    day_sched = none_old_timestamps()
+    rand_posts = sample(list(posts_to_use.keys()), len(day_sched))
+    for i, pid in enumerate(rand_posts):
+        posts_to_use[pid]['sched'] = day_sched[i]
+        LOGGER.info("Post sched %s, %s", pid, posts_to_use[pid]['sched'])
     #####################################
     # Create video
     #####################################
     if not args.usevids:
         mpfours = [file for file in os.listdir(REDDIT_TEMPLATE_BG) if file.endswith(".mp4")]
         for pid, post in posts_to_use.items():
-            sub_name = post['url'].split("/")[1]
+            sub_name = post['url'].split("/")[2]
+            do_it = False
+            for part_url in post['url'].split("/"):
+                if "r" in part_url.lower():
+                    do_it = True
+                elif do_it:
+                    sub_name = part_url
+                    break
             LOGGER.info("Subreddit: %s", sub_name)
             # Create img for post
             post_png_file = render_html_to_png(
@@ -200,22 +220,16 @@ def main_reddit_posts_orch():
                 transcript=post['aligned_ts'],
                 th=1080,
                 tw=1920,
-                paragraph=post['content'],
-                post_png_file=post_png_file
+                paragraph=posts_to_use[pid]['content'],
+                post_png_file=post_png_file,
+                title=reddit_acronym(reddit_remove_bad_words(post['title']))
             )
     else:
         for pid, post in posts_to_use.items():
             posts_to_use[pid]['vfile'] = f"tmp/clips/reddit_{pid}.mp4"
             posts_to_use[pid]['parts'] = 1
             posts_to_use[pid]['filename'] = f"tmp/audios/{pid}_tts.wav"
-    ########################################
-    # Calc time to post
-    ########################################
-    day_sched = none_old_timestamps()
-    rand_posts = sample(list(posts_to_use.keys()), len(day_sched))
-    for i, pid in enumerate(rand_posts):
-        posts_to_use[pid]['sched'] = day_sched[i]
-        LOGGER.info("Post sched %s, %s", pid, posts_to_use[pid]['sched'])
+    
     ######################################
     # Compile Description
     ######################################

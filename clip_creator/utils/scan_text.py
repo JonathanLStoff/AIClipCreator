@@ -249,6 +249,8 @@ def reg_get_og(text:str, title:str):
     Gets all links in text that lead to another post
     They need to be changed to rel links
     '''
+    if not text or text == "":
+        return [], text
     if "update" in title.lower() or "original" in text:
         matches = re.findall(REGEX_FOR_UPDATE, text)
         rm_matches = re.findall(REGEX_FOR_UPDATE_RM, text)

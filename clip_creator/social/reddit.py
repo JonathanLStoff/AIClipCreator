@@ -325,11 +325,6 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> l
                 if url.endswith('/'):
                     url = url[:-1]
                 response_jboi = requests.get(url+".json").json()
-                datasx = extract_all(response.content)
-                if datasx.get("post-title", "") is None or response.content is None:
-                    continue
-                og_links, content_text = reg_get_og(extract_text_from_element(response.content), datasx.get("post-title", ""))
-                # Get author from json
                 try:
                     for child in response_jboi[0].get('data', {}).get('children', []):
                         if child.get('kind') == 't3':
@@ -337,6 +332,14 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> l
                             break
                 except Exception as e:
                     LOGGER.error(f"Error getting author from json: {e}")
+                contents = response.content
+                datasx = extract_all(contents)
+                if datasx.get("post-title", "") is None or contents is None:
+                    continue
+                og_links, content_text = reg_get_og(extract_text_from_element(contents), response_jboi.get('author', ""))
+                # Get author from json
+                if not content_text:
+                    continue
                 
                 # if "update" in datasx.get("post-title", "").lower():
                 #     check_profile_reddit(datasx.get("author"), href)

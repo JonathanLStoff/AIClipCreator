@@ -20,9 +20,12 @@ def create_postimg_clip(post_png_file, transcript, title):
     start = 0
     for i, section in enumerate(transcript):
         start = section['start']
-        if section['text'] not in title:
+        if section['text'] not in title.upper():
+            LOGGER.info("section text: [%s] not in [%s]", section['text'], title)
             break
-    clip = ImageClip(post_png_file, duration=start).with_position("center", "center").with_layer_index(4)
+    if transcript[-1]['start'] == start:
+        start = len(title)*(160/60)
+    clip = ImageClip(post_png_file, duration=start).with_position("center", "center").with_layer_index(4).with_start(0).with_effects([Resize(.1)])
     return clip, start
 def create_reddit_video(video_path, audio_path, output_path, start_time, end_time, pid, transcript, th, tw, paragraph, parts=1, part_start=[], post_png_file=None, title=""):
     clip_pt_img, end_image_time = create_postimg_clip(post_png_file, transcript, title)
@@ -58,7 +61,7 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
             
             # Create the caption clips
             output_dir,cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript[start_section_idx:end_idx], target_size=(video.h, video.w), part=i, end_image_time=end_image_time)
-            final_clip = CompositeVideoClip([video, clip_pt_img, *cap_clips])
+            final_clip = CompositeVideoClip([video, clip_pt_img] + cap_clips)
             
             # Write the final video
             final_clip.write_videofile(output_path.replace(f"{pid}", f"{pid}_p{i}"), codec="libx264", audio_codec="libmp3lame")
@@ -146,8 +149,9 @@ def create_captions(
                 duration = 3
         pos_y = target_size[0] * 2 / 5
         file_path = os.path.join(output_dir, file_name)
+        #LOGGER.info("file_path: %s", file_path)
         caption_clip = ImageClip(file_path, duration=duration)
-        if section["start"] < end_image_time and part != 0:
+        if section["start"] < end_image_time:
             continue
         caption_clip = (
             caption_clip.with_start(section["start"])

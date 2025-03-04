@@ -791,12 +791,12 @@ def add_reddit_post_clip(post_id, title, content, upvotes, comments, nsfw, poste
         if parent_id:
             cursor.execute("""
                 INSERT INTO reddit_posts_clips (post_id, title, content, upvotes, comments, nsfw, posted_at, url, author, parent_post_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (post_id, title, content, upvotes, comments, nsfw, posted_at, url, author, parent_id))
         else:
             cursor.execute("""
                 INSERT INTO reddit_posts_clips (post_id, title, content, upvotes, comments, nsfw, posted_at, url, author)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (post_id, title, content, upvotes, comments, nsfw, posted_at, url, author))
 
         conn.commit()

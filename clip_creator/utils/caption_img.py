@@ -333,7 +333,7 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
                 # Key fix: Use k instead of i for word_widths index
                 x += word_widths[k] + word_spacing
 
-            filename = f"{prefix}_line{j}_word{word_index}--{part}.png"
+            filename = f"{prefix}_line{j}_word{word_index}-{part}.png"
             file_path = os.path.join(output_dir, filename)
 
             final_img.save(file_path, "PNG")
@@ -589,10 +589,16 @@ def render_html_to_png(post_id:str, title:str, subreddit:str, subreddit_id:str, 
             
 
         LOGGER.info(f"Rendering HTML to PNG: {html_file_abs} -> {output_png_abs}")
-
+        if len(title) > 60:
+            lines = int(len(title)/60)
+        else:
+            lines = 0
+        height = 255 + 40*lines
+        LOGGER.info(f"Height: {height}")
+        if height > 600:
+            height = 255
         # Render HTML to PNG
-        render_html_to_png_selenium(os.path.abspath("./tmp/real_reddit.html"), output_png_abs, width=600, height=255)
-
+        render_html_to_png_selenium(os.path.abspath("./tmp/real_reddit.html"), output_png_abs, width=600, height=height)
 
         try:
             with Image.open(output_png_abs) as img:
