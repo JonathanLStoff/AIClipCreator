@@ -14,6 +14,12 @@ def create_database(db_name="aiclipcreator.db"):
     existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
     if "parent_post_id" not in existing_columns:
         cursor.execute("ALTER TABLE reddit_posts_clips ADD COLUMN parent_post_id TEXT")
+    if "author" not in existing_columns:
+        cursor.execute("ALTER TABLE reddit_posts_clips ADD COLUMN author TEXT")
+    cursor.execute("PRAGMA table_info(reddit_coms_clips)")
+    existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
+    if "author" not in existing_columns:
+        cursor.execute("ALTER TABLE reddit_coms_clips ADD COLUMN author TEXT")
     try:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS reddit_posts_clips (
@@ -30,7 +36,8 @@ def create_database(db_name="aiclipcreator.db"):
                 yt_posted TEXT,
                 transcript TEXT,
                 length REAL,
-                parent_post_id TEXT
+                parent_post_id TEXT,
+                author TEXT
             );
         """)
         cursor.execute("""
@@ -48,7 +55,8 @@ def create_database(db_name="aiclipcreator.db"):
                 yt_posted TEXT,
                 transcript TEXT,
                 comments_json TEXT,
-                length REAL
+                length REAL,
+                author TEXT
             );
         """)
         # Check and create/update videos table
@@ -775,21 +783,21 @@ def get_rows_where_tiktok_null_or_empty(db_name="aiclipcreator.db"):
     finally:
         if conn:
             conn.close()
-def add_reddit_post_clip(post_id, title, content, upvotes, comments, nsfw, posted_at, url, parent_id=None, db_path="aiclipcreator.db"):
+def add_reddit_post_clip(post_id, title, content, upvotes, comments, nsfw, posted_at, url, parent_id=None, author=None, db_path="aiclipcreator.db"):
     """Adds a new Reddit post clip to the database."""
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         if parent_id:
             cursor.execute("""
-                INSERT INTO reddit_posts_clips (post_id, title, content, upvotes, comments, nsfw, posted_at, url, parent_post_id)
+                INSERT INTO reddit_posts_clips (post_id, title, content, upvotes, comments, nsfw, posted_at, url, author, parent_post_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (post_id, title, content, upvotes, comments, nsfw, posted_at, url, parent_id))
+            """, (post_id, title, content, upvotes, comments, nsfw, posted_at, url, author, parent_id))
         else:
             cursor.execute("""
-                INSERT INTO reddit_posts_clips (post_id, title, content, upvotes, comments, nsfw, posted_at, url)
+                INSERT INTO reddit_posts_clips (post_id, title, content, upvotes, comments, nsfw, posted_at, url, author)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (post_id, title, content, upvotes, comments, nsfw, posted_at, url))
+            """, (post_id, title, content, upvotes, comments, nsfw, posted_at, url, author))
 
         conn.commit()
         print(f"Post clip with post_id '{post_id}' added successfully.")

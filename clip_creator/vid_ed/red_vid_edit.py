@@ -14,10 +14,27 @@ def get_clip_duration(video_path):
 def get_audio_duration(audio_path):
     audio = AudioSegment.from_file(audio_path)
     return len(audio) / 1000.0
-def create_reddit_video(video_path, audio_path, output_path, start_time, end_time, pid, transcript, th, tw, paragraph, parts=1, part_start=[]):
+
+
+def create_postimg_clip(post_png_file, transcript, title):
+    start = 0
+    for i, section in enumerate(transcript):
+        start = section['start']
+        if section['text'] not in title:
+            break
+    clip = ImageClip(post_png_file, duration=start).with_position("center", "center").with_layer_index(4)
+    return clip, start
+def create_reddit_video(video_path, audio_path, output_path, start_time, end_time, pid, transcript, th, tw, paragraph, parts=1, part_start=[], post_png_file=None, title=""):
+    clip_pt_img, end_image_time = create_postimg_clip(post_png_file, transcript, title)
+    
     
     if parts > 1:
         for i, start_section_idx in enumerate(part_start):
+            # repostion the clip_pt_img
+            if i != 0:
+                clip_pt_img = clip_pt_img.with_start(0).with_position("center", "top").with_layer_index(4)
+            
+            
             # Setup/Load Audio
             start_section = transcript[start_section_idx].get("start", 0)
             end_idx = -1 if i == parts-1 else part_start[i+1]
@@ -40,8 +57,8 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
             ).with_effects([Resize(height=th, width=tw)])
             
             # Create the caption clips
-            output_dir,cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript[start_section_idx:end_idx], target_size=(video.h, video.w), part=i)
-            final_clip = CompositeVideoClip([video, *cap_clips])
+            output_dir,cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript[start_section_idx:end_idx], target_size=(video.h, video.w), part=i, end_image_time=end_image_time)
+            final_clip = CompositeVideoClip([video, clip_pt_img, *cap_clips])
             
             # Write the final video
             final_clip.write_videofile(output_path.replace(f"{pid}", f"{pid}_p{i}"), codec="libx264", audio_codec="libmp3lame")
@@ -63,10 +80,10 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
         video = VideoFileClip(video_path).subclipped(start_time, end_time).with_audio(
             AudioFileClip(f"tmp/audios/{pid}_aud.mp3").with_start(0)
         ).with_effects([Resize(height=th, width=tw)])
-        output_dir, cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(video.h, video.w))
+        output_dir, cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(video.h, video.w), end_image_time=end_image_time)
         LOGGER.info("video type: %s", type(video))
         LOGGER.info("cap_clips: %s", type(cap_clips[-1]))
-        final_clip = CompositeVideoClip([video]+cap_clips)
+        final_clip = CompositeVideoClip([video, clip_pt_img]+cap_clips)
         final_clip.write_videofile(output_path, codec="libx264", audio_codec="libmp3lame")
         
         for file in os.listdir(output_dir):
@@ -80,6 +97,7 @@ def create_captions(
     target_size: tuple[int, int],
     output_dir: str = "./tmp/caps_img",
     part=0,
+    end_image_time=0,
 ):
     """
     Creates caption image clips from a transcript and overlays them onto a video clip.
@@ -129,6 +147,8 @@ def create_captions(
         pos_y = target_size[0] * 2 / 5
         file_path = os.path.join(output_dir, file_name)
         caption_clip = ImageClip(file_path, duration=duration)
+        if section["start"] < end_image_time and part != 0:
+            continue
         caption_clip = (
             caption_clip.with_start(section["start"])
             .with_position(("center", pos_y))

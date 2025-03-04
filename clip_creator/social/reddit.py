@@ -298,7 +298,7 @@ def extract_all(html):
 
     if post:
         data = {
-            'author-id': post.get('author-id'),
+            'author': post.get('author'),
             'post-title': post.get('post-title'),
             'comment-count': int(post.get('comment-count', 0)),
             'created-timestamp': post.get('created-timestamp'),
@@ -319,11 +319,27 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> l
         queue = [href]
         while queue != []:
             try:
-                response = requests.get(REDDIT_POST_DOMAIN+queue.pop(0))
+                
+                url = REDDIT_POST_DOMAIN+queue.pop(0)
+                response = requests.get(url)
+                if url.endswith('/'):
+                    url = url[:-1]
+                response_jboi = requests.get(url+".json").json()
                 datasx = extract_all(response.content)
+                if datasx.get("post-title", "") is None or response.content is None:
+                    continue
                 og_links, content_text = reg_get_og(extract_text_from_element(response.content), datasx.get("post-title", ""))
+                # Get author from json
+                try:
+                    for child in response_jboi[0].get('data', {}).get('children', []):
+                        if child.get('kind') == 't3':
+                            response_jboi = child.get('data', {})
+                            break
+                except Exception as e:
+                    LOGGER.error(f"Error getting author from json: {e}")
+                
                 # if "update" in datasx.get("post-title", "").lower():
-                #     check_profile_reddit(datasx.get("author-id"), href)
+                #     check_profile_reddit(datasx.get("author"), href)
                 post = {
                     'title': datasx.get("post-title", ""),
                     'content': content_text,
@@ -331,7 +347,8 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> l
                     'comments': datasx.get('comment-count', 0),
                     'nsfw': False if not 'reason="nsfw"' in str(response.content) else True,
                     'posted_at': datasx.get('created-timestamp', datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")),
-                    'url': href,
+                    'url': url,
+                    'author': response_jboi.get('author', ""), #the username not the id
                     'parent_href': None if og_links == [] else og_links[-1],
                 }
                 posts.append(post)

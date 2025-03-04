@@ -1,15 +1,21 @@
 import os
 import base64
 import imgkit
-from datetime import datetime
+import traceback
+from datetime import datetime, timezone
 from queue import Queue
 from random import choice, randint
 from threading import Thread
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 
 from PIL import Image, ImageDraw, ImageFont
 from pilmoji import Pilmoji
 from tqdm import tqdm
 from datetime import timedelta
+from PIL import Image
 
 from clip_creator.conf import (
     COLOR_PAIRS,
@@ -17,6 +23,7 @@ from clip_creator.conf import (
     CURSE_WORDS,
     E_FONT_PATH,
     FONT_PATH,
+    LOGGER,
 )
 
 
@@ -525,7 +532,7 @@ def create_emojis(text: str, vid: str, w: int = 90, h: int = 90) -> str:
     return image_path
 
 
-def render_html_to_png(post_id:str, subreddit:str, subreddit_id:str, user_id:str, user_name:str, time_ago:datetime, score_int:int=0, comment_int:int=0, output_png_fold:str=".",html_file:str="clip_creator/utils/real_reddit.html"):
+def render_html_to_png(post_id:str, title:str, subreddit:str, subreddit_id:str, user_id:str, user_name:str, time_ago:datetime, score_int:int=0, comment_int:int=0, output_png_fold:str="./tmp",html_file:str="clip_creator/utils/real_reddit.html"):
     """
     Renders an HTML file with potential replacements to a PNG image.
 
@@ -535,14 +542,16 @@ def render_html_to_png(post_id:str, subreddit:str, subreddit_id:str, user_id:str
         replacements (dict, optional): Dictionary of replacements (key: old_string, value: new_string).
     """
     output_png:str=f"{output_png_fold}/{post_id}_post.png"
+    output_png_abs = os.path.abspath(output_png)
+    html_file_abs = os.path.abspath(html_file)
     try:
-        with open(html_file, 'r', encoding='utf-8') as f:
+        with open(html_file_abs, 'r', encoding='utf-8') as f:
             html_content = f.read()
 
         html_content= html_content.replace("*SUBREDDIT*", subreddit)
         html_content= html_content.replace("*SUBREDDIT_ID*", subreddit_id)
         html_content= html_content.replace("*USER_ID*", user_id)
-        now = datetime.now()
+        now = datetime.now(timezone.utc) # Might cause issues for time being off
         delta = now - time_ago
         years = delta.days // 365
         months = delta.days // 30
@@ -562,42 +571,88 @@ def render_html_to_png(post_id:str, subreddit:str, subreddit_id:str, user_id:str
             time_diff = f"{minutes} min"
         else:
             time_diff = "just now"
-
+        img_path = os.path.join("clip_creator/utils/imgs", "amitheahole.png")
+        for file in os.listdir("clip_creator/utils/imgs"):
+            if file.startswith(subreddit):
+                img_path = os.path.join("clip_creator/utils/imgs", file)
         html_content = html_content.replace("*TIME_AGO*", time_diff)
+        if not user_name:
+            user_name = "Unknown"
         html_content= html_content.replace("*USER_NAME*", user_name)
         html_content= html_content.replace("*SCORE_INT*", str(score_int))
         html_content= html_content.replace("*COMMENT_INT*", str(comment_int))
-        
+        html_content= html_content.replace("*SUB_IMG_PATH*", os.path.abspath(img_path))
+        html_content= html_content.replace("*TITLE*", title)
+        html_content= html_content.replace("*USER_IMG*", os.path.abspath("clip_creator/utils/imgs/reddit.jpg"))
+        with open("./tmp/real_reddit.html", 'w', encoding='utf-8') as f:
+            f.write(html_content)
             
 
-        # imgkit configuration (adjust as needed)
-        options = {
-            'format': 'png',
-            'encoding': 'UTF-8',
-            'quiet': '',
-            'enable-local-file-access': None, #Important for local files to work
-            'quality': 90, # Adjust quality as needed
-            'zoom': 1.0 #adjust zoom as needed
-        }
+        LOGGER.info(f"Rendering HTML to PNG: {html_file_abs} -> {output_png_abs}")
 
         # Render HTML to PNG
-        imgkit.from_string(html_content, output_png, options=options)
+        render_html_to_png_selenium(os.path.abspath("./tmp/real_reddit.html"), output_png_abs, width=600, height=255)
+
+
+        try:
+            with Image.open(output_png_abs) as img:
+                width, height = img.size
+                # Crop off the right 4% of the image
+                new_right = width * 0.96
+                cropped_img = img.crop((0, 0, new_right, height))
+                cropped_img.save(output_png_abs)
+                return output_png_abs
+        except Exception as e:
+            LOGGER.error(f"Error cropping image: {e}")
+        LOGGER.info(f"HTML rendered to {output_png} successfully.")
+
+    except Exception as e:
+        print(f"Error rendering HTML to PNG: {traceback.format_exc()}")
+def render_html_to_png_selenium(html_file, output_png, width=1080, height=1920):
+    """
+    Renders an HTML file to a PNG image using Selenium headless.
+
+    Args:
+        html_file (str): Path to the input HTML file.
+        output_png (str): Path to the output PNG file.
+        width (int, optional): Desired width of the viewport. Defaults to 1080.
+        height (int, optional): Desired height of the viewport. Defaults to 1920.
+    """
+
+    try:
+        # Set up Chrome options for headless mode
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')  # Run Chrome in headless mode
+        chrome_options.add_argument(f'--window-size={width},{height}')  # Set window size
+
+        # Initialize the WebDriver (replace with the path to your ChromeDriver)
+        service = Service(ChromeDriverManager().install()) 
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+
+        # Load the HTML file
+        driver.get(html_file)
+
+        # Take the screenshot
+        driver.save_screenshot(output_png)
+
+        # Close the browser
+        driver.quit()
 
         print(f"HTML rendered to {output_png} successfully.")
 
     except Exception as e:
-        print(f"Error rendering HTML to PNG: {e}")
-
+        print(f"Error rendering HTML to PNG: {traceback.format_exc()}")
 if __name__ == "__main__":
     render_html_to_png(
         "test", 
+        "AITAH for not wanting to share my winnings with my family?",
         "AITAH", 
         "t3_1g371fk", 
         "t2_hi68qemi", 
         "4dagoodtimes", 
         datetime.now() - timedelta(hours=3), 
         score_int=43547, 
-        comment_int=4555555555555
+        comment_int=4555555555555,
     )
     # caption_list = [
     #     {"text": "on", "start": 40.298, "end": 40.439, "duration": 0.14099999999999824},

@@ -14,6 +14,7 @@ from clip_creator.social.reddit import reddit_posts_orch
 from clip_creator.utils.path_setup import check_and_create_dirs
 from clip_creator.utils.scan_text import reddit_remove_bad_words, reddit_acronym, split_audio
 from clip_creator.vid_ed.red_vid_edit import get_clip_duration, get_audio_duration, create_reddit_video
+from clip_creator.utils.caption_img import render_html_to_png
 from clip_creator.utils.schedules import get_timestamps
 from clip_creator.db.db import (
     update_reddit_post_clip,
@@ -97,6 +98,7 @@ def main_reddit_posts_orch():
                         comments=post['comments'],
                         nsfw=post['nsfw'],
                         parent_id=par_post_id,
+                        author=post['author']
                         )
                     
             else:
@@ -163,6 +165,21 @@ def main_reddit_posts_orch():
     if not args.usevids:
         mpfours = [file for file in os.listdir(REDDIT_TEMPLATE_BG) if file.endswith(".mp4")]
         for pid, post in posts_to_use.items():
+            sub_name = post['url'].split("/")[1]
+            LOGGER.info("Subreddit: %s", sub_name)
+            # Create img for post
+            post_png_file = render_html_to_png(
+                post_id=pid,
+                title=post['title'],
+                subreddit=sub_name,
+                subreddit_id=sub_name,
+                user_id="reddit",
+                user_name=post['author'],
+                time_ago=datetime.fromisoformat(post['posted_at'][:-2] + ':' + post['posted_at'][-2:]),
+                score_int=post['upvotes'],
+                comment_int=post['comments']
+            )
+            
             background = choice(mpfours)
             clip_length = get_clip_duration(os.path.join(REDDIT_TEMPLATE_BG, background))
             LOGGER.info("Clip, length, pid: %s, %s, %s", background, clip_length, pid)
@@ -183,7 +200,8 @@ def main_reddit_posts_orch():
                 transcript=post['aligned_ts'],
                 th=1080,
                 tw=1920,
-                paragraph=post['content']
+                paragraph=post['content'],
+                post_png_file=post_png_file
             )
     else:
         for pid, post in posts_to_use.items():
