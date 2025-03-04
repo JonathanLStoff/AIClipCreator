@@ -1,4 +1,7 @@
 import os
+import base64
+import imgkit
+from datetime import datetime
 from queue import Queue
 from random import choice, randint
 from threading import Thread
@@ -6,6 +9,7 @@ from threading import Thread
 from PIL import Image, ImageDraw, ImageFont
 from pilmoji import Pilmoji
 from tqdm import tqdm
+from datetime import timedelta
 
 from clip_creator.conf import (
     COLOR_PAIRS,
@@ -183,7 +187,7 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
 
             final_img.convert("RGB").save(file_path, "JPEG", quality=70)
             # print(f"Saved {file_path}")
-def create_caption_images_reddit(prefix: str, captions, max_width, output_dir="."):
+def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".", part=0):
     """Creates one image *per line* of wrapped text, highlighting current word.
 
     caption: List of dictionaries with "start" and "text" keys.
@@ -322,7 +326,7 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
                 # Key fix: Use k instead of i for word_widths index
                 x += word_widths[k] + word_spacing
 
-            filename = f"{prefix}_line{j}_word{word_index}.png"
+            filename = f"{prefix}_line{j}_word{word_index}--{part}.png"
             file_path = os.path.join(output_dir, filename)
 
             final_img.save(file_path, "PNG")
@@ -521,38 +525,112 @@ def create_emojis(text: str, vid: str, w: int = 90, h: int = 90) -> str:
     return image_path
 
 
+def render_html_to_png(post_id:str, subreddit:str, subreddit_id:str, user_id:str, user_name:str, time_ago:datetime, score_int:int=0, comment_int:int=0, output_png_fold:str=".",html_file:str="clip_creator/utils/real_reddit.html"):
+    """
+    Renders an HTML file with potential replacements to a PNG image.
+
+    Args:
+        html_file (str): Path to the input HTML file.
+        output_png (str): Path to the output PNG file.
+        replacements (dict, optional): Dictionary of replacements (key: old_string, value: new_string).
+    """
+    output_png:str=f"{output_png_fold}/{post_id}_post.png"
+    try:
+        with open(html_file, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        html_content= html_content.replace("*SUBREDDIT*", subreddit)
+        html_content= html_content.replace("*SUBREDDIT_ID*", subreddit_id)
+        html_content= html_content.replace("*USER_ID*", user_id)
+        now = datetime.now()
+        delta = now - time_ago
+        years = delta.days // 365
+        months = delta.days // 30
+        days = delta.days
+        hours = delta.seconds // 3600
+        minutes = (delta.seconds % 3600) // 60
+
+        if years >= 1:
+            time_diff = f"{years} year{'s' if years > 1 else ''}"
+        elif months >= 1:
+            time_diff = f"{months} month{'s' if months > 1 else ''}"
+        elif days >= 1:
+            time_diff = f"{days} day{'s' if days > 1 else ''}"
+        elif hours >= 1:
+            time_diff = f"{hours} hr"
+        elif minutes >= 1:
+            time_diff = f"{minutes} min"
+        else:
+            time_diff = "just now"
+
+        html_content = html_content.replace("*TIME_AGO*", time_diff)
+        html_content= html_content.replace("*USER_NAME*", user_name)
+        html_content= html_content.replace("*SCORE_INT*", str(score_int))
+        html_content= html_content.replace("*COMMENT_INT*", str(comment_int))
+        
+            
+
+        # imgkit configuration (adjust as needed)
+        options = {
+            'format': 'png',
+            'encoding': 'UTF-8',
+            'quiet': '',
+            'enable-local-file-access': None, #Important for local files to work
+            'quality': 90, # Adjust quality as needed
+            'zoom': 1.0 #adjust zoom as needed
+        }
+
+        # Render HTML to PNG
+        imgkit.from_string(html_content, output_png, options=options)
+
+        print(f"HTML rendered to {output_png} successfully.")
+
+    except Exception as e:
+        print(f"Error rendering HTML to PNG: {e}")
+
 if __name__ == "__main__":
-    caption_list = [
-        {"text": "on", "start": 40.298, "end": 40.439, "duration": 0.14099999999999824},
-        {
-            "text": "them",
-            "start": 40.479,
-            "end": 40.659,
-            "duration": 0.17999999999999972,
-        },
-        {
-            "text": "when",
-            "start": 40.719,
-            "end": 40.919,
-            "duration": 0.19999999999999574,
-        },
-        {"text": "I", "start": 40.979, "end": 41.059, "duration": 0.0799999999999983},
-        {"text": "win", "start": 41.139, "end": 41.399, "duration": 0.259999999999998},
-        {"text": "the", "start": 41.459, "end": 41.62, "duration": 0.16099999999999426},
-        {
-            "text": "round.",
-            "start": 41.64,
-            "end": 42.04,
-            "duration": 0.3999999999999986,
-        },
-        {
-            "text": "Sign",
-            "start": 42.28,
-            "end": 42.681,
-            "duration": 0.40099999999999625,
-        },
-    ]
-    max_width = 1080  # Set maximum width for wrapping
-    output_directory = r"tmp\caps_img"
-    prefix = "test_"
-    create_caption_images(prefix, caption_list, max_width, output_directory)
+    render_html_to_png(
+        "test", 
+        "AITAH", 
+        "t3_1g371fk", 
+        "t2_hi68qemi", 
+        "4dagoodtimes", 
+        datetime.now() - timedelta(hours=3), 
+        score_int=43547, 
+        comment_int=4555555555555
+    )
+    # caption_list = [
+    #     {"text": "on", "start": 40.298, "end": 40.439, "duration": 0.14099999999999824},
+    #     {
+    #         "text": "them",
+    #         "start": 40.479,
+    #         "end": 40.659,
+    #         "duration": 0.17999999999999972,
+    #     },
+    #     {
+    #         "text": "when",
+    #         "start": 40.719,
+    #         "end": 40.919,
+    #         "duration": 0.19999999999999574,
+    #     },
+    #     {"text": "I", "start": 40.979, "end": 41.059, "duration": 0.0799999999999983},
+    #     {"text": "win", "start": 41.139, "end": 41.399, "duration": 0.259999999999998},
+    #     {"text": "the", "start": 41.459, "end": 41.62, "duration": 0.16099999999999426},
+    #     {
+    #         "text": "round.",
+    #         "start": 41.64,
+    #         "end": 42.04,
+    #         "duration": 0.3999999999999986,
+    #     },
+    #     {
+    #         "text": "Sign",
+    #         "start": 42.28,
+    #         "end": 42.681,
+    #         "duration": 0.40099999999999625,
+    #     },
+    # ]
+    # max_width = 1080  # Set maximum width for wrapping
+    # output_directory = r"tmp\caps_img"
+    # prefix = "test_"
+    # create_caption_images(prefix, caption_list, max_width, output_directory)
+

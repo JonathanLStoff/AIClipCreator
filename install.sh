@@ -3,6 +3,8 @@ poetry run pip install torch torchvision torchaudio --index-url https://download
 pip install forcealign --no-dependencies
 pip install g2p_en --no-dependencies
 
+https://wkhtmltopdf.org/downloads.html
+
 import nltk
 nltk.download('averaged_perceptron_tagger_eng')
 

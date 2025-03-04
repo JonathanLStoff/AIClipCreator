@@ -166,6 +166,7 @@ SUB_REDDITS = [
     "todayilearned",
     "unpopularopinion",
     "AITAH",
+    "tifu"
     
 ]
 SUB_REDDITS_COM = [ 
@@ -174,10 +175,15 @@ SUB_REDDITS_COM = [
 
 ]
 REDDIT_ACCRO_SUB = {
-    "AITA ": "am I the a hole ",
-    "AITHA ": "am I the a hole ",
-    "TIL ": "today I learned ",
-    "WIBTA ": "would I be the a hole ",
+    "AITA ": "am I the a hole",
+    "AITHA ": "am I the a hole",
+    "TIL ": "today I learned",
+    "WIBTA ": "would I be the a hole",
+    "TIFU ": "today I fricked up",
+    "SIL ": "sister in law",
+    "BIL ": "brother in law",
+    "MIL ": "mother in law",
+    "FIL ": "father in law",
     
 }
 TTS_VOICES = [
@@ -189,6 +195,16 @@ REDDIT_DOMAIN = "https://www.reddit.com/svc/shreddit/community-more-posts/hot/?t
 REDDIT_POST_DOMAIN = "https://www.reddit.com" # + /[0]r/[1]stories/[2]comments/[3]1izveyu/sounds_too_cheesy_to_be_real_but_it_is/
 # example use: REDDIT_DOMAIN+"amitheasshole"
 
-REGEX_FOR_UPDATE = r"https:\/\/[^\s]+\s"
-REGEX_FOR_UPDATE_RM = r"[oO]riginal[\s\W]https:\/\/[^\s]+\s"
+REGEX_FOR_UPDATE = r"https:\/\/www\.reddit\.com[^\s]+"
+REGEX_FOR_UPDATE_RM = r".*www\.reddit\.com[^\s]*.*"
+
+WK_SCHED = [
+    ["06:00", "07:50", "12:00","20:00"], # Monday
+    ["06:00", "12:00", "13:50", "21:00"], # Tuesday
+    ["08:00", "13:00", "18:00", "19:50"], # Wednesday
+    ["07:00", "13:00", "21:00", "22:50"], # Thursday
+    ["06:00", "14:00", "18:00", "19:50"], # Friday
+    ["10:00", "15:00", "17:00", "21:00"], # Saturday
+    ["11:00", "14:00", "15:50", "19:00"], # Sunday
+]
 

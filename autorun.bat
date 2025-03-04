@@ -1,2 +1,2 @@
 cd C:\Users\legoc\Desktop\AI\AIClipCreator
-poetry run python main.py --noai --skiptimecheck
+poetry run python reddit_post.py

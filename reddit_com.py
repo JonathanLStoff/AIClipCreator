@@ -3,7 +3,7 @@ import os
 import json
 import shutil
 from random import choice, randint
-from clip_creator.conf import LOGGER, REDDIT_TEMPLATE_FOLDER, CLIPS_FOLDER
+from clip_creator.conf import LOGGER, REDDIT_TEMPLATE_FOLDER, CLIPS_FOLDER, WK_SCHED
 from clip_creator.tts.ai import TTSModel
 from clip_creator.utils.forcealign import force_align
 from clip_creator.social.custom_tiktok import upload_video_tt

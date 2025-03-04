@@ -1,6 +1,7 @@
 import json
 import time
 import html
+import random as rand
 from tqdm import tqdm
 import traceback
 from datetime import datetime
@@ -207,8 +208,11 @@ def find_sub_reddit_posts(used_posts:list[str], min_posts:int=10) -> list[str]:
     next_view = {}
     href_list:list[str] = []
     number_runs = 0
+    rand_order_subs = SUB_REDDITS.copy()
+    rand.shuffle(rand_order_subs)
+    LOGGER.info(f"Subreddits in ran order: {rand_order_subs}")
     while len(href_list) < min_posts:
-        for suby in tqdm(SUB_REDDITS, desc="Subreddit, finding posts"):
+        for suby in tqdm(rand_order_subs, desc="Subreddit, finding posts"):
             try:
                 if number_runs == 0:
                     response = requests.get(REDDIT_DOMAIN+suby)
@@ -312,11 +316,14 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> l
     href_list = find_sub_reddit_posts(used_posts, min_post)
     posts = []
     for i, href in tqdm(enumerate(href_list), desc="Processing posts"):
-        while True:
+        queue = [href]
+        while queue != []:
             try:
-                response = requests.get(REDDIT_POST_DOMAIN+href)
+                response = requests.get(REDDIT_POST_DOMAIN+queue.pop(0))
                 datasx = extract_all(response.content)
-                og_link, content_text = reg_get_og(extract_text_from_element(response.content))
+                og_links, content_text = reg_get_og(extract_text_from_element(response.content), datasx.get("post-title", ""))
+                # if "update" in datasx.get("post-title", "").lower():
+                #     check_profile_reddit(datasx.get("author-id"), href)
                 post = {
                     'title': datasx.get("post-title", ""),
                     'content': content_text,
@@ -325,6 +332,7 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> l
                     'nsfw': False if not 'reason="nsfw"' in str(response.content) else True,
                     'posted_at': datasx.get('created-timestamp', datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")),
                     'url': href,
+                    'parent_href': None if og_links == [] else og_links[-1],
                 }
                 posts.append(post)
                 LOGGER.info(f"Processed post: {post}")
@@ -332,13 +340,32 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> l
                 LOGGER.error(f"Error processing post {href}: {traceback.format_exc()}")
                 time.sleep(15)
             time.sleep(5)
-            if not og_link or og_link == href or og_link == "":
+            if not og_links or og_links == [href] or og_links == []:
                 break
-            href = og_link.split("reddit.com")[-1]
+            queue.extend(og_links)
             
         if i >= max_post:
             break
     return posts
+def check_profile_reddit(author_id:str, post_id: str) -> list[dict]:
+    """
+    Check the profile of a Reddit user.
+    """
+    try:
+        response = requests.get(
+            f"https://www.reddit.com/user/{author_id}/about.json"
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error during request: {e}")
+        return []  # Return empty list if request fails
+
+    except Exception as e:  # Catch any other unexpected errors
+        print(f"An unexpected error occurred: {e}")
+        return []
 def reddit_get_comments(html_str) -> list[dict]:
     """
     Get comments from a Reddit post.

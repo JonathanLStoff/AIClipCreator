@@ -10,7 +10,10 @@ def create_database(db_name="aiclipcreator.db"):
 
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
-
+    cursor.execute("PRAGMA table_info(reddit_posts_clips)")
+    existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
+    if "parent_post_id" not in existing_columns:
+        cursor.execute("ALTER TABLE reddit_posts_clips ADD COLUMN parent_post_id TEXT")
     try:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS reddit_posts_clips (
@@ -26,7 +29,8 @@ def create_database(db_name="aiclipcreator.db"):
                 insta_posted TEXT,
                 yt_posted TEXT,
                 transcript TEXT,
-                length REAL
+                length REAL,
+                parent_post_id TEXT
             );
         """)
         cursor.execute("""
@@ -771,16 +775,21 @@ def get_rows_where_tiktok_null_or_empty(db_name="aiclipcreator.db"):
     finally:
         if conn:
             conn.close()
-def add_reddit_post_clip(post_id, title, content, upvotes, comments, nsfw, posted_at, url, db_path="aiclipcreator.db"):
+def add_reddit_post_clip(post_id, title, content, upvotes, comments, nsfw, posted_at, url, parent_id=None, db_path="aiclipcreator.db"):
     """Adds a new Reddit post clip to the database."""
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-
-        cursor.execute("""
-            INSERT INTO reddit_posts_clips (post_id, title, content, upvotes, comments, nsfw, posted_at, url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (post_id, title, content, upvotes, comments, nsfw, posted_at, url))
+        if parent_id:
+            cursor.execute("""
+                INSERT INTO reddit_posts_clips (post_id, title, content, upvotes, comments, nsfw, posted_at, url, parent_post_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (post_id, title, content, upvotes, comments, nsfw, posted_at, url, parent_id))
+        else:
+            cursor.execute("""
+                INSERT INTO reddit_posts_clips (post_id, title, content, upvotes, comments, nsfw, posted_at, url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (post_id, title, content, upvotes, comments, nsfw, posted_at, url))
 
         conn.commit()
         print(f"Post clip with post_id '{post_id}' added successfully.")

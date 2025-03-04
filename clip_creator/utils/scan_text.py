@@ -1,4 +1,5 @@
 import re
+import math
 from collections import Counter
 
 from clip_creator.conf import CURSE_WORDS, LOGGER, RM_TIMESTAMP_REGEX, TIMESTAMP_REGEX, REDDIT_ACCRO_SUB, REGEX_FOR_UPDATE, REGEX_FOR_UPDATE_RM
@@ -97,7 +98,10 @@ def reddit_remove_bad_words(text: str) -> str:
     """
     for word in text.split():
         for curse_word in CURSE_WORDS:
-            if curse_word == word.lower():
+            if "fuck" in word and "mother" not in word:
+                text = text.replace("fuck", "frick")
+                
+            elif curse_word == word.lower():
                 text = text.replace(word, "beep")
     
     return text
@@ -107,7 +111,8 @@ def reddit_acronym(text: str) -> str:
     """
     for acronym, full in REDDIT_ACCRO_SUB.items():
         for word in text.split(" "):
-            if acronym.upper() == word.upper():
+            if acronym.upper() == (word.upper()+" "):
+                LOGGER.info("replace %s with %s", word, full)
                 text = text.replace(word, full)
     return text
 def find_bad_words(true_transcript: list[dict], uncensored_transcript) -> (list[list[int]], list[dict]):
@@ -239,9 +244,57 @@ def sort_and_loop_by_max_int_key(data:list[dict]) -> list[dict]:
 
     return sorted_data
 
-def reg_get_og(text:str):
-    if "original" in text:
+def reg_get_og(text:str, title:str):
+    '''
+    Gets all links in text that lead to another post
+    They need to be changed to rel links
+    '''
+    if "update" in title.lower() or "original" in text:
         matches = re.findall(REGEX_FOR_UPDATE, text)
         rm_matches = re.findall(REGEX_FOR_UPDATE_RM, text)
-        return ("" if not matches else matches[0]),  text if not matches else text.replace(rm_matches[0], "")
+        for match in rm_matches:
+            text = text.replace(match, "")
+        list_matches = [match for match in matches]
+        return ([] if not matches else list_matches), text
+    return [], text
 
+def split_audio(duration, aligned_transcript):
+    """
+    Splits an audio duration into aligned_transcript with lengths between 61 and 122 seconds.
+    Finds the closest start times from a list of aligned_transcript.
+
+    Args:
+        duration: The total duration of the audio in seconds (float).
+        aligned_transcript: A list of dictionaries, where each dictionary has a 'start' key (float).
+
+    Returns:
+        A list of indices from the 'aligned_transcript' list that are closest to the split points.
+    """
+
+    if duration <= 0:
+        return []
+
+    if duration <= 122:
+        return [0] if aligned_transcript else []
+
+    num_parts = math.ceil(duration / 61)  # Maximum possible parts
+    part_duration = duration / num_parts
+
+    if part_duration > 122:
+        num_parts = math.floor(duration / 122)
+        part_duration = duration / num_parts
+
+    split_times = [part_duration * i for i in range(num_parts + 1)]
+
+    closest_indices = []
+    for split_time in split_times[1:]:  # Skip the first split (0.0)
+        min_diff = float('inf')
+        closest_index = -1
+        for i, segment in enumerate(aligned_transcript):
+            diff = abs(segment['start'] - split_time)
+            if diff < min_diff:
+                min_diff = diff
+                closest_index = i
+        closest_indices.append(closest_index)
+    
+    return closest_indices
