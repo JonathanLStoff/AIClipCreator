@@ -163,34 +163,39 @@ SUB_REDDITS = [
     "amitheasshole",
     "confessions",
     "stories",
-    "todayilearned",
-    "unpopularopinion",
     "AITAH",
-    "tifu"
+    "tifu",
+    'TwoHotTakes',
+    'relationship_advice',
+    
     
 ]
 SUB_REDDITS_COM = [ 
     "askreddit",
     "nostupidquestions",
+    "AskMen",
 
 ]
 REDDIT_ACCRO_SUB = {
-    "AITA ": "am I the a hole",
-    "AITHA ": "am I the a hole",
-    "TIL ": "today I learned",
-    "WIBTA ": "would I be the a hole",
-    "TIFU ": "today I fricked up",
-    "SIL ": "sister in law",
-    "BIL ": "brother in law",
-    "MIL ": "mother in law",
-    "FIL ": "father in law",
-    "IDC ": "I don't care",
-    "IDK ": "I don't know",
-    "IMO ": "in my opinion",
-    "IMHO ": "in my humble opinion",
-    "IIRC ": "if I recall correctly",
-    "TL;DR ": "too long didn't read",
-    "OC ": "original content",
+    "AITA": "am I the a hole",
+    "AITHA": "am I the a hole",
+    "TIL": "today I learned",
+    "WIBTA": "would I be the a hole",
+    "TIFU": "today I fricked up",
+    "SIL": "sister in law",
+    "BIL": "brother in law",
+    "MIL": "mother in law",
+    "FIL": "father in law",
+    "IDC": "I don't care",
+    "IDK": "I don't know",
+    "IMO": "in my opinion",
+    "IMHO": "in my humble opinion",
+    "IIRC": "if I recall correctly",
+    "TL;DR": "too long didn't read",
+    "ELI5": "explain like I'm 5",
+    "NSFW": "not safe for work",
+    "TLDR": "too long didn't read",
+    "OC": "original content",
     
 }
 TTS_VOICES = [

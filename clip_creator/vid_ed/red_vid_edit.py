@@ -1,6 +1,7 @@
 from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, ImageClip, CompositeAudioClip
 from moviepy.video.fx import Resize
 from pydub import AudioSegment
+from clip_creator.utils.scan_text import remove_non_letters, swap_words_numbers
 from clip_creator.conf import LOGGER, REDDIT_TEMPLATE_AUD, REDDIT_TEMPLATE_MUS
 import os
 from clip_creator.utils.caption_img import (
@@ -18,6 +19,7 @@ def get_audio_duration(audio_path):
 
 def create_postimg_clip(post_png_file, transcript, title):
     start = 0
+    title = swap_words_numbers(remove_non_letters(title.upper()))
     for i, section in enumerate(transcript):
         start = section['start']
         if section['text'] not in title.upper():
@@ -25,7 +27,7 @@ def create_postimg_clip(post_png_file, transcript, title):
             break
     if transcript[-1]['start'] == start:
         start = len(title)*(160/60)
-    clip = ImageClip(post_png_file, duration=start).with_position("center", "center").with_layer_index(4).with_start(0).with_effects([Resize(.1)])
+    clip = ImageClip(post_png_file, duration=start).with_position("center", "center").with_layer_index(4).with_start(0).with_effects([Resize(.90)])
     return clip, start
 def create_reddit_video(video_path, audio_path, output_path, start_time, end_time, pid, transcript, th, tw, paragraph, parts=1, part_start=[], post_png_file=None, title=""):
     clip_pt_img, end_image_time = create_postimg_clip(post_png_file, transcript, title)
@@ -68,6 +70,7 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
             for file in os.listdir(output_dir):
                 if pid in file:
                     os.remove(os.path.join(output_dir, file))
+        
     else:
         temp_audio = CompositeAudioClip(
                 [
@@ -92,7 +95,10 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
         for file in os.listdir(output_dir):
             if pid in file:
                 os.remove(os.path.join(output_dir, file))
-            
+    try:
+        os.remove(post_png_file)
+    except:
+        pass        
 def create_captions(
     prefix: str,
     paragraph: str,
@@ -147,7 +153,7 @@ def create_captions(
             duration = transcript[i + 1]["start"] - section["start"]
             if duration > 3:
                 duration = 3
-        pos_y = target_size[0] * 2 / 5
+        pos_y = target_size[0] * 2 / 6
         file_path = os.path.join(output_dir, file_name)
         #LOGGER.info("file_path: %s", file_path)
         caption_clip = ImageClip(file_path, duration=duration)

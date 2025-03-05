@@ -200,7 +200,7 @@ def next_page_finder(soup: BeautifulSoup, prefix: str):
             return element.get('id',"").replace(prefix, '')
     return ""
 
-def find_sub_reddit_posts(used_posts:list[str], min_posts:int=10) -> list[str]:
+def find_sub_reddit_posts(used_posts:list[str], min_posts:int=10, max_posts:int=20) -> list[str]:
     """
     Find posts from a list of subreddits.
     """
@@ -211,7 +211,7 @@ def find_sub_reddit_posts(used_posts:list[str], min_posts:int=10) -> list[str]:
     rand_order_subs = SUB_REDDITS.copy()
     rand.shuffle(rand_order_subs)
     LOGGER.info(f"Subreddits in ran order: {rand_order_subs}")
-    while len(href_list) < min_posts:
+    while len(href_list) < max_posts:
         for suby in tqdm(rand_order_subs, desc="Subreddit, finding posts"):
             try:
                 if number_runs == 0:
@@ -308,12 +308,12 @@ def extract_all(html):
         return data
     else:
         LOGGER.error("Post not found")
-        return None
-def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> list[dict]:
+        return {}
+def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=40) -> list[dict]:
     """
     Orchestrates the process of finding Reddit posts.
     """
-    href_list = find_sub_reddit_posts(used_posts, min_post)
+    href_list = find_sub_reddit_posts(used_posts, min_post, max_post)
     posts = []
     for i, href in tqdm(enumerate(href_list), desc="Processing posts"):
         queue = [href]
@@ -324,7 +324,11 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> l
                 response = requests.get(url)
                 if url.endswith('/'):
                     url = url[:-1]
-                response_jboi = requests.get(url+".json").json()
+                try:
+                    response_jboi = requests.get(url+".json").json()
+                except Exception as e:
+                    LOGGER.error(f"Error getting author from json: {e}")
+                    continue
                 try:
                     for child in response_jboi[0].get('data', {}).get('children', []):
                         if child.get('kind') == 't3':
@@ -332,9 +336,10 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> l
                             break
                 except Exception as e:
                     LOGGER.error(f"Error getting author from json: {e}")
+                    continue
                 contents = response.content
                 datasx = extract_all(contents)
-                if datasx.get("post-title", "") is None or contents is None:
+                if datasx.get("post-title", "") is None or contents is None or datasx.get('score', 0) < 150:
                     continue
                 og_links, content_text = reg_get_og(extract_text_from_element(contents), response_jboi.get('author', ""))
                 # Get author from json
@@ -364,8 +369,8 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> l
                 break
             queue.extend(og_links)
             
-        if i >= max_post:
-            break
+        # if i >= max_post:
+        #     break
     return posts
 def check_profile_reddit(author_id:str, post_id: str) -> list[dict]:
     """

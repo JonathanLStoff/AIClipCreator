@@ -43,7 +43,7 @@ class TTSModel:
         # Example of saving the audio to a file
         
         sf.write(filename, waveform, sample_rate)
-        LOGGER.info(f"Audio saved to {filename}")
+        LOGGER.debug(f"Audio saved to {filename}")
 
 class TTSModelKokoro:
     def __init__(self, voice:int|None=None):
@@ -88,4 +88,4 @@ class TTSModelKokoro:
         # Example of saving the audio to a file
         
         sf.write(filename, waveform, sample_rate)
-        LOGGER.info(f"Audio saved to {filename}")
+        LOGGER.debug(f"Audio saved to {filename}")

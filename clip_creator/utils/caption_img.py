@@ -36,7 +36,7 @@ def remove_curse_words(text: str) -> str:
         if isinstance(text, list):
             tmp_txt = []
             for word_d in text:
-                if curse_word in word_d.get("text", "").lower():
+                if curse_word == word_d.get("text", "").lower():
                     word_d["text"] = "*" * len(curse_word)
                 tmp_txt.append(word_d)
             text = tmp_txt
@@ -44,7 +44,7 @@ def remove_curse_words(text: str) -> str:
             if curse_word in text.lower():
                 tmp_txt = ""
                 for word in text.split():
-                    tmp_txt += "*" * len(curse_word) if curse_word in word.lower() else word
+                    tmp_txt += "*" * len(curse_word) if curse_word == word.lower() else word
                     tmp_txt += " "
                 text = tmp_txt.strip()
 

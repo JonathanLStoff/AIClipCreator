@@ -6,13 +6,14 @@ import shutil
 import json
 from datetime import datetime
 from random import choice, randint, sample
+
 from clip_creator.conf import LOGGER, CLIPS_FOLDER, REDDIT_TEMPLATE_BG, WK_SCHED
 from clip_creator.tts.ai import TTSModelKokoro
 from clip_creator.utils.forcealign import force_align
 from clip_creator.social.custom_tiktok import upload_video_tt
 from clip_creator.social.reddit import reddit_posts_orch
 from clip_creator.utils.path_setup import check_and_create_dirs
-from clip_creator.utils.scan_text import reddit_remove_bad_words, reddit_acronym, split_audio
+from clip_creator.utils.scan_text import reddit_remove_bad_words, reddit_acronym, split_audio, get_top_posts, swap_words_numbers
 from clip_creator.vid_ed.red_vid_edit import get_clip_duration, get_audio_duration, create_reddit_video
 from clip_creator.utils.caption_img import render_html_to_png
 from clip_creator.utils.schedules import get_timestamps
@@ -24,6 +25,7 @@ from clip_creator.db.db import (
     get_all_post_ids_red,
 )
 from clip_creator.utils.schedules import none_old_timestamps
+from datetime import datetime
 def main_reddit_posts_orch():
     parser = argparse.ArgumentParser(description="AI Clip Creator")
     parser.add_argument(
@@ -143,12 +145,12 @@ def main_reddit_posts_orch():
         device = "cuda:0"
         torch.cuda.empty_cache()
     for pid, post in posts_to_use.items():
-        LOGGER.info("Aligning %s", pid)
+        LOGGER.debug("Aligning %s", pid)
         if not post.get('transcript', None):
-            LOGGER.info("Aligning %s, %s", post['filename'], type(posts_to_use[pid]['content']))
+            LOGGER.debug("Aligning %s, %s", post['filename'], type(posts_to_use[pid]['content']))
             posts_to_use[pid]['aligned_ts'] = force_align(device=device, file=str(post['filename']), yt_ft_transcript=str(posts_to_use[pid]['content']))
             if posts_to_use[pid]['aligned_ts'] != []:
-                LOGGER.info("Aligned %s",posts_to_use[pid]['aligned_ts'][-1])
+                LOGGER.debug("Aligned %s",posts_to_use[pid]['aligned_ts'][-1])
             update_reddit_post_clip(
                 post_id=pid,
                 transcript=json.dumps(posts_to_use[pid]['aligned_ts'])
@@ -159,17 +161,25 @@ def main_reddit_posts_orch():
     #####################################
     # Split audio into parts
     #####################################
+    new_posts_to_use = {}
     for pid, post in posts_to_use.items():
         posts_to_use[pid]['audio_length'] = get_audio_duration(post['filename'])
         posts_to_use[pid]['part_start']:list[int] = split_audio(posts_to_use[pid]['audio_length'], post['aligned_ts'])
         posts_to_use[pid]['parts'] = 1 #len(posts_to_use[pid]['part_start'])
         LOGGER.info("Audio length, parts: %s, %s, %s", posts_to_use[pid]['audio_length'], posts_to_use[pid]['parts'], posts_to_use[pid]['part_start'])
+        if posts_to_use[pid]['audio_length'] < 60:
+            LOGGER.error("Audio too short")
+        else:
+            new_posts_to_use[pid] = posts_to_use[pid]
+    posts_to_use = new_posts_to_use
     ########################################
     # Calc time to post
     ########################################
     day_sched = none_old_timestamps()
-    rand_posts = sample(list(posts_to_use.keys()), len(day_sched))
-    for i, pid in enumerate(rand_posts):
+    #rand_posts = sample(list(posts_to_use.keys()), len(day_sched))
+
+    best_posts = get_top_posts(posts_to_use, len(day_sched))
+    for i, pid in enumerate(best_posts):
         posts_to_use[pid]['sched'] = day_sched[i]
         LOGGER.info("Post sched %s, %s", pid, posts_to_use[pid]['sched'])
     #####################################
@@ -178,6 +188,8 @@ def main_reddit_posts_orch():
     if not args.usevids:
         mpfours = [file for file in os.listdir(REDDIT_TEMPLATE_BG) if file.endswith(".mp4")]
         for pid, post in posts_to_use.items():
+            if not post.get('sched') or posts_to_use[pid].get("audio_length") < 60:
+                continue
             sub_name = post['url'].split("/")[2]
             do_it = False
             for part_url in post['url'].split("/"):
@@ -239,39 +251,44 @@ def main_reddit_posts_orch():
             for i in range(post['parts']):
                 posts_to_use[pid]["desc"].append(
                     f"#part{i+1} #fyp #reddit #clip #fyppppppppppppp\ncredit"
-                    f"{post['title']} on Reddit\n"
+                    f" {post['title']} by {post['author']}\n"
                 )  
         else:
             posts_to_use[pid]["desc"] = (
                 "#fyp #reddit #clip #fyppppppppppppp\ncredit"
-                f"{post['title']} on Reddit\n"
+                f" {post['title']} by {post['author']}\n"
             )  
     #####################################
     # Upload tiktok
     #####################################
     for pid, post in posts_to_use.items():
-        if not post.get("sched"):
+        if not post.get("sched") or posts_to_use[pid].get("audio_length") < 60:
             continue
         if not args.dryrun:
+            time_str = post['sched']
+            today = datetime.today().date()
+            time_obj = datetime.strptime(time_str, "%H:%M").time()
+            scheduled_datetime = datetime.combine(today, time_obj)
+            LOGGER.info(scheduled_datetime)
             if post.get('parts', 1) > 1:
                 for i in range(post['parts']):
                     upload_video_tt(
                             os.path.abspath(post['vfile'].replace(f"{pid}", f"{pid}_p{i}")),
-                            post['sched'],
+                            scheduled_datetime,
                             post["desc"][i],
                             submit=True
                         )
             else:
                 upload_video_tt(
                                 os.path.abspath(post['vfile']), 
-                                post['sched'], 
+                                scheduled_datetime, 
                                 post["desc"], 
                                 submit=True
                             )
             
             update_reddit_post_clip(
                 post_id=pid, 
-                tiktok_posted=post['sched'], 
+                tiktok_posted=scheduled_datetime, 
                 length=post['audio_length']
             )
         else:
@@ -279,14 +296,14 @@ def main_reddit_posts_orch():
                 for i in range(post['parts']):
                     upload_video_tt(
                             os.path.abspath(post['vfile'].replace(f"{pid}", f"{pid}_p{i}")),
-                            post['sched'],
+                            scheduled_datetime,
                             post["desc"][i],
                             submit=False
                         )
             else:
                 upload_video_tt(
                                 os.path.abspath(post['vfile']), 
-                                post['sched'], 
+                                scheduled_datetime, 
                                 post["desc"], 
                                 submit=False
                             )
@@ -295,14 +312,14 @@ def main_reddit_posts_orch():
     #####################################
     if not args.dryrun:
         for pid, post in posts_to_use.items():
-            if 'sched' not in post.keys():
+            if not post.get("sched") or posts_to_use[pid].get("audio_length") < 60:
                 continue
             if post.get('parts', 1) > 1:
                 for i in range(post['parts']):
                     shutil.copyfile(post['vfile'].replace(f"{pid}", f"{pid}_p{i}"), f"{CLIPS_FOLDER}/reddit_p_{pid}.mp4")
                     os.remove(post['vfile'].replace(f"{pid}", f"{pid}_p{i}"))
             else:
-                shutil.copyfile(post['vfile'], f"{CLIPS_FOLDER}/reddit_p_{pid}.mp4")
+                shutil.copyfile(posts_to_use[pid]['vfile'], f"{CLIPS_FOLDER}/reddit_{pid}.mp4")
                 os.remove(post['vfile'])
             os.remove(post['filename'])
     LOGGER.info("Reddit posts done")

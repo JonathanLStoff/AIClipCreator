@@ -1,5 +1,6 @@
 import re
 import math
+from num2words import num2words
 from collections import Counter
 
 from clip_creator.conf import CURSE_WORDS, LOGGER, RM_TIMESTAMP_REGEX, TIMESTAMP_REGEX, REDDIT_ACCRO_SUB, REGEX_FOR_UPDATE, REGEX_FOR_UPDATE_RM
@@ -54,7 +55,15 @@ def find_timestamps(text: str):
         timestamps.append(match.group())
     return timestamps[0] if len(timestamps) == 1 else None
 
-
+def swap_words_numbers(text: str) -> str:
+    """
+    Swap numbers with words in a text.
+    """
+    words = text.split()
+    for i, word in enumerate(words):
+        if word.isdigit():
+            words[i] = num2words(word)
+    return " ".join(words)
 def convert_timestamp_to_seconds(timestamp: str) -> int | None:
     """
     Convert timestamp in the format "HH:MM:SS" to seconds.
@@ -105,16 +114,30 @@ def reddit_remove_bad_words(text: str) -> str:
                 text = text.replace(word, "beep")
     
     return text
+
+def remove_non_letters(text):
+    """Removes all non-letter characters from a string using regex.
+
+    Args:
+        text: The input string.
+
+    Returns:
+        The string with only letters.
+    """
+    return re.sub(r'[^a-zA-Z0-9]', '', text)
 def reddit_acronym(text: str) -> str:
     """
     Replace acronyms in a text.
     """
     for acronym, full in REDDIT_ACCRO_SUB.items():
         for word in text.split(" "):
-            if acronym.upper() == (word.upper()+" "):
+            if acronym.upper() == (word):
                 LOGGER.info("replace %s with %s", word, full)
                 text = text.replace(word, full)
     return text
+def get_top_posts(posts, n):
+    sorted_items = sorted(posts.items(), key=lambda item: item[1]['upvotes'], reverse=True)
+    return dict(sorted_items[:n])
 def find_bad_words(true_transcript: list[dict], uncensored_transcript) -> (list[list[int]], list[dict]):
     """
     Find bad words in a text.
@@ -251,13 +274,24 @@ def reg_get_og(text:str, title:str):
     '''
     if not text or text == "":
         return [], text
+    with open("clip_creator/utils/banned.txt") as f:
+        banned = f.read().split("\n")
+    for ban in banned:
+        if ban in title:
+            return [], None
+    matches = re.findall(REGEX_FOR_UPDATE, text)
+    if not matches:
+        if "https" in text or "http" in text or "www" in text or ".com" in text:
+            return [], None
     if "update" in title.lower() or "original" in text:
-        matches = re.findall(REGEX_FOR_UPDATE, text)
         rm_matches = re.findall(REGEX_FOR_UPDATE_RM, text)
         for match in rm_matches:
             text = text.replace(match, "")
         list_matches = [match for match in matches]
         return ([] if not matches else list_matches), text
+    
+    
+        
     return [], text
 
 def split_audio(duration, aligned_transcript):
