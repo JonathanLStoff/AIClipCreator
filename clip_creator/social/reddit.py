@@ -309,11 +309,11 @@ def extract_all(html):
     else:
         LOGGER.error("Post not found")
         return {}
-def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=40) -> list[dict]:
+def reddit_posts_orch(href_list, used_posts:list=[], min_post:int=10, max_post:int=40) -> list[dict]:
     """
     Orchestrates the process of finding Reddit posts.
     """
-    href_list = find_sub_reddit_posts(used_posts, min_post, max_post)
+    
     posts = []
     for i, href in tqdm(enumerate(href_list), desc="Processing posts"):
         queue = [href]
@@ -325,9 +325,11 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=40) -> l
                 if url.endswith('/'):
                     url = url[:-1]
                 try:
+                    time.sleep(3)
                     response_jboi = requests.get(url+".json").json()
                 except Exception as e:
-                    LOGGER.error(f"Error getting author from json: {e}")
+                    LOGGER.debug(f"Error getting author from json: {traceback.format_exc()}")
+                    time.sleep(15)
                     continue
                 try:
                     for child in response_jboi[0].get('data', {}).get('children', []):
@@ -335,7 +337,7 @@ def reddit_posts_orch(used_posts:list=[], min_post:int=10, max_post:int=40) -> l
                             response_jboi = child.get('data', {})
                             break
                 except Exception as e:
-                    LOGGER.error(f"Error getting author from json: {e}")
+                    LOGGER.debug(f"Error getting author from json: {traceback.format_exc()}")
                     continue
                 contents = response.content
                 datasx = extract_all(contents)

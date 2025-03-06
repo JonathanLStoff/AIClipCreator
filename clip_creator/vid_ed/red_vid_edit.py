@@ -35,9 +35,10 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
     
     if parts > 1:
         for i, start_section_idx in enumerate(part_start):
+            LOGGER.info("part_start: %s", part_start)
             # repostion the clip_pt_img
             if i != 0:
-                clip_pt_img = clip_pt_img.with_start(0).with_position("center", "top").with_layer_index(4)
+                clip_pt_img = clip_pt_img.with_start(0).with_position("center", th/20).with_layer_index(4)
             
             
             # Setup/Load Audio
@@ -164,7 +165,8 @@ def create_captions(
             .with_position(("center", pos_y))
             .with_layer_index(1)
         )
-
+        if caption_clip.w > target_size[1]:
+            caption_clip = caption_clip.with_effects([Resize(height=caption_clip.h, width=target_size[1]*.95)])
         # Composite the caption image onto the video.
         clip_list.append(caption_clip)
 

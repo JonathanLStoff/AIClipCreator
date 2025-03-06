@@ -578,7 +578,7 @@ def render_html_to_png(post_id:str, title:str, subreddit:str, subreddit_id:str, 
         html_content = html_content.replace("*TIME_AGO*", time_diff)
         if not user_name:
             user_name = "Unknown"
-        html_content= html_content.replace("*USER_NAME*", user_name)
+        html_content= html_content.replace("*USER_NAME*", ("u/"+user_name))
         html_content= html_content.replace("*SCORE_INT*", str(score_int))
         html_content= html_content.replace("*COMMENT_INT*", str(comment_int))
         html_content= html_content.replace("*SUB_IMG_PATH*", os.path.abspath(img_path))
@@ -590,10 +590,10 @@ def render_html_to_png(post_id:str, title:str, subreddit:str, subreddit_id:str, 
 
         LOGGER.info(f"Rendering HTML to PNG: {html_file_abs} -> {output_png_abs}")
         if len(title) > 60:
-            lines = int(len(title)/60)
+            lines = int(len(title)/75)
         else:
             lines = 0
-        height = 255 + 40*lines
+        height = 255 + 30*lines
         LOGGER.info(f"Height: {height}")
         if height > 600:
             height = 255

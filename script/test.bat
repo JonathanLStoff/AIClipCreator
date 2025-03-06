@@ -1,0 +1,1 @@
+python -m unittest discover -s clip_creator/tests -p "test_*.py"

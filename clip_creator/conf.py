@@ -178,9 +178,12 @@ SUB_REDDITS_COM = [
 ]
 REDDIT_ACCRO_SUB = {
     "AITA": "am I the a hole",
-    "AITHA": "am I the a hole",
+    "AITAH": "am I the a hole",
     "TIL": "today I learned",
     "WIBTA": "would I be the a hole",
+    "YTA": "you're the a hole",
+    "NTA": "not the a hole",
+    "WIBTAH": "would I be the a hole",
     "TIFU": "today I fricked up",
     "SIL": "sister in law",
     "BIL": "brother in law",
@@ -213,7 +216,7 @@ REGEX_FOR_UPDATE_RM = r".*www\.reddit\.com[^\s]*.*"
 WK_SCHED = [
     ["06:00", "07:50", "12:00","20:00"], # Monday
     ["06:00", "12:00", "13:50", "21:00"], # Tuesday
-    ["08:00", "13:00", "18:00", "19:50"], # Wednesday
+    ["06:00", "18:00", "22:00", "22:50"], # Wednesday
     ["07:00", "13:00", "21:00", "22:50"], # Thursday
     ["06:00", "14:00", "18:00", "19:50"], # Friday
     ["10:00", "15:00", "17:00", "21:00"], # Saturday

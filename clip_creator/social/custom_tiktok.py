@@ -11,6 +11,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
 
 from clip_creator.conf import CHROME_USER_PATH, CONFIG, LOGGER
@@ -22,6 +23,7 @@ def upload_video_tt(
     schedule: datetime | None = None,
     description: str = "",
     submit: bool = False,
+    save_draft: bool = False,
 ):
     """
     Uploads a video to TikTok using the TikTok API.
@@ -70,6 +72,16 @@ def upload_video_tt(
             LOGGER.error(f"File not found: {video_path}")
             return None
         set_draftjs_text(driver, description, wait)
+        edit_video_tt_mus(driver)
+        try:
+            element = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//*[contains(@class, 'suggest-item') and contains(text(), 'States')]")
+                )
+            )
+            element.click()
+        except Exception as e:
+            LOGGER.error(f"Failed to click the Location: {e}")
         if schedule:
             # Select the "Schedule" radio option
             span_element = WebDriverWait(driver, 10).until(
@@ -88,12 +100,7 @@ def upload_video_tt(
             LOGGER.info("Selected the 'Schedule' option.")
             _set_schedule_video(driver, schedule)
             if submit:
-                file_size = os.path.getsize(video_path) / (1024 * 1024)
-                expected_text = f"Uploaded（{file_size:.2f}MB"
-                LOGGER.info(f"Waiting for text: {expected_text}")
-                # wait.until(EC.text_to_be_present_in_element((By.XPATH, "//span[contains(@class, 'TUXText--tiktok-sans')]"), expected_text))
-                # Click the "Schedule" button
-                time.sleep(5)
+                
                 schedule_button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable(
                         (By.XPATH, "//button[.//div[contains(text(), 'Schedule')]]")
@@ -101,12 +108,22 @@ def upload_video_tt(
                 )
                 schedule_button.click()
             else:
+                if save_draft:
+                    draft_button = WebDriverWait(driver, 10).until(
+                        EC.element_to_be_clickable(
+                            (
+                                By.XPATH,
+                                "//*[contains(@class, 'Button__content') and contains(@class, 'Button__content--shape-default') "
+                                "and contains(@class, 'Button__content--size-large') and contains(@class, 'Button__content--type-neutral') "
+                                "and contains(@class, 'Button__content--loading-false') and contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'draft')]"
+                            )
+                        )
+                    )
+                    draft_button.click()
+                    LOGGER.info("Clicked the 'draft' button successfully.")
                 time.sleep(600)
         elif submit:
-            file_size = os.path.getsize(video_path) / (1024 * 1024)
-            expected_text = f"Uploaded（{file_size:.2f}MB）"
-            # wait.until(EC.text_to_be_present_in_element((By.XPATH, "//span[contains(@class, 'TUXText--tiktok-sans')]"), expected_text))
-            # Click the "Post" button
+
             time.sleep(5)
             post_button = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable(
@@ -115,6 +132,19 @@ def upload_video_tt(
             )
             post_button.click()
         else:
+            if save_draft:
+                draft_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable(
+                        (
+                            By.XPATH,
+                            "//*[contains(@class, 'Button__content') and contains(@class, 'Button__content--shape-default') "
+                            "and contains(@class, 'Button__content--size-large') and contains(@class, 'Button__content--type-neutral') "
+                            "and contains(@class, 'Button__content--loading-false') and contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'draft')]"
+                        )
+                    )
+                )
+                draft_button.click()
+                LOGGER.info("Clicked the 'draft' button successfully.")
             time.sleep(600)
         time.sleep(10)
         # Additional automation steps for uploading the video can be added here.
@@ -124,7 +154,53 @@ def upload_video_tt(
         return None
     finally:
         driver.quit()
-
+def edit_video_tt_mus(driver):
+    try:
+        wait = WebDriverWait(driver, 10)
+        button = wait.until(
+            EC.element_to_be_clickable((By.CLASS_NAME, "TUXButton-content"))
+        )
+        button.click()
+        LOGGER.info("Clicked the edit video button successfully.")
+        # Hover over the music card operation element
+        music_element = wait.until(
+            EC.presence_of_element_located((By.XPATH, "//*[contains(@class, 'music-card-operation')]"))
+        )
+        ActionChains(driver).move_to_element(music_element).perform()
+        LOGGER.info("Hovered over the music element successfully.")
+        music_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//*[contains(@class, 'music-card-operation')]"))
+        )
+        music_button.click()
+        
+        try:
+            image_element = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//img[contains(@src, 'PHN2ZyB3aWR0aD0iMjEi')]")
+                )
+            )
+            image_element.click()
+            LOGGER.info("Clicked the image element successfully.")
+        except Exception as e:
+            LOGGER.error("Failed to click the image element: %s", e)
+        range_inputs = WebDriverWait(driver, 10).until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "input.scaleInput"))
+        )
+        range_input = range_inputs[1]  # Get the second input element
+        ActionChains(driver).move_to_element(range_input).perform()
+        for _ in range(100):
+            range_input.send_keys(Keys.LEFT)
+        LOGGER.info("Updated range input value without dragging.")
+        
+        save_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable(
+                (By.XPATH, "//*[contains(@class, 'TUXButton-label') and contains(text(), 'Save')]")
+            )
+        )
+        save_button.click()
+        LOGGER.info("Clicked the Save button successfully.")
+    except Exception as e:
+        LOGGER.error("Failed to click the button: %s", e)
 
 def check_google_continue_button(driver):
     """Checks for the 'Continue with Google' button on a webpage."""

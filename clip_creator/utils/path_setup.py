@@ -23,8 +23,10 @@ def check_and_create_dirs(base_dir="tmp"):
             os.makedirs(path, exist_ok=True)
             print(f"Created directory: {path}")
         else:
+            
             print(f"Directory already exists: {path}")
-
+    for file in os.listdir(os.path.join(base_dir, "audios")):
+        os.remove(os.path.join(os.path.join(base_dir, "audios"), file))
 
 def get_unused_videos(used_videos: list[str], raw_dir: str):
     """

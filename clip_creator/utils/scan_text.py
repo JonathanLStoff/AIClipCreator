@@ -2,6 +2,7 @@ import re
 import math
 from num2words import num2words
 from collections import Counter
+from datetime import datetime
 
 from clip_creator.conf import CURSE_WORDS, LOGGER, RM_TIMESTAMP_REGEX, TIMESTAMP_REGEX, REDDIT_ACCRO_SUB, REGEX_FOR_UPDATE, REGEX_FOR_UPDATE_RM
 
@@ -61,9 +62,23 @@ def swap_words_numbers(text: str) -> str:
     """
     words = text.split()
     for i, word in enumerate(words):
-        if word.isdigit():
-            words[i] = num2words(word)
-    return " ".join(words)
+        if remove_non_numbers(word).isdigit() and remove_non_numbers(word) != "":
+            text.replace(word, str(num2words(remove_non_numbers(word))) + find_gender_in_nums(word))
+    return text
+def remove_non_numbers(text: str) -> str:
+    """
+    Removes all non-number characters from a string using regex.
+
+    Args:
+        text (str): The input string.
+
+    Returns:
+        str: A string containing only the digits from the original text.
+    """
+    return re.sub(r'[^\d\s]', '', text)
+def find_gender_in_nums(text: str) -> str:
+    match = re.search(r"\d+([a-zA-Z]+)", text)
+    return match.group(1) if match else ""
 def convert_timestamp_to_seconds(timestamp: str) -> int | None:
     """
     Convert timestamp in the format "HH:MM:SS" to seconds.
@@ -109,10 +124,10 @@ def reddit_remove_bad_words(text: str) -> str:
         for curse_word in CURSE_WORDS:
             if "fuck" in word and "mother" not in word:
                 text = text.replace("fuck", "frick")
-                
-            elif curse_word == word.lower():
+            if "sex" in word:
+                text = text.replace("sex", "seggs") 
+            elif curse_word == remove_non_letters(word.lower()):
                 text = text.replace(word, "beep")
-    
     return text
 
 def remove_non_letters(text):
@@ -124,19 +139,56 @@ def remove_non_letters(text):
     Returns:
         The string with only letters.
     """
-    return re.sub(r'[^a-zA-Z0-9]', '', text)
+    return re.sub(r'[^a-zA-Z0-9 ]', '', text)
 def reddit_acronym(text: str) -> str:
     """
     Replace acronyms in a text.
     """
     for acronym, full in REDDIT_ACCRO_SUB.items():
         for word in text.split(" "):
-            if acronym.upper() == (word):
+            if acronym.upper() == remove_non_letters(word):
                 LOGGER.info("replace %s with %s", word, full)
                 text = text.replace(word, full)
     return text
+def dirty_remove_cuss(text:str)->str:
+    for cuss in CURSE_WORDS:
+        if "fuck" in cuss:
+            text.replace("fuck", "frick")
+        text = text.replace(cuss, "beep")
+    return text
 def get_top_posts(posts, n):
     sorted_items = sorted(posts.items(), key=lambda item: item[1]['upvotes'], reverse=True)
+    update_set: set = set()
+    for update_check in sorted_items[:n]:
+        if "update" in update_check[1]['title'].lower() and (not update_check[1].get("parent_post_id", None) or update_check[1].get("parent_post_id", None)==""):
+            sorted_items.remove(update_check)
+        elif update_check[1].get("parent_post_id", None):
+            update_set_mini = set(update_check)
+            for post in sorted_items:
+                if post[0] == update_check[1].get("parent_post_id", None) or update_check[0] == post[1].get("parent_post_id", None):
+                    update_set_mini.add(post)
+            update_set.add(update_set_mini)
+    most_upvoted = 0
+    update_list = []
+    for update in update_set:
+        current_upvoted = 0
+        for post in update:
+            current_upvoted += post[1]['upvotes']
+        if current_upvoted > most_upvoted:
+            update_list = list(update)
+            
+    update_list_sorted = sorted(update_list, key=lambda x: datetime.fromisoformat(x[1]['posted_at'].replace('Z', '+00:00')))
+    
+    if len(update_list_sorted) > 0 and len(update_list_sorted) < n:
+        for post in update_list_sorted:
+            sorted_items.remove(post)
+        return dict(update_list_sorted + sorted_items[:n-len(update_list_sorted)])
+    elif len(update_list_sorted) > n:
+        for post in update_list_sorted:
+            sorted_items.remove(post)
+        return dict(sorted_items[:n])
+    if len(update_list_sorted) == n:
+        return dict(update_list_sorted)
     return dict(sorted_items[:n])
 def find_bad_words(true_transcript: list[dict], uncensored_transcript) -> (list[list[int]], list[dict]):
     """
@@ -323,7 +375,7 @@ def split_audio(duration, aligned_transcript):
     split_times = [part_duration * i for i in range(num_parts + 1)]
 
     closest_indices = []
-    for split_time in split_times[1:]:  # Skip the first split (0.0)
+    for split_time in split_times:
         min_diff = float('inf')
         closest_index = -1
         for i, segment in enumerate(aligned_transcript):
