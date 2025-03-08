@@ -77,6 +77,7 @@ elif sys.platform.startswith("darwin"):
     REDDIT_TEMPLATE_AUD = "/Volumes/externalSSD/tmp/reddit/reddit_music.mp3"
     REDDIT_TEMPLATE_MUS = "/Volumes/externalSSD/tmp/reddit/reddit_clip_music.wav"
     REDDIT_TEMPLATE_BG = "/Volumes/externalSSD/tmp/reddit"
+    ANDROID_IMAGE_PATH = "/Volumes/externalSSD/vbox/Lineage.vdi"
     TMP_DOWNLOAD_FOLDER = "tmp/raw"
     TMP_CLIPS_FOLDER = "tmp/clips"
     CLIPS_FOLDER = "/Volumes/externalSSD/tmp/clips"

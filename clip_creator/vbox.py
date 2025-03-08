@@ -43,7 +43,7 @@ def start_android_vbox(vbox_vm_name, android_image_path, mode="screen"):
                     "--name",
                     vbox_vm_name,
                     "--ostype",
-                    "Other_64",
+                    "Other_arm64",
                     "--register",
                 ],
                 check=True,
@@ -59,6 +59,9 @@ def start_android_vbox(vbox_vm_name, android_image_path, mode="screen"):
                     "2048",
                     "--cpus",
                     "2",
+                    "--nic1",
+                    "nat",
+                    
                 ],
                 check=True,
                 capture_output=True,
