@@ -9,6 +9,9 @@ from threading import Thread
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 
 from PIL import Image, ImageDraw, ImageFont
@@ -200,7 +203,7 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
     caption: List of dictionaries with "start" and "text" keys.
     """
     try:
-        font = ImageFont.truetype(FONT_PATH, size=70)
+        font = ImageFont.truetype(FONT_PATH, size=60)
     except Exception as e:
         print(f"Error loading font: {e}. Trying default.")
         try:
@@ -590,7 +593,7 @@ def render_html_to_png(post_id:str, title:str, subreddit:str, subreddit_id:str, 
 
         LOGGER.info(f"Rendering HTML to PNG: {html_file_abs} -> {output_png_abs}")
         if len(title) > 60:
-            lines = int(len(title)/75)
+            lines = int(len(title)/69)
         else:
             lines = 0
         height = 255 + 30*lines
@@ -598,14 +601,14 @@ def render_html_to_png(post_id:str, title:str, subreddit:str, subreddit_id:str, 
         if height > 600:
             height = 255
         # Render HTML to PNG
-        render_html_to_png_selenium(os.path.abspath("./tmp/real_reddit.html"), output_png_abs, width=600, height=height)
+        line_count = render_html_to_png_selenium(os.path.abspath("./tmp/real_reddit.html"), output_png_abs, width=600, height=height)
 
         try:
             with Image.open(output_png_abs) as img:
                 width, height = img.size
                 # Crop off the right 4% of the image
                 new_right = width * 0.96
-                cropped_img = img.crop((0, 0, new_right, height))
+                cropped_img = img.crop((0, 0, new_right, (line_count)*20))
                 cropped_img.save(output_png_abs)
                 return output_png_abs
         except Exception as e:
@@ -637,26 +640,59 @@ def render_html_to_png_selenium(html_file, output_png, width=1080, height=1920):
 
         # Load the HTML file
         driver.get(html_file)
+        element = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "shreddit-post"))
+        )
 
+        body_dimensions = driver.execute_script("""
+            const shredditPost = document.querySelector('shreddit-post');
+            if (shredditPost) {
+                return {
+                    width: shredditPost.offsetWidth,
+                    height: shredditPost.offsetHeight
+                };
+            } else {
+                return {
+                    width: 0,
+                    height: 0
+                };
+            }
+        """)
+
+
+
+        # Get the number of lines using JavaScript
+        line_count = driver.execute_script("""
+            const h2 = arguments[0];
+            const lineHeight = parseInt(getComputedStyle(h2).lineHeight);
+            const height = h2.offsetHeight;
+            return Math.ceil(height / lineHeight);
+        """, element)
+        LOGGER.info(f"Line count: {line_count}")
+        width = body_dimensions['width']
+        height = body_dimensions['height']
+        LOGGER.info(f"Body dimensions: {width}x{height}")
+        # Resize the window
+        #driver.set_window_size(width, height)
         # Take the screenshot
         driver.save_screenshot(output_png)
 
         # Close the browser
         driver.quit()
 
-        print(f"HTML rendered to {output_png} successfully.")
-
+        LOGGER.info(f"HTML rendered to {output_png} successfully.")
+        return line_count
     except Exception as e:
         print(f"Error rendering HTML to PNG: {traceback.format_exc()}")
 if __name__ == "__main__":
     render_html_to_png(
         "test", 
-        "AITAH for not wanting to share my winnings with my family?",
+        "AITAH for not wanting to share my winnings with my family? this is just my ",
         "AITAH", 
         "t3_1g371fk", 
         "t2_hi68qemi", 
         "4dagoodtimes", 
-        datetime.now() - timedelta(hours=3), 
+        datetime.now(timezone.utc) - timedelta(hours=3), 
         score_int=43547, 
         comment_int=4555555555555,
     )

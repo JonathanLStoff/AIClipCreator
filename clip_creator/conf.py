@@ -98,7 +98,18 @@ if not os.path.exists("fonts/NotoColorEmoji-Regular.ttf"):
     )
     LOGGER.error("And place it in the fonts folder")
     sys.exit(1)
-
+POSSIBLE_TRANSLATE_LANGS = [
+        "es", # spanish
+    ] 
+POSSIBLE_TRANSLATE_LANGS_TTS = {
+        "es": { # spanish
+            "es":"e", 
+            "tts" : [
+                            ("ef_dora",1.4),
+                            ("em_alex",1.2),
+                        ]
+               }, 
+    }
 COLORS = {
     "black": (0, 0, 0, 255),
     "white": (255, 255, 255, 255),
@@ -214,12 +225,12 @@ REGEX_FOR_UPDATE = r"https:\/\/www\.reddit\.com[^\s]+"
 REGEX_FOR_UPDATE_RM = r".*www\.reddit\.com[^\s]*.*"
 
 WK_SCHED = [
-    ["06:00", "07:50", "12:00","20:00"], # Monday
-    ["06:00", "12:00", "13:50", "21:00"], # Tuesday
-    ["06:00", "18:00", "22:00", "22:50"], # Wednesday
-    ["07:00", "13:00", "21:00", "22:50"], # Thursday
-    ["06:00", "14:00", "18:00", "19:50"], # Friday
-    ["10:00", "15:00", "17:00", "21:00"], # Saturday
-    ["11:00", "14:00", "15:50", "19:00"], # Sunday
+    ["06:10", "07:50", "16:00","22:10"], # Monday
+    ["06:50", "16:50", "17:55", "23:30"], # Tuesday
+    ["06:30", "18:00", "22:15", "22:40"], # Wednesday
+    ["07:25", "16:20", "21:05", "23:55"], # Thursday
+    ["06:05", "17:00", "21:35", "23:50"], # Friday
+    ["06:45", "17:10", "20:10", "23:20"], # Saturday
+    ["06:05", "18:05", "20:50", "23:30"], # Sunday
 ]
 

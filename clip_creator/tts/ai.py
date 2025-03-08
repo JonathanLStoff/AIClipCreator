@@ -46,14 +46,15 @@ class TTSModel:
         LOGGER.debug(f"Audio saved to {filename}")
 
 class TTSModelKokoro:
-    def __init__(self, voice:int|None=None):
+    def __init__(self, voice:tuple|None=None, lang_code:str="a"):
         # Model and tokenizer (choose a VITS model that sounds similar)
-        self.kp = KPipeline(lang_code='a')
+        self.kp = KPipeline(lang_code=lang_code)
         if not voice:
             selection = choice(TTS_VOICES)
             
         else:
-            selection = TTS_VOICES[voice]
+            selection = voice
+            
         self.speaker, self.speed = selection[0], selection[1]
     def text_to_speech(self, text, sample_rate=24000):
         """

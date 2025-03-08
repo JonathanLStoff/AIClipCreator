@@ -808,7 +808,22 @@ def add_reddit_post_clip(post_id, title, content, upvotes, comments, nsfw, poste
     finally:
         if conn:
             conn.close()
-
+def get_reddit_post_clip_by_id(post_id, db_name="aiclipcreator.db"):
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM reddit_posts_clips WHERE post_id = ?", (post_id,))
+        row = cursor.fetchone()
+        if row:
+            columns = [desc[0] for desc in cursor.description]
+            return dict(zip(columns, row))
+        return None
+    except sqlite3.Error as e:
+        print(f"SQLite error: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 def update_reddit_post_clip(post_id, tiktok_posted=None, insta_posted=None, yt_posted=None, transcript=None, length=None, db_path="aiclipcreator.db"):
     """Updates a Reddit post clip in the database."""
     try:

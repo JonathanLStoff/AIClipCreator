@@ -5,7 +5,7 @@ import torch
 
 # Assuming your function and dependencies are in a module named 'your_module'
 # Replace 'your_module' with the actual name of your module.
-from clip_creator.ai import create_clip_description  # Replace with your actual import
+#from clip_creator.ai import create_clip_description  # Replace with your actual import
 
 class TestCreateClipDescription(unittest.TestCase):
 

@@ -4,7 +4,7 @@ import html
 import random as rand
 from tqdm import tqdm
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from clip_creator.conf import LOGGER, SUB_REDDITS, REDDIT_DOMAIN, REDDIT_POST_DOMAIN, SUB_REDDITS_COM
 import requests
 from bs4 import BeautifulSoup
@@ -473,6 +473,65 @@ def find_sub_reddit_coms(used_posts:list[str], min_posts:int=10) -> list[str]:
         number_runs += 1
         
     return href_list
+def reddit_json_all(dict_list:list[dict]):
+    """
+    Extracts the needed info from a json from reddit."""
+    # find post and comments sections
+    post_data:dict = {
+        'title': None,
+        'author': None,
+        'score': 0,
+        'comments': None,
+        'url': None,
+        'nsfw': None,
+        'comments_list': [],
+        'content': None,
+        'posted_at': None,
+        'post_id': None,
+        
+    }
+    for ppart in dict_list:
+        if ppart.get('kind') == 'Listing':
+            datap = ppart.get('data', {})
+            for child in datap.get('children', []):
+                
+                if child.get('kind') == 't3': # t3 is a post
+                    data = child.get('data', {})
+                    post_data['title'] = data.get('title')
+                    post_data['author'] = data.get('author')
+                    post_data['upvotes'] = int(data.get('score',0))
+                    post_data['comments'] = int(data.get('num_comments',0))
+                    post_data['url'] = data.get('permalink')
+                    post_data['nsfw'] = data.get('over_18')
+                    post_data['content'] = data.get('selftext')
+                    post_data['posted_at'] = datetime.fromtimestamp(data.get('created_utc'), timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+0000")
+                    post_data['post_id'] = data.get('id')
+                    
+                elif child.get('kind') == 't1': # t1 is a comment
+                    data = child.get('data', {})
+                    comment = {
+                        'author': data.get('author'),
+                        'upvotes': int(data.get('score', 0)),
+                        'content': data.get('body'),
+                        "parent_id": data.get('parent_id'),
+                        'best_reply': None,
+                    }
+                    best_comment = {'upvotes': 0}
+                    
+                    for kid in data.get('replies', {}).get('data', {}).get('children', []):
+                        if kid.get('kind') == 't1':
+                            kid_data = kid.get('data', {})
+                            if kid_data.get('score', 0) > best_comment.get('upvotes', 0):
+                                best_comment = {
+                                    'author': kid_data.get('author'),
+                                    'upvotes': int(kid_data.get('score', 0)),
+                                    'content': kid_data.get('body'),
+                                    "parent_id": kid_data.get('parent_id'),
+                                }
+                    comment['reply'] = best_comment
+                    post_data['comments_list'].append(comment)
+    return post_data
+
 def reddit_coms_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> list[dict]:
     """
     Orchestrates the process of finding Reddit posts.
@@ -481,22 +540,11 @@ def reddit_coms_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> li
     posts = []
     for i, href in tqdm(enumerate(href_list), desc="Processing posts"):
         try:
-            response = requests.get(REDDIT_POST_DOMAIN+href)
-            datasx = extract_all(response.content)
-            com_res = requests.get(REDDIT_POST_DOMAIN+format_href(href))
-            comments = reddit_get_comments(com_res.content)
-            post = {
-                'title': datasx.get("post-title", ""),
-                'content': extract_text_from_element(response.content),
-                'upvotes': datasx.get('score', 0),
-                'comments': datasx.get('comment-count', 0),
-                'nsfw': False if not 'reason="nsfw"' in str(response.content) else True,
-                'posted_at': datasx.get('created-timestamp', datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")),
-                'url': href,
-                'comments_list': comments,
-            }
-            posts.append(post)
-            LOGGER.info(f"Processed post: {post}")
+            response = requests.get(REDDIT_POST_DOMAIN+href+".json").json()
+            if response is None:
+                continue
+            datasx = reddit_json_all(response.content)
+            posts.append(datasx)
         except Exception as e:
             LOGGER.error(f"Error processing post {href}: {traceback.format_exc()}")
             time.sleep(15)

@@ -62,8 +62,10 @@ def swap_words_numbers(text: str) -> str:
     """
     words = text.split()
     for i, word in enumerate(words):
+        #LOGGER.info("maubbe Replacing %s", remove_non_numbers(word))
         if remove_non_numbers(word).isdigit() and remove_non_numbers(word) != "":
-            text.replace(word, str(num2words(remove_non_numbers(word))) + find_gender_in_nums(word))
+            LOGGER.debug("Replacing %s %s", str(remove_non_numbers(word)), str(num2words(remove_non_numbers(word))))
+            text = text.replace(str(remove_non_numbers(word)), str(num2words(remove_non_numbers(word)))+" ")
     return text
 def remove_non_numbers(text: str) -> str:
     """
@@ -127,29 +129,36 @@ def reddit_remove_bad_words(text: str) -> str:
             if "sex" in word:
                 text = text.replace("sex", "seggs") 
             elif curse_word == remove_non_letters(word.lower()):
-                text = text.replace(word, "beep")
+                text = replace_word_ignoring_punctuation(text, word, "beep")
     return text
 
 def remove_non_letters(text):
-    """Removes all non-letter characters from a string using regex.
+    """Removes all characters except letters, numbers, spaces, ? ! , . and newlines.
 
     Args:
         text: The input string.
 
     Returns:
-        The string with only letters.
+        The string with only allowed characters.
     """
-    return re.sub(r'[^a-zA-Z0-9 ]', '', text)
+    return re.sub(r'[^a-zA-Z0-9 \?!,.\n]', '', text)
 def reddit_acronym(text: str) -> str:
     """
     Replace acronyms in a text.
     """
     for acronym, full in REDDIT_ACCRO_SUB.items():
         for word in text.split(" "):
-            if acronym.upper() == remove_non_letters(word):
+            if acronym.upper() in word:
                 LOGGER.info("replace %s with %s", word, full)
-                text = text.replace(word, full)
+                text = replace_word_ignoring_punctuation(text, word, full)
     return text
+def get_id_from_vfile(file:str)->str|None:
+    for i, part in enumerate(file.replace(".mp4", "").split("_")):
+        if i != 0:
+            if len(part) >= 6 and part.lower() != "reddit":
+                return str(part)
+    return None
+
 def dirty_remove_cuss(text:str)->str:
     for cuss in CURSE_WORDS:
         if "fuck" in cuss:
@@ -160,7 +169,7 @@ def get_top_posts(posts, n):
     sorted_items = sorted(posts.items(), key=lambda item: item[1]['upvotes'], reverse=True)
     update_set: set = set()
     for update_check in sorted_items[:n]:
-        if "update" in update_check[1]['title'].lower() and (not update_check[1].get("parent_post_id", None) or update_check[1].get("parent_post_id", None)==""):
+        if "update" in update_check[1]['title'].lower() and (update_check[1].get("parent_post_id", None) is None or update_check[1].get("parent_post_id", None)==""):
             sorted_items.remove(update_check)
         elif update_check[1].get("parent_post_id", None):
             update_set_mini = set(update_check)
@@ -345,7 +354,29 @@ def reg_get_og(text:str, title:str):
     
         
     return [], text
+def replace_word_ignoring_punctuation(text, old_word, new_word):
+    """
+    Replaces a word in a text if it is equal to another word, 
+    ignoring punctuation when checking equality, and keeping 
+    punctuation after replacing.
 
+    Args:
+        text: The input text.
+        old_word: The word to be replaced.
+        new_word: The word to replace with.
+
+    Returns:
+        The text with the word replaced.
+    """
+
+    # Remove punctuation from old_word for comparison
+    old_word_no_punct = re.sub(r'[^\w\s]', '', old_word)
+
+    # Define a regular expression pattern to match the word with optional punctuation
+    pattern = r'\b' + re.escape(old_word_no_punct) + r'([.,!?;:]*)'
+
+    # Replace the word with the new word, keeping the original punctuation
+    return re.sub(pattern, new_word + r'\1', text)
 def split_audio(duration, aligned_transcript):
     """
     Splits an audio duration into aligned_transcript with lengths between 61 and 122 seconds.
@@ -373,7 +404,7 @@ def split_audio(duration, aligned_transcript):
         part_duration = duration / num_parts
 
     split_times = [part_duration * i for i in range(num_parts + 1)]
-
+    split_times.append(0)
     closest_indices = []
     for split_time in split_times:
         min_diff = float('inf')

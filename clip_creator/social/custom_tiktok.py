@@ -24,6 +24,7 @@ def upload_video_tt(
     description: str = "",
     submit: bool = False,
     save_draft: bool = False,
+    lang:str = "en",
 ):
     """
     Uploads a video to TikTok using the TikTok API.
@@ -44,6 +45,8 @@ def upload_video_tt(
     )
     chrome_options.add_argument(f"user-agent={user_agent}")
     chrome_options.add_argument(f"--user-data-dir={CHROME_USER_PATH}")
+    profile_dir = "Default" if lang == "en" else "Profile 2"
+    chrome_options.add_argument(f"--profile-directory={profile_dir}")
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     actual_user_data_dir = driver.capabilities.get("userDataDir")
@@ -72,16 +75,16 @@ def upload_video_tt(
             LOGGER.error(f"File not found: {video_path}")
             return None
         set_draftjs_text(driver, description, wait)
-        edit_video_tt_mus(driver)
-        try:
-            element = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable(
-                    (By.XPATH, "//*[contains(@class, 'suggest-item') and contains(text(), 'States')]")
-                )
-            )
-            element.click()
-        except Exception as e:
-            LOGGER.error(f"Failed to click the Location: {e}")
+        #edit_video_tt_mus(driver)
+        # try:
+        #     element = WebDriverWait(driver, 10).until(
+        #         EC.element_to_be_clickable(
+        #             (By.XPATH, "//*[contains(@class, 'suggest-item') and contains(text(), 'States')]")
+        #         )
+        #     )
+        #     element.click()
+        # except Exception as e:
+        #     LOGGER.error(f"Failed to click the Location: {e}")
         if schedule:
             # Select the "Schedule" radio option
             span_element = WebDriverWait(driver, 10).until(
@@ -133,19 +136,26 @@ def upload_video_tt(
             post_button.click()
         else:
             if save_draft:
-                draft_button = WebDriverWait(driver, 10).until(
+                time.sleep(5)
+                select_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[@role='combobox' and .//div[text()='Everyone']]"))
+                )
+                select_button.click()
+                only_you_option = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable(
-                        (
-                            By.XPATH,
-                            "//*[contains(@class, 'Button__content') and contains(@class, 'Button__content--shape-default') "
-                            "and contains(@class, 'Button__content--size-large') and contains(@class, 'Button__content--type-neutral') "
-                            "and contains(@class, 'Button__content--loading-false') and contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'draft')]"
-                        )
+                        (By.XPATH, "//div[@role='option' and .//div[contains(text(), 'Only you')]]")
                     )
                 )
-                draft_button.click()
+                only_you_option.click()
+                #time.sleep(600)
+                post_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable(
+                        (By.XPATH, "//button[@role='button' and @data-e2e='post_video_button']")
+                    )
+                )
+                post_button.click()
                 LOGGER.info("Clicked the 'draft' button successfully.")
-            time.sleep(600)
+            
         time.sleep(10)
         # Additional automation steps for uploading the video can be added here.
         return {"status": "success", "message": "Opened TikTok upload page."}
@@ -188,7 +198,7 @@ def edit_video_tt_mus(driver):
         )
         range_input = range_inputs[1]  # Get the second input element
         ActionChains(driver).move_to_element(range_input).perform()
-        for _ in range(100):
+        for _ in range(99):
             range_input.send_keys(Keys.LEFT)
         LOGGER.info("Updated range input value without dragging.")
         
@@ -568,8 +578,9 @@ if __name__ == "__main__":
     # MACOS upload_video("/Users/jonathanstoff/Downloads/B0RXp2A_Wv0.mp4", datetime(2025, 2, 23, 12, 0), "Check out this cool video!")
 
     upload_video_tt(
-        "D:/tmp/clips/qCuEQGLtfQ8.mp4",
-        datetime(2025, 2, 24, 22, 35),
-        open("D:/tmp/clips/qCuEQGLtfQ8.txt").read(),
+        "C:/Users/legoc/Desktop/AI/AIClipCreator/tmp/clips/reddit_1j4sc5g.mp4",
+        None,
+        "test",
         submit=False,
+        save_draft=False,
     )

@@ -43,6 +43,7 @@ torch = ">=2.6.0+cu118"
 torchaudio = "2.6.0"
 imgkit = "^1.2.3"
 num2words = "^0.5.14"
+googletrans = "^4.0.2"
 
 
 [tool.poetry.group.dev.dependencies]
