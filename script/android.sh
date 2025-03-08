@@ -3,7 +3,8 @@ MACOS:
 
 WINDOWS:
 emulator -avd Medium_Phone_API_35
-
+adb -e push {local file} /sdcard/Pictures/filename
+adb -e push "D:/tmp/clips/reddit1j5d5ap.mp4" /sdcard/Pictures/reddit1j5d5ap.mp4
 sdkmanager "system-images;android-35;google_apis;x86_64"
 avdmanager -v create avd -p D:/vbox -n ClipEM -k "system-images;android-35;google_apis;x86_64"
 avdmanager create avd -n $ANDROID_AVD_NAME -k "system-images;android-$ANDROID_API_LEVEL;default;x86_64" --force
