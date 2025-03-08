@@ -18,12 +18,19 @@ SECTIONS_TYPES = ["funny moments"]
 
 LOGGER = logging.getLogger("clip_creator")
 LOGGER.setLevel(logging.INFO)
-logging.getLogger('googleapicliet.discovery_cache').setLevel(logging.ERROR)
+logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 )
 LOGGER.addHandler(console_handler)
+
+# Add file handler to save logs to /logs/loggername.log
+file_handler = logging.FileHandler("logs/loggername.log")
+file_handler.setFormatter(
+    logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+)
+LOGGER.addHandler(file_handler)
 
 CONFIG = toml.load(join("clip_creator/social/", "config.toml"))
 

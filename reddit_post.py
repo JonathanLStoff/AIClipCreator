@@ -401,7 +401,7 @@ def main_reddit_posts_orch():
                         None,#scheduled_datetime+timedelta(minutes=i*5),
                         post["desc"][i],
                         save_draft=True,
-                        submit=(not args.dryrun)
+                        submit=False
                     )
         else:
             upload_video_tt(
@@ -409,7 +409,7 @@ def main_reddit_posts_orch():
                             None,#scheduled_datetime,
                             post["desc"],
                             save_draft=True,
-                            submit=(not args.dryrun)
+                            submit=False
                         )
         
         update_reddit_post_clip(
@@ -424,7 +424,7 @@ def main_reddit_posts_orch():
                             os.path.abspath(post[f'vfile_{lang}'].replace(f"{pid}", f"{pid}_p{i}")),
                             None,#scheduled_datetime+timedelta(minutes=i*5),
                             post[f"desc_{lang}"][i],
-                            submit=(not args.dryrun),
+                            submit=False,
                             save_draft=True,
                             lang=lang
                         
@@ -434,7 +434,7 @@ def main_reddit_posts_orch():
                                 os.path.abspath(post[f'vfile_{lang}']), 
                                 None,#scheduled_datetime,
                                 post[f"desc_{lang}"],
-                                submit=(not args.dryrun),
+                                submit=False,
                                 save_draft=True,
                                 lang=lang
                             )
