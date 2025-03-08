@@ -26,12 +26,12 @@ console_handler.setFormatter(
 LOGGER.addHandler(console_handler)
 
 # Add file handler to save logs to /logs/loggername.log
-file_handler = logging.FileHandler("logs/loggername.log")
+file_handler = logging.FileHandler("logs/clip_creator.log")
 file_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 )
 LOGGER.addHandler(file_handler)
-
+LOGGER.info("==================Logger initialized======================")
 CONFIG = toml.load(join("clip_creator/social/", "config.toml"))
 
 TIKTOK_USERNAME = os.environ.get("TIKTOK_USERNAME")
