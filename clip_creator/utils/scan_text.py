@@ -199,6 +199,9 @@ def get_top_posts(posts, n):
     if len(update_list_sorted) == n:
         return dict(update_list_sorted)
     return dict(sorted_items[:n])
+def get_top_posts_coms(posts, n):
+
+    return dict(sorted_items = sorted(posts.items(), key=lambda item: item[1]['comments'], reverse=True)[:n])
 def find_bad_words(true_transcript: list[dict], uncensored_transcript) -> (list[list[int]], list[dict]):
     """
     Find bad words in a text.
@@ -327,7 +330,18 @@ def sort_and_loop_by_max_int_key(data:list[dict]) -> list[dict]:
     sorted_data = sorted(data, key=lambda x: x.get('score', 0), reverse=True) #default to 0 if score isn't there
 
     return sorted_data
+def sort_and_loop_by_max_int_key_coms(data:list[dict]) -> list[dict]:
 
+    """
+    Sorts a list of dictionaries by the 'score' key in descending order and loops through it.
+
+    Args:
+        data: A list of dictionaries, where each dictionary has a 'score' key with an integer value.
+    """
+    
+    sorted_data = sorted(data, key=lambda x: x.get('upvotes', 0), reverse=True) #default to 0 if score isn't there
+
+    return sorted_data
 def reg_get_og(text:str, title:str):
     '''
     Gets all links in text that lead to another post

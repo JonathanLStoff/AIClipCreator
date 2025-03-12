@@ -323,50 +323,45 @@ def reddit_posts_orch(href_list, used_posts:list=[], min_post:int=10, max_post:i
                     queue.pop(0)
                     continue
                 url = REDDIT_POST_DOMAIN+queue.pop(0)
-                if "www.reddit.comhttps" in str(url):
+                if "www.reddit.comhttps" in str(url) or url == REDDIT_POST_DOMAIN:
                     continue
-                response = requests.get(url)
-                if url.endswith('/'):
-                    url = url[:-1]
                 try:
-                    time.sleep(3)
                     response_jboi = requests.get(url+".json").json()
                 except Exception as e:
                     LOGGER.debug(f"Error getting author from json: {traceback.format_exc()}")
                     time.sleep(15)
                     continue
-                try:
-                    for child in response_jboi[0].get('data', {}).get('children', []):
-                        if child.get('kind') == 't3':
-                            response_jboi = child.get('data', {})
-                            break
-                except Exception as e:
-                    LOGGER.debug(f"Error getting author from json: {traceback.format_exc()}")
+                json_data, try_again = reddit_json_all(response_jboi)
+                if try_again:
+                    try:
+                        time.sleep(5)
+                        response_jboi = requests.get(url+".json").json()
+                    except Exception as e:
+                        LOGGER.debug(f"Error getting author from json: {traceback.format_exc()}")
+                        time.sleep(15)
+                        continue
+                    json_data, try_again = reddit_json_all(response_jboi)
+                if json_data.get('score', 0) < 150:
                     continue
-                contents = response.content
-                datasx = extract_all(contents)
-                if datasx.get("post-title", "") is None or contents is None or datasx.get('score', 0) < 150:
-                    continue
-                og_links, content_text = reg_get_og(extract_text_from_element(contents), response_jboi.get('author', ""))
+                og_links, content_text = reg_get_og(json_data.get("content", ""), json_data.get('title', ""))
+                
                 # Get author from json
                 if not content_text:
                     continue
-                
-                # if "update" in datasx.get("post-title", "").lower():
-                #     check_profile_reddit(datasx.get("author"), href)
                 post = {
-                    'title': datasx.get("post-title", ""),
+                    'title': json_data.get("title", ""),
                     'content': content_text,
-                    'upvotes': datasx.get('score', 0),
-                    'comments': datasx.get('comment-count', 0),
-                    'nsfw': False if not 'reason="nsfw"' in str(response.content) else True,
-                    'posted_at': datasx.get('created-timestamp', datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")),
-                    'url': url,
-                    'author': response_jboi.get('author', ""), #the username not the id
+                    'upvotes': json_data.get('score', 0),
+                    'comments': json_data.get('comments', 0),
+                    'nsfw': json_data.get('nsfw', 0),
+                    'posted_at': json_data.get('posted_at', datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")),
+                    'url':  json_data.get("url", url),
+                    'post_id': json_data.get("post_id", ""),
+                    'author': json_data.get('author', ""), # the username not the id
                     'parent_href': None if og_links == [] else og_links[-1],
                 }
                 posts.append(post)
-                LOGGER.info(f"Processed post: {post}")
+                LOGGER.debug(f"Processed post: {post}")
             except Exception as e:
                 LOGGER.error(f"Error processing post {href}: {traceback.format_exc()}")
                 time.sleep(15)
@@ -436,8 +431,10 @@ def find_sub_reddit_coms(used_posts:list[str], min_posts:int=10) -> list[str]:
     next_view = {}
     href_list:list[str] = []
     number_runs = 0
+    rand_order_subs = SUB_REDDITS_COM.copy()
+    rand.shuffle(rand_order_subs)
     while len(href_list) < min_posts:
-        for suby in tqdm(SUB_REDDITS_COM, desc="Subreddit, finding posts"):
+        for suby in tqdm(rand_order_subs, desc="Subreddit, finding posts"):
             try:
                 if number_runs == 0:
                     response = requests.get(REDDIT_DOMAIN+suby)
@@ -494,8 +491,12 @@ def reddit_json_all(dict_list:list[dict]):
         'post_id': None,
         
     }
+    try_again = False
     for ppart in dict_list:
-        if ppart.get('kind') == 'Listing':
+        if isinstance(ppart, str):
+            try_again = True
+            continue
+        if ppart.get('kind', "") == 'Listing':
             datap = ppart.get('data', {})
             for child in datap.get('children', []):
                 
@@ -503,7 +504,7 @@ def reddit_json_all(dict_list:list[dict]):
                     data = child.get('data', {})
                     post_data['title'] = data.get('title')
                     post_data['author'] = data.get('author')
-                    post_data['upvotes'] = int(data.get('score',0))
+                    post_data['score'] = int(data.get('score',0))
                     post_data['comments'] = int(data.get('num_comments',0))
                     post_data['url'] = data.get('permalink')
                     post_data['nsfw'] = data.get('over_18')
@@ -518,10 +519,11 @@ def reddit_json_all(dict_list:list[dict]):
                         'upvotes': int(data.get('score', 0)),
                         'content': data.get('body'),
                         "parent_id": data.get('parent_id'),
-                        'best_reply': None,
+                        'best_reply': {},
                     }
                     best_comment = {'upvotes': 0}
-                    
+                    if data.get('replies') == "":
+                        continue
                     for kid in data.get('replies', {}).get('data', {}).get('children', []):
                         if kid.get('kind') == 't1':
                             kid_data = kid.get('data', {})
@@ -534,27 +536,49 @@ def reddit_json_all(dict_list:list[dict]):
                                 }
                     comment['reply'] = best_comment
                     post_data['comments_list'].append(comment)
-    return post_data
+    if post_data.get('title') is None:
+        try_again = True
+    return post_data, try_again
 
-def reddit_coms_orch(used_posts:list=[], min_post:int=10, max_post:int=20) -> list[dict]:
+def reddit_coms_orch(href_list, used_posts:list=[], min_post:int=10, max_post:int=20) -> list[dict]:
     """
     Orchestrates the process of finding Reddit posts.
     """
-    href_list = find_sub_reddit_posts(used_posts, min_post)
+    
     posts = []
     for i, href in tqdm(enumerate(href_list), desc="Processing posts"):
         try:
             response = requests.get(REDDIT_POST_DOMAIN+href+".json").json()
             if response is None:
                 continue
-            datasx = reddit_json_all(response.content)
-            posts.append(datasx)
+            datasx, try_again = reddit_json_all(response)
+            if try_again:
+                try:
+                    time.sleep(5)
+                    response = requests.get(REDDIT_POST_DOMAIN+href+".json").json()
+                except Exception as e:
+                    LOGGER.debug(f"Error getting author from json: {traceback.format_exc()}")
+                    time.sleep(15)
+                    continue
+                datasx, try_again = reddit_json_all(response)
+                
+            post = {
+                'title': datasx.get("title", ""),
+                'content': datasx.get("content", ""),
+                'upvotes': datasx.get('score', 0),
+                'comments': datasx.get('comments', 0),
+                'nsfw': datasx.get('nsfw', False),
+                'posted_at': datasx.get('posted_at', datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")),
+                'url':  datasx.get("url", href),
+                'post_id': datasx.get("post_id", ""),
+                'author': datasx.get('author', ""), # the username not the id
+            }
+            posts.append(post)
         except Exception as e:
             LOGGER.error(f"Error processing post {href}: {traceback.format_exc()}")
             time.sleep(15)
         time.sleep(5)
-        if i >= max_post:
-            break
     return posts
 if __name__ == "__main__":
-    print(reddit_posts_orch([], 2))
+    
+    print(reddit_posts_orch(["/r/Conservative/comments/1j904nr/reddit_is_cooked_and_im_out/"]))

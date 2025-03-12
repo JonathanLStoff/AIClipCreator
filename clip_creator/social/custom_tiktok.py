@@ -77,19 +77,11 @@ def upload_video_tt(
             return None
         set_draftjs_text(driver, description, wait)
         #edit_video_tt_mus(driver)
-        # try:
-        #     element = WebDriverWait(driver, 10).until(
-        #         EC.element_to_be_clickable(
-        #             (By.XPATH, "//*[contains(@class, 'suggest-item') and contains(text(), 'States')]")
-        #         )
-        #     )
-        #     element.click()
-        # except Exception as e:
-        #     LOGGER.error(f"Failed to click the Location: {e}")
+        #add_location_tt(driver, lang=lang)
         if only_me:
             try:
                 button = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "//button[@aria-haspopup='dialog' and @role='combobox' and @data-open='false']"))
+                    EC.element_to_be_clickable((By.XPATH, "//button[@aria-haspopup='dialog' and .//div[contains(text(), 'Everyone')]]"))
                 )
                 button.click()
                 privacy_element = WebDriverWait(driver, 10).until(
@@ -123,13 +115,14 @@ def upload_video_tt(
                     )
                 )
                 schedule_button.click()
+            elif save_draft:
+                
+                draft_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[@data-e2e='save_draft_button']"))
+                )
+                draft_button.click()
+                LOGGER.info("Clicked the 'draft' button successfully.")
             else:
-                if save_draft:
-                    draft_button = WebDriverWait(driver, 10).until(
-                        EC.element_to_be_clickable((By.XPATH, "//button[@data-e2e='save_draft_button']"))
-                    )
-                    draft_button.click()
-                    LOGGER.info("Clicked the 'draft' button successfully.")
                 time.sleep(600)
         elif submit or str(schedule) == 'now':
 
@@ -140,15 +133,15 @@ def upload_video_tt(
                 )
             )
             post_button.click()
+        elif save_draft:
+            time.sleep(5)
+            draft_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[@data-e2e='save_draft_button']"))
+            )
+            draft_button.click()
+            LOGGER.info("Clicked the 'draft' button successfully.")
         else:
-            if save_draft:
-                time.sleep(5)
-                draft_button = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "//button[@data-e2e='save_draft_button']"))
-                )
-                draft_button.click()
-                LOGGER.info("Clicked the 'draft' button successfully.")
-            
+            time.sleep(600)
         time.sleep(10)
         # Additional automation steps for uploading the video can be added here.
         return {"status": "success", "message": "Opened TikTok upload page."}
@@ -190,21 +183,63 @@ def edit_video_tt_mus(driver):
             EC.presence_of_all_elements_located((By.CSS_SELECTOR, "input.scaleInput"))
         )
         range_input = range_inputs[1]  # Get the second input element
-        ActionChains(driver).move_to_element(range_input).perform()
-        for _ in range(99):
-            range_input.send_keys(Keys.LEFT)
+        # ActionChains(driver).move_to_element(range_input).perform()
+        # for _ in range(100):
+        #     range_input.send_keys(Keys.LEFT)
+        location = range_input.location
+        size = range_input.size
+
+        # Calculate the middle of the element
+        middle_x = location['x'] + size['width'] / 2
+        middle_y = location['y'] + size['height'] / 2
+
+        # Create an ActionChains object
+        actions = ActionChains(driver)
+
+        # Move to the middle of the element, click and hold, and then drag
+        actions.move_to_element_with_offset(range_input, size['width'] / 2, size['height'] / 2).click_and_hold().move_to_element_with_offset(range_input, -int((size['width']/2) + 20), 0).release().perform()
         LOGGER.info("Updated range input value without dragging.")
-        
+        # try:
+        #     save_button = WebDriverWait(driver, 10).until(
+        #         EC.element_to_be_clickable(
+        #             (By.XPATH, "//*[contains(@class, 'TUXButton-label') and contains(text(), 'Save')]")
+        #         )
+        #     )
+        #     save_button.click()
+        # except Exception as e:
+        #     LOGGER.error("Failed to click the save button: %s", e)
+        time.sleep(2)
         save_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable(
-                (By.XPATH, "//*[contains(@class, 'TUXButton-label') and contains(text(), 'Save')]")
-            )
+            EC.element_to_be_clickable((By.XPATH, '//button[@data-e2e="editor_save_button"]'))
         )
         save_button.click()
+
+        # Wait for the specified number of seconds
+        time.sleep(2)
         LOGGER.info("Clicked the Save button successfully.")
     except Exception as e:
         LOGGER.error("Failed to click the button: %s", e)
-
+def add_location_tt(driver, lang:str = "en"):
+    try:
+        button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//button[.//span[@data-icon="Cursor"]]'))
+        )
+        button.click()
+        time.sleep(2)
+        # Find the input field within the button
+        input_field = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, '//button[.//span[@data-icon="Cursor"]]//input'))
+        )
+        input_field.send_keys("United States" if lang == "en" else "Mexico")
+        time.sleep(2)
+        # Click the first location suggestion
+        element = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//div[@role="option" and @class="Select__item Select__item--type-default Select__item--variant-fill"]'))
+        )
+        element.click()
+    except Exception as e:
+        LOGGER.error("Failed to add location: %s", e)
+    
 def check_google_continue_button(driver):
     """Checks for the 'Continue with Google' button on a webpage."""
     try:
@@ -611,11 +646,12 @@ def scheduled_run(lang:str = "en"):
 
 if __name__ == "__main__":
     # MACOS upload_video("/Users/jonathanstoff/Downloads/B0RXp2A_Wv0.mp4", datetime(2025, 2, 23, 12, 0), "Check out this cool video!")
-    scheduled_run(lang="en")
-    # upload_video_tt(
-    #     "C:/Users/legoc/Desktop/AI/AIClipCreator/tmp/clips/reddit_1j4sc5g.mp4",
-    #     None,
-    #     "test",
-    #     submit=False,
-    #     save_draft=False,
-    # )
+    #scheduled_run(lang="en")
+    upload_video_tt(
+        "D:/tmp/clips/reddit1j8hml5.mp4",
+        None,
+        "test",
+        submit=False,
+        save_draft=False,
+        only_me=True,
+    )

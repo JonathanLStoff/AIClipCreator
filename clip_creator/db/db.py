@@ -922,7 +922,7 @@ def get_rows_where_tiktok_null_or_empty_com(db_name="aiclipcreator.db"):
     finally:
         if conn:
             conn.close()
-def add_reddit_post_clip_com(post_id, title, content, upvotes, comments, comments_json, nsfw, posted_at, url, db_path="aiclipcreator.db"):
+def add_reddit_post_clip_com(post_id:str, title:str, content:str, upvotes:int, comments:int, comments_json:dict|list, nsfw:bool, posted_at:str, url:str, db_path="aiclipcreator.db"):
     """Adds a new Reddit post clip to the database."""
     try:
         conn = sqlite3.connect(db_path)

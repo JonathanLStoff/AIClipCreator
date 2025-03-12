@@ -17,7 +17,6 @@ from clip_creator.utils.path_setup import check_and_create_dirs
 from clip_creator.utils.scan_text import reddit_remove_bad_words, reddit_acronym, split_audio, get_top_posts, swap_words_numbers, remove_non_letters, dirty_remove_cuss, get_id_from_vfile
 from clip_creator.vid_ed.red_vid_edit import get_clip_duration, get_audio_duration, create_reddit_video
 from clip_creator.utils.caption_img import render_html_to_png
-from clip_creator.utils.schedules import get_timestamps
 from clip_creator.db.db import (
     get_reddit_post_clip_by_id,
     update_reddit_post_clip,
