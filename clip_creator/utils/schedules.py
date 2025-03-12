@@ -47,6 +47,9 @@ def none_old_timestamps()->list:
     now = datetime.now()
     updated = []
     for t in schedule:
+        if ":" not in t:
+            updated.append(t)
+            continue
         hour, minute = map(int, t.split(":"))
         scheduled_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         updated.append(None if scheduled_dt < now else t)

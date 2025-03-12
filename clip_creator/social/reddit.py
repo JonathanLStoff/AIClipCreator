@@ -319,8 +319,12 @@ def reddit_posts_orch(href_list, used_posts:list=[], min_post:int=10, max_post:i
         queue = [href]
         while queue != []:
             try:
-                
+                if "/" not in queue[0] or "https" == queue[0]:
+                    queue.pop(0)
+                    continue
                 url = REDDIT_POST_DOMAIN+queue.pop(0)
+                if "www.reddit.comhttps" in str(url):
+                    continue
                 response = requests.get(url)
                 if url.endswith('/'):
                     url = url[:-1]

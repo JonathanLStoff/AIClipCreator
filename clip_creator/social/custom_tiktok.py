@@ -25,6 +25,7 @@ def upload_video_tt(
     submit: bool = False,
     save_draft: bool = False,
     lang:str = "en",
+    only_me: bool = False,
 ):
     """
     Uploads a video to TikTok using the TikTok API.
@@ -85,7 +86,19 @@ def upload_video_tt(
         #     element.click()
         # except Exception as e:
         #     LOGGER.error(f"Failed to click the Location: {e}")
-        if schedule:
+        if only_me:
+            try:
+                button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[@aria-haspopup='dialog' and @role='combobox' and @data-open='false']"))
+                )
+                button.click()
+                privacy_element = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "//div[@role='option' and .//div[text()='Only you']]"))
+                )
+                privacy_element.click()
+            except Exception as e:
+                LOGGER.error(f"Failed to set privacy to 'Only me': {e}")
+        if schedule and str(schedule) != 'now':
             # Select the "Schedule" radio option
             span_element = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable(
@@ -113,47 +126,27 @@ def upload_video_tt(
             else:
                 if save_draft:
                     draft_button = WebDriverWait(driver, 10).until(
-                        EC.element_to_be_clickable(
-                            (
-                                By.XPATH,
-                                "//*[contains(@class, 'Button__content') and contains(@class, 'Button__content--shape-default') "
-                                "and contains(@class, 'Button__content--size-large') and contains(@class, 'Button__content--type-neutral') "
-                                "and contains(@class, 'Button__content--loading-false') and contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'draft')]"
-                            )
-                        )
+                        EC.element_to_be_clickable((By.XPATH, "//button[@data-e2e='save_draft_button']"))
                     )
                     draft_button.click()
                     LOGGER.info("Clicked the 'draft' button successfully.")
                 time.sleep(600)
-        elif submit:
+        elif submit or str(schedule) == 'now':
 
             time.sleep(5)
             post_button = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable(
-                    (By.XPATH, "//button[.//div[contains(text(), 'Post')]]")
+                    (By.XPATH, "//button[@data-e2e='post_video_button']")
                 )
             )
             post_button.click()
         else:
             if save_draft:
                 time.sleep(5)
-                select_button = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "//button[@role='combobox' and .//div[text()='Everyone']]"))
+                draft_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "//button[@data-e2e='save_draft_button']"))
                 )
-                select_button.click()
-                only_you_option = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable(
-                        (By.XPATH, "//div[@role='option' and .//div[contains(text(), 'Only you')]]")
-                    )
-                )
-                only_you_option.click()
-                #time.sleep(600)
-                post_button = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable(
-                        (By.XPATH, "//button[@role='button' and @data-e2e='post_video_button']")
-                    )
-                )
-                post_button.click()
+                draft_button.click()
                 LOGGER.info("Clicked the 'draft' button successfully.")
             
         time.sleep(10)
@@ -573,14 +566,56 @@ def __time_picker(driver, hour: int, minute: int) -> None:
     # click somewhere else to close the time picker
     time_picker.click()
 
+def scheduled_run(lang:str = "en"):
+    """Runs the scheduled task."""
+    chrome_options = webdriver.ChromeOptions()
+    #chrome_options.add_argument("--headless")
+    LOGGER.info("user-data-dir: %s", CHROME_USER_PATH)
+    user_agent = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0"
+    )
+    chrome_options.add_argument(f"user-agent={user_agent}")
+    chrome_options.add_argument(f"--user-data-dir={CHROME_USER_PATH}")
+    profile_dir = "Default" if lang == "en" else "Profile 2"
+    chrome_options.add_argument(f"--profile-directory={profile_dir}")
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    actual_user_data_dir = driver.capabilities.get("userDataDir")
+
+    wait = WebDriverWait(driver, 60)
+    try:
+        driver.get("https://www.tiktok.com/tiktokstudio/content?tab=draft")
+        LOGGER.info("Navigated to TikTok Studio upload page successfully.")
+        button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable(
+                (By.XPATH, '(//button[@data-tt="components_DraftCells_Clickable"])[1]')
+            )
+        )
+        button.click()
+        LOGGER.info("Clicked the edit button successfully.")
+        time.sleep(5)
+        post_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable(
+            (By.XPATH, "//button[@data-e2e='post_video_button']")
+            )
+        )
+        post_button.click()
+        LOGGER.info("Clicked the post button successfully.")
+        time.sleep(5)
+        wait = WebDriverWait(driver, 60)
+        driver.quit()
+        return {"status": "success", "message": "Opened TikTok upload page."}
+    except Exception:
+        LOGGER.error(f"Failed to open TikTok upload page: {traceback.format_exc()}")
+        return None
 
 if __name__ == "__main__":
     # MACOS upload_video("/Users/jonathanstoff/Downloads/B0RXp2A_Wv0.mp4", datetime(2025, 2, 23, 12, 0), "Check out this cool video!")
-
-    upload_video_tt(
-        "C:/Users/legoc/Desktop/AI/AIClipCreator/tmp/clips/reddit_1j4sc5g.mp4",
-        None,
-        "test",
-        submit=False,
-        save_draft=False,
-    )
+    scheduled_run(lang="en")
+    # upload_video_tt(
+    #     "C:/Users/legoc/Desktop/AI/AIClipCreator/tmp/clips/reddit_1j4sc5g.mp4",
+    #     None,
+    #     "test",
+    #     submit=False,
+    #     save_draft=False,
+    # )

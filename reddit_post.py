@@ -126,6 +126,39 @@ def main_reddit_posts_orch():
     #         if post.get('posted_at', None):
                 
     #             netw_redd_posts = reddit_posts_orch(href_list, found_posts, min_post=10, max_post=20)
+    ########################################
+    # Calc time to post
+    ########################################
+    day_sched = none_old_timestamps()
+    LOGGER.info("Day Sched: %s", day_sched)
+    #rand_posts = sample(list(posts_to_use.keys()), len(day_sched))
+    if not args.usevids:
+        best_posts = get_top_posts(posts_to_use, len(day_sched))
+        
+    else:
+        LOGGER.info("Using created videos")
+        best_posts = []
+        for file in os.listdir(TMP_CLIPS_FOLDER):
+            pid_tmp = get_id_from_vfile(file)
+            if pid_tmp:
+                posts_to_use[pid_tmp] = get_reddit_post_clip_by_id(pid_tmp)
+                best_posts.append(pid_tmp)
+    poping = []
+    for i, sched in enumerate(day_sched):
+        if sched == None:
+            LOGGER.info("Poping %s", i)
+            poping.append(i)
+    for i, ix in enumerate(poping):
+        day_sched.pop(ix-i)
+    LOGGER.info("Day Sched: %s", day_sched)
+    posts_to_keep = {}
+    for i, pid in enumerate(best_posts):
+        if i >= len(day_sched):
+            break
+        posts_to_keep[pid] = posts_to_use[pid]
+        posts_to_keep[pid]['sched'] = day_sched[i]
+        LOGGER.info("Post sched %s, %s", pid, posts_to_keep[pid]['sched'])     
+    posts_to_use = posts_to_keep
     #####################################
     # Censor bad words
     #####################################
@@ -232,36 +265,7 @@ def main_reddit_posts_orch():
                 else:
                     new_posts_to_use[pid] = posts_to_use[pid]
         posts_to_use = new_posts_to_use
-    ########################################
-    # Calc time to post
-    ########################################
-    day_sched = none_old_timestamps()
-    
-    #rand_posts = sample(list(posts_to_use.keys()), len(day_sched))
-    if not args.usevids:
-        best_posts = get_top_posts(posts_to_use, len(day_sched))
-        
-    else:
-        LOGGER.info("Using created videos")
-        best_posts = []
-        for file in os.listdir(TMP_CLIPS_FOLDER):
-            pid_tmp = get_id_from_vfile(file)
-            if pid_tmp:
-                posts_to_use[pid_tmp] = get_reddit_post_clip_by_id(pid_tmp)
-                best_posts.append(pid_tmp)
-    poping = []
-    for i, sched in enumerate(day_sched):
-        if sched == None:
-            LOGGER.info("Poping %s", i)
-            poping.append(i)
-    for i, ix in enumerate(poping):
-        day_sched.pop(ix-i)
-    LOGGER.info("Day Sched: %s", day_sched)  
-    for i, pid in enumerate(best_posts):
-        if i >= len(day_sched):
-            break
-        posts_to_use[pid]['sched'] = day_sched[i]
-        LOGGER.info("Post sched %s, %s", pid, posts_to_use[pid]['sched'])        
+      
         
     #####################################
     # Create video
@@ -269,6 +273,7 @@ def main_reddit_posts_orch():
     if not args.usevids:
         mpfours = [file for file in os.listdir(REDDIT_TEMPLATE_BG) if file.endswith(".mp4")]
         for pid, post in posts_to_use.items():
+            LOGGER.info("Post: %s", pid)
             if not post.get('sched') or posts_to_use[pid].get("audio_length") < 60:
                 continue
             sub_name = post['url'].split("/")[2]
@@ -388,28 +393,33 @@ def main_reddit_posts_orch():
     for pid, post in posts_to_use.items():
         if not post.get("sched") or posts_to_use[pid].get("audio_length", 61) < 60:
             continue
-
-        time_str = post['sched']
-        today = datetime.today().date()
-        time_obj = datetime.strptime(time_str, "%H:%M").time()
-        scheduled_datetime = datetime.combine(today, time_obj)
-        LOGGER.info(scheduled_datetime)
+        if not post['sched'] == "now":
+            time_str = post['sched']
+            today = datetime.today().date()
+            time_obj = datetime.strptime(time_str, "%H:%M").time()
+            scheduled_datetime = datetime.combine(today, time_obj)
+            LOGGER.info(scheduled_datetime)
+            scheduled_datetime = None
+        else:
+            scheduled_datetime = "now"
         if post.get('parts', 1) > 1:
             for i in range(post['parts']):
                 upload_video_tt(
                         os.path.abspath(post['vfile'].replace(f"{pid}", f"{pid}_p{i}")),
-                        None,#scheduled_datetime+timedelta(minutes=i*5),
+                        scheduled_datetime,#+timedelta(minutes=i*5),
                         post["desc"][i],
-                        save_draft=True,
-                        submit=False
+                        save_draft=False,
+                        submit=True,
+                        only_me=True
                     )
         else:
             upload_video_tt(
-                            os.path.abspath(post['vfile']), 
-                            None,#scheduled_datetime,
+                            os.path.abspath(post['vfile']),
+                            scheduled_datetime,
                             post["desc"],
-                            save_draft=True,
-                            submit=False
+                            save_draft=False,
+                            submit=True,
+                            only_me=True
                         )
         
         update_reddit_post_clip(
@@ -473,6 +483,10 @@ def main_reddit_posts_orch():
                     os.remove(post[f'filename_{lang}'])
                 except Exception as e:
                     LOGGER.error("Error: %s", e)
+        for file in os.listdir("tmp/audios"):
+            os.remove(os.path.join("tmp/audios", file))
+        for file in os.listdir("tmp/caps_img"):
+            os.remove(os.path.join("tmp/caps_img", file))
     LOGGER.info("Reddit posts done")
     
 if __name__ == "__main__":

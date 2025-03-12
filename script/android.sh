@@ -1,12 +1,11 @@
 MACOS:
-/Users/jonathanstoff/Library/Android/sdk/emulator/emulator -avd Medium_Phone_API_35
+/Users/jonathanstoff/Library/Android/sdk/emulator/emulator -avd Medium_Phone_API_34
 
 WINDOWS:
-emulator -avd Medium_Phone_API_35
 
+adb connect 127.0.0.1:5555
 adb -e push {local file} /sdcard/Pictures/filename
-adb -e push "D:/tmp/clips/reddit1j5d5ap.mp4" /sdcard/Pictures/reddit1j5d5ap.mp4
+adb -s 127.0.0.1:5555  push "D:/tmp/clips/reddit1j5d5ap.mp4" /sdcard/Pictures/reddit1j5d5ap.mp4
+"C:\Program Files\BlueStacks_nxt\HD-Player.exe" --hidden --instance clipsphone
 
-sdkmanager "system-images;android-35;google_apis;x86_64"
-avdmanager -v create avd -p D:/vbox -n ClipEM -k "system-images;android-35;google_apis;x86_64"
-avdmanager create avd -n $ANDROID_AVD_NAME -k "system-images;android-$ANDROID_API_LEVEL;default;x86_64" --force
+ctrl + shift + x

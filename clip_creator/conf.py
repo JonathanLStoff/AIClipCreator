@@ -42,10 +42,12 @@ RM_TIMESTAMP_REGEX = r"(?:[0-9]|1[0-2]):[0-5][0-9](?::[0-5][0-9])?"
 
 NUM_CORES = os.cpu_count() or 1
 LOGGER.info("Available CPU cores/threads: %d", NUM_CORES)
-
+BLUESTACKS_INSTANCE = "clipsphone"
 if sys.platform.startswith("win"):
     # FFMPEG_PARAMS = ["-cq", "28"]
     CODEC = "h264_nvenc"
+    BLUESTACKS_PATH = r"C:/Program Files/BlueStacks_nxt/HD-Player.exe"
+    ADB_DEVICE = "127.0.0.1:5555"
     DOWNLOAD_FOLDER = "D:/tmp/raw"
     TMP_DOWNLOAD_FOLDER = "tmp/raw"
     TMP_CLIPS_FOLDER = "tmp/clips"
@@ -72,6 +74,8 @@ if sys.platform.startswith("win"):
 elif sys.platform.startswith("darwin"):
     # FFMPEG_PARAMS = ["-c:v", "h264_videotoolbox"]
     CODEC = "libx264"
+    BLUESTACKS_PATH = r"C:/Program Files/BlueStacks_nxt/HD-Player.exe"
+    ADB_DEVICE = "127.0.0.1:5555"
     MODELS_FOLDER = "/Volumes/externalSSD/models"
     DOWNLOAD_FOLDER = "/Volumes/externalSSD/tmp/raw"
     REDDIT_TEMPLATE_AUD = "/Volumes/externalSSD/tmp/reddit/reddit_music.mp3"
@@ -233,12 +237,12 @@ REGEX_FOR_UPDATE = r"https:\/\/www\.reddit\.com[^\s]+"
 REGEX_FOR_UPDATE_RM = r".*www\.reddit\.com[^\s]*.*"
 
 WK_SCHED = [
-    ["06:10", "07:50", "16:00","22:10"], # Monday
-    ["06:50", "16:50", "17:55", "23:30"], # Tuesday
-    ["06:30", "18:00", "22:15", "22:40"], # Wednesday
-    ["07:25", "16:20", "21:05", "23:55"], # Thursday
-    ["06:05", "17:00", "21:35", "23:50"], # Friday
-    ["06:45", "17:10", "20:10", "23:20"], # Saturday
-    ["06:05", "18:05", "20:50", "23:30"], # Sunday
+    ["06:00", "07:50", "16:00","22:10"], # Monday
+    ["06:00", "16:50", "17:55", "23:30"], # Tuesday
+    ["06:00", "18:00", "22:15", "22:40"], # Wednesday
+    ["06:00", "16:20", "21:05", "23:55"], # Thursday
+    ["06:00", "17:00", "21:35", "23:50"], # Friday
+    ["06:00", "17:10", "20:10", "23:20"], # Saturday
+    ["06:00", "18:05", "20:50", "23:30"], # Sunday
 ]
 
