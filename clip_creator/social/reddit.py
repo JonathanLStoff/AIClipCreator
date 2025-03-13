@@ -519,9 +519,10 @@ def reddit_json_all(dict_list:list[dict]):
                         'upvotes': int(data.get('score', 0)),
                         'content': data.get('body'),
                         "parent_id": data.get('parent_id'),
+                        'posted_at': datetime.fromtimestamp(data.get('created_utc'), timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+0000"),
                         'best_reply': {},
                     }
-                    best_comment = {'upvotes': 0}
+                    best_comment:dict[str,int|str] = {'upvotes': 0}
                     if data.get('replies') == "":
                         continue
                     for kid in data.get('replies', {}).get('data', {}).get('children', []):
@@ -532,6 +533,7 @@ def reddit_json_all(dict_list:list[dict]):
                                     'author': kid_data.get('author'),
                                     'upvotes': int(kid_data.get('score', 0)),
                                     'content': kid_data.get('body'),
+                                    'posted_at': datetime.fromtimestamp(kid_data.get('created_utc'), timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+0000"),
                                     "parent_id": kid_data.get('parent_id'),
                                 }
                     comment['reply'] = best_comment

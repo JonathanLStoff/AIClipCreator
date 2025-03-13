@@ -6,12 +6,14 @@ import shutil
 import uuid
 from random import choice, randint
 from num2words import num2words
-from clip_creator.conf import LOGGER, CLIPS_FOLDER, WK_SCHED, POSSIBLE_TRANSLATE_LANGS, POSSIBLE_TRANSLATE_LANGS_TTS
+from clip_creator.conf import LOGGER, CLIPS_FOLDER, REDDIT_TEMPLATE_BG, POSSIBLE_TRANSLATE_LANGS, POSSIBLE_TRANSLATE_LANGS_TTS
 from clip_creator.tts.ai import TTSModelKokoro
+from clip_creator.lang.translate import translate_en_to
 from clip_creator.utils.forcealign import force_align
 from clip_creator.social.custom_tiktok import upload_video_tt
 from clip_creator.social.reddit import reddit_coms_orch, find_sub_reddit_coms
 from clip_creator.utils.path_setup import check_and_create_dirs
+from clip_creator.utils.caption_img import render_html_to_png, render_html_to_png_comment
 from clip_creator.utils.math_things import get_88_percentile
 from clip_creator.utils.scan_text import reddit_remove_bad_words, sort_and_loop_by_max_int_key_coms, get_top_posts_coms, swap_words_numbers, remove_non_letters, reddit_acronym
 from clip_creator.vid_ed.red_vid_edit import get_clip_duration, get_audio_duration, create_reddit_video
@@ -161,17 +163,28 @@ def main_reddit_coms_orch():
         LOGGER.info("Post sched %s, %s", pid, posts_to_keep[pid]['sched'])     
     posts_to_use = posts_to_keep
     #####################################
+    # Translate to other languages
+    #####################################
+    if not args.usevids:
+        for pid, post in posts_to_use.items():
+            for lang in POSSIBLE_TRANSLATE_LANGS:
+                posts_to_use[pid][f'chunks_{lang}'] = posts_to_use[pid]['chunks']
+                for uid, chunk in post[f'chunks_{lang}'].items():
+                    LOGGER.info("Translating %s to %s", pid, lang)
+                    posts_to_use[pid][f'chunks_{lang}'][uid]['text'] = translate_en_to(chunk['text'], lang)
+    #####################################
     # Create Audio using TTS
     #####################################
     # FIX THIS:
     if not args.usevids:
         tts_model = TTSModelKokoro()
         for pid, post in posts_to_use.items():
-            
             LOGGER.info("Creating Audio for %s", pid)
-            posts_to_use[pid]['filename'] = f"tmp/audios/{pid}_tts.wav"
-            if not os.path.exists(f"tmp/audios/{pid}_tts.wav"):
-                tts_model.run_it(posts_to_use[pid]['filename'], posts_to_use[pid]['content'])
+            for uid, chunk in post['chunks'].items():
+                
+                posts_to_use[pid]['chunks'][uid]['auFile'] = f"tmp/audios/{pid}_{uid}.wav"
+                if not os.path.exists(f"tmp/audios/{pid}_{uid}.wav"):
+                    tts_model.run_it(posts_to_use[pid]['chunks'][uid]['auFile'], chunk['text'])
         
         # Create Audio for other languages
         
@@ -184,9 +197,10 @@ def main_reddit_coms_orch():
             for pid, post in posts_to_use.items():
             
                 LOGGER.info("Creating Audio for %s", pid)
-                posts_to_use[pid][f'filename_{lang}'] = f"tmp/audios/{pid}_{lang}_tts.wav"
-                if not os.path.exists(f"tmp/audios/{pid}_{lang}_tts.wav"):
-                    tts_model_lang.run_it(posts_to_use[pid][f'filename_{lang}'], posts_to_use[pid][f'content_{lang}'])
+                for uid, chunk in post[f'chunks_{lang}'].items():
+                    posts_to_use[pid][f'chunks_{lang}'][uid]['auFile'] = f"tmp/audios/{pid}_{lang}_{uid}.wav"
+                    if not os.path.exists(posts_to_use[pid][f'chunks_{lang}'][uid]['auFile']):
+                        tts_model_lang.run_it(posts_to_use[pid][f'chunks_{lang}'][uid]['auFile'], chunk['text'])
     #####################################
     # Force align text to audio
     #####################################
@@ -195,31 +209,123 @@ def main_reddit_coms_orch():
         device = "cuda:0"
         torch.cuda.empty_cache()
     for pid, post in posts_to_use.items():
-        posts_to_use[pid]['aligned_ts'] = force_align(device=device, file=post['filename'], yt_ft_transcript=post['content'])
+        for uid, chunk in post['chunks'].items():
+            posts_to_use[pid]['chunks'][uid]["ascript"] = force_align(device=device, file=chunk['auFile'], yt_ft_transcript=chunk['text'])
+    for lang in POSSIBLE_TRANSLATE_LANGS:
+        for pid, post in posts_to_use.items():
+            for uid, chunk in post[f'chunks_{lang}'].items():
+                posts_to_use[pid][f'chunks_{lang}'][uid]['ascript'] = force_align(device=device, file=chunk['auFile'], yt_ft_transcript=chunk['text'])
+    
     #####################################
     # Create video
     #####################################
-    mpfours = [file for file in os.listdir(REDDIT_TEMPLATE_FOLDER) if file.endswith(".mp4")]
-    for pid, post in posts_to_use.items():
-        background = choice(mpfours)
-        clip_length = get_clip_duration(background)
-        # Grab random part from mc parkor/subway surfers/temple run
-        posts_to_use[pid]['audio_length'] = get_audio_duration(post['filename'])
-        start = randint(0, int(clip_length - posts_to_use[pid]['audio_length']))
-        end = start + posts_to_use[pid]['audio_length']
-        # run video creator that combines video with audio with transcript
-        posts_to_use[pid]['vfile'] = f"tmp/clips/reddit_{pid}.mp4"
-        create_reddit_video(
-            video_path=os.path.join(REDDIT_TEMPLATE_FOLDER, background),
-            audio_path=post['filename'],
-            output_path=posts_to_use[pid]['vfile'],
-            start_time=start,
-            end_time=end,
-            pid=pid,
-            transcript=post['aligned_ts'],
-            th=1080,
-            tw=1920,
-        )
+    if not args.usevids:
+        mpfours = [file for file in os.listdir(REDDIT_TEMPLATE_BG) if file.endswith(".mp4")]
+        for pid, post in posts_to_use.items():
+            
+            LOGGER.info("Post: %s", pid)
+            if not post.get('sched'):
+                continue
+            sub_name = post['url'].split("/")[2]
+            do_it = False
+            for part_url in post['url'].split("/"):
+                if "r" in part_url.lower():
+                    do_it = True
+                elif do_it:
+                    sub_name = part_url
+                    break
+            LOGGER.info("Subreddit: %s", sub_name)
+            # Create img for post
+            for uid, chunk in post['chunks'].items():
+                if chunk.get('idx') == 0:
+                    post_png_file = render_html_to_png(
+                        post_id=pid,
+                        title=chunk['text'],
+                        subreddit=sub_name,
+                        subreddit_id=sub_name,
+                        user_id="reddit",
+                        user_name=dirty_remove_cuss(post['author']),
+                        time_ago=datetime.fromisoformat(post['posted_at'][:-2] + ':' + post['posted_at'][-2:]),
+                        score_int=post['upvotes'],
+                        comment_int=post['comments']
+                    )
+                else:
+                    post_png_file = render_html_to_png_comment(
+                        post_id=pid,
+                        title=post['title'],
+                        subreddit=sub_name,
+                        subreddit_id=sub_name,
+                        user_id="reddit",
+                        user_name=dirty_remove_cuss(post['author']),
+                        time_ago=datetime.fromisoformat(post['posted_at'][:-2] + ':' + post['posted_at'][-2:]),
+                        score_int=post['upvotes'],
+                        comment_int=post['comments']
+                    )
+            
+            background = choice(mpfours)
+            clip_length = get_clip_duration(os.path.join(REDDIT_TEMPLATE_BG, background))
+            LOGGER.info("Clip, length, pid: %s, %s, %s", background, clip_length, pid)
+            # Grab random part from mc parkor/subway surfers/temple run
+            start = randint(0, int(clip_length - posts_to_use[pid]['audio_length']+1))
+            end = start + posts_to_use[pid]['audio_length']
+            # run video creator that combines video with audio with transcript
+            posts_to_use[pid]['vfile'] = f"tmp/clips/reddit_{pid}.mp4"
+            create_reddit_video(
+                video_path=os.path.join(REDDIT_TEMPLATE_BG, background),
+                audio_path=posts_to_use[pid]['filename'],
+                output_path=posts_to_use[pid]['vfile'],
+                start_time=start,
+                end_time=end,
+                pid=pid,
+                part_start=posts_to_use[pid]['part_start'],
+                parts=posts_to_use[pid]['parts'],
+                transcript=posts_to_use[pid]['aligned_ts'],
+                th=1080,
+                tw=1920,
+                paragraph=posts_to_use[pid]['content'],
+                post_png_file=post_png_file,
+                title=swap_words_numbers(reddit_acronym(reddit_remove_bad_words(posts_to_use[pid]['title'])))
+            )
+            for lang in POSSIBLE_TRANSLATE_LANGS:
+                post_png_file = render_html_to_png(
+                    post_id=pid,
+                    title=translate_en_to(post['title'], lang),
+                    subreddit=translate_en_to(sub_name, lang),
+                    subreddit_id=translate_en_to(sub_name, lang),
+                    user_id="reddit",
+                    user_name=translate_en_to(dirty_remove_cuss(post['author']), lang),
+                    time_ago=datetime.fromisoformat(post['posted_at'][:-2] + ':' + post['posted_at'][-2:]),
+                    score_int=post['upvotes'],
+                    comment_int=post['comments']
+                )
+                posts_to_use[pid][f'vfile_{lang}'] = f"tmp/clips/reddit{lang}_{pid}.mp4"
+                end = start + posts_to_use[pid][f'audio_length_{lang}']
+                create_reddit_video(
+                    video_path=os.path.join(REDDIT_TEMPLATE_BG, background),
+                    audio_path=posts_to_use[pid][f'filename_{lang}'],
+                    output_path=posts_to_use[pid][f'vfile_{lang}'],
+                    start_time=start,
+                    end_time=end,
+                    pid=pid,
+                    part_start=posts_to_use[pid][f'part_start_{lang}'],
+                    parts=posts_to_use[pid][f'parts_{lang}'],
+                    transcript=posts_to_use[pid][f'aligned_ts_{lang}'],
+                    th=1080,
+                    tw=1920,
+                    paragraph=posts_to_use[pid][f'content_{lang}'],
+                    post_png_file=post_png_file,
+                    title=translate_en_to(swap_words_numbers(reddit_acronym(reddit_remove_bad_words(posts_to_use[pid]['title']))), lang)
+                )
+    else:
+        for pid, post in posts_to_use.items():
+            posts_to_use[pid]['vfile'] = f"tmp/clips/reddit_{pid}.mp4"
+            posts_to_use[pid]['parts'] = 1
+            posts_to_use[pid]['filename'] = f"tmp/audios/{pid}_tts.wav"
+            for lang in POSSIBLE_TRANSLATE_LANGS:
+                posts_to_use[pid][f'vfile_{lang}'] = f"tmp/clips/reddit{lang}_{pid}.mp4"
+                posts_to_use[pid][f'parts_{lang}'] = 1
+                posts_to_use[pid][f'filename_{lang}'] = f"tmp/audios/{pid}_{lang}_tts.wav"
+    
     ########################################
     # Calc time to post
     ########################################
