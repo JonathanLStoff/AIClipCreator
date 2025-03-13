@@ -433,8 +433,9 @@ def main_reddit_posts_orch():
                             os.path.abspath(post[f'vfile_{lang}'].replace(f"{pid}", f"{pid}_p{i}")),
                             None,#scheduled_datetime+timedelta(minutes=i*5),
                             post[f"desc_{lang}"][i],
-                            submit=False,
-                            save_draft=True,
+                            save_draft=False,
+                            submit=True,
+                            only_me=True,
                             lang=lang
                         
                         )
@@ -443,8 +444,9 @@ def main_reddit_posts_orch():
                                 os.path.abspath(post[f'vfile_{lang}']), 
                                 None,#scheduled_datetime,
                                 post[f"desc_{lang}"],
-                                submit=False,
-                                save_draft=True,
+                                save_draft=False,
+                                submit=True,
+                                only_me=True,
                                 lang=lang
                             )
 
@@ -478,7 +480,7 @@ def main_reddit_posts_orch():
                     else:
                         
                         shutil.copyfile(posts_to_use[pid]['vfile_{lang}'], f"{CLIPS_FOLDER}/reddit{lang}_{pid}.mp4")
-                        os.remove(post['vfile_{lang}'])
+                        os.remove(post[f'vfile_{lang}'])
                     os.remove(post[f'filename_{lang}'])
                 except Exception as e:
                     LOGGER.error("Error: %s", e)
