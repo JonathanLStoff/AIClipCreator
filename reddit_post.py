@@ -248,10 +248,10 @@ def main_reddit_posts_orch():
             posts_to_use[pid]['part_start']:list[int] = split_audio(posts_to_use[pid]['audio_length'], post['aligned_ts'])
             posts_to_use[pid]['parts'] = 1 #len(posts_to_use[pid]['part_start'])
             LOGGER.info("Audio length, parts: %s, %s, %s", posts_to_use[pid]['audio_length'], posts_to_use[pid]['parts'], posts_to_use[pid]['part_start'])
-            if posts_to_use[pid]['audio_length'] < 60:
-                LOGGER.error("Audio too short")
-            else:
-                new_posts_to_use[pid] = posts_to_use[pid]
+            # if posts_to_use[pid]['audio_length'] < 60:
+            #     LOGGER.error("Audio too short")
+            # else:
+            new_posts_to_use[pid] = posts_to_use[pid]
             for lang in POSSIBLE_TRANSLATE_LANGS:
                 posts_to_use[pid][f'audio_length_{lang}'] = get_audio_duration(post.get(f'filename_{lang}', None))
                 if not posts_to_use[pid][f'audio_length_{lang}']:
@@ -259,10 +259,10 @@ def main_reddit_posts_orch():
                 posts_to_use[pid][f'part_start_{lang}']:list[int] = split_audio(posts_to_use[pid][f'audio_length_{lang}'], post[f'aligned_ts_{lang}'])
                 posts_to_use[pid][f'parts_{lang}'] = 1 #len(posts_to_use[pid][f'part_start_{lang}'])
                 LOGGER.info("Audio length, parts: %s, %s, %s", posts_to_use[pid][f'audio_length_{lang}'], posts_to_use[pid][f'parts_{lang}'], posts_to_use[pid][f'part_start_{lang}'])
-                if posts_to_use[pid][f'audio_length_{lang}'] < 60:
-                    LOGGER.error("Audio too short")
-                else:
-                    new_posts_to_use[pid] = posts_to_use[pid]
+                # if posts_to_use[pid][f'audio_length_{lang}'] < 60:
+                #     LOGGER.error("Audio too short")
+                # else:
+                new_posts_to_use[pid] = posts_to_use[pid]
         posts_to_use = new_posts_to_use
       
         
@@ -273,7 +273,7 @@ def main_reddit_posts_orch():
         mpfours = [file for file in os.listdir(REDDIT_TEMPLATE_BG) if file.endswith(".mp4")]
         for pid, post in posts_to_use.items():
             LOGGER.info("Post: %s", pid)
-            if not post.get('sched') or posts_to_use[pid].get("audio_length") < 60:
+            if not post.get('sched'):# or posts_to_use[pid].get("audio_length") < 60:
                 continue
             sub_name = post['url'].split("/")[2]
             do_it = False
@@ -390,7 +390,7 @@ def main_reddit_posts_orch():
     # Upload tiktok
     #####################################
     for pid, post in posts_to_use.items():
-        if not post.get("sched") or posts_to_use[pid].get("audio_length", 61) < 60:
+        if not post.get("sched"):# or posts_to_use[pid].get("audio_length", 61) < 60:
             continue
         if not post['sched'] == "now":
             time_str = post['sched']
@@ -456,7 +456,7 @@ def main_reddit_posts_orch():
     if not args.dryrun:
         for pid, post in posts_to_use.items():
             try:
-                if not post.get("sched") or posts_to_use[pid].get("audio_length", 0) < 60:
+                if not post.get("sched"):# or posts_to_use[pid].get("audio_length", 0) < 60:
                     continue
                 if post.get('parts', 1) > 1:
                     for i in range(post['parts']):
@@ -471,7 +471,7 @@ def main_reddit_posts_orch():
                 LOGGER.error("Error: %s", e)
             for lang in POSSIBLE_TRANSLATE_LANGS:
                 try:
-                    if not post.get(f"sched_{lang}") or posts_to_use[pid].get(f"audio_length_{lang}", 0) < 60:
+                    if not post.get(f"sched_{lang}"):# or posts_to_use[pid].get(f"audio_length_{lang}", 0) < 60:
                         continue
                     if post.get(f'parts_{lang}', 1) > 1:
                         for i in range(post[f'parts_{lang}']):
