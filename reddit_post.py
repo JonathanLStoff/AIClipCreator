@@ -462,11 +462,14 @@ def main_reddit_posts_orch():
                     for i in range(post['parts']):
                         shutil.copyfile(post['vfile'].replace(f"{pid}", f"{pid}_p{i}"), f"{CLIPS_FOLDER}/reddit_p_{pid}.mp4")
                         os.remove(post['vfile'].replace(f"{pid}", f"{pid}_p{i}"))
+                        LOGGER.info("Deleting %s", post['vfile'].replace(f"{pid}", f"{pid}_p{i}"))
                 else:
                     
                     shutil.copyfile(posts_to_use[pid]['vfile'], f"{CLIPS_FOLDER}/reddit{pid}.mp4")
                     os.remove(post['vfile'])
+                    LOGGER.info("Deleting %s", post['vfile'])
                 os.remove(post['filename'])
+                LOGGER.info("Deleting %s", post['filename'])
             except Exception as e:
                 LOGGER.error("Error: %s", e)
             for lang in POSSIBLE_TRANSLATE_LANGS:
