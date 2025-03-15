@@ -3,16 +3,18 @@ import time
 import subprocess
 from clip_creator.conf import LOGGER, ADB_DEVICE, BLUESTACKS_PATH, BLUESTACKS_INSTANCE
 
-def upload_bluestacks(video_path:str, description:str, draft:bool=False, photo_mode:bool=False, only_me:bool=False, hidden:bool=True):
-    # Open Bluestacks
-    if hidden:
-        subprocess.Popen(executable=BLUESTACKS_PATH, args=["--hidden", "--instance", BLUESTACKS_INSTANCE], shell=False)
-    else:
-        LOGGER.info([f'"{BLUESTACKS_PATH}"', "--instance", BLUESTACKS_INSTANCE])
-        subprocess.Popen(executable=BLUESTACKS_PATH, args=["--instance", BLUESTACKS_INSTANCE], shell=False)
+def upload_phsyphone(video_path:str, description:str, draft:bool=False, photo_mode:bool=False, only_me:bool=False):
+    uploader_class=ADBUploader()
+    #upload video
+    uploader_class.add_video(video_path)
+    # run insta
+    uploader_class.upload_instagram(description=description, draft=draft, photo_mode=photo_mode, only_me=only_me)
+    exit()
     # Upload to TikTok
-    ADBUploader().upload_tiktok(video_path=video_path, description=description, draft=draft, photo_mode=photo_mode, only_me=only_me)
+    uploader_class.upload_tiktok(description=description, draft=draft, photo_mode=photo_mode, only_me=only_me, sound=False)
     
     
 if __name__ == "__main__":
-    upload_bluestacks("D:/tmp/clips/reddit1j7jlb1.mp4", "This is a test description", draft=False, photo_mode=False, only_me=True, hidden=False)
+    # subprocess.run(['/opt/homebrew/bin/adb', '-s', 'ZY22H5JP3S', 'shell', 'mkdir', '/storage/self/primary/DCIM/TTUploader'])
+    # exit()
+    upload_phsyphone("/Users/jonathanstoff/Desktop/Scripts/AIClipCreator/test_files/clip_SXoQ5gJLJdY.mp4", "This is a test description", draft=False, photo_mode=False, only_me=True)

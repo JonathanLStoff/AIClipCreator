@@ -26,6 +26,7 @@ console_handler.setFormatter(
 LOGGER.addHandler(console_handler)
 
 # Add file handler to save logs to /logs/loggername.log
+
 file_handler = logging.FileHandler("logs/clip_creator.log")
 file_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
@@ -65,7 +66,8 @@ if sys.platform.startswith("win"):
     LOW_CPU_MEM = False
     USER_ACCOUNT = os.environ.get("USERPROFILE")
     USER_ACCOUNT_FOLDER = os.path.basename(USER_ACCOUNT)
-
+    ADB_PATH_EXE = "adb"
+    ADB_SHELL = True
     CHROME_USER_PATH = (
         f"C:/Users/{USER_ACCOUNT_FOLDER}/AppData/Local/Google/Chrome/User Data"
     )
@@ -74,8 +76,10 @@ if sys.platform.startswith("win"):
 elif sys.platform.startswith("darwin"):
     # FFMPEG_PARAMS = ["-c:v", "h264_videotoolbox"]
     CODEC = "libx264"
+    ADB_SHELL = True
     BLUESTACKS_PATH = r"C:/Program Files/BlueStacks_nxt/HD-Player.exe"
-    ADB_DEVICE = "127.0.0.1:5555"
+    ADB_PATH_EXE = "/opt/homebrew/bin/adb"
+    ADB_DEVICE = "ZY22H5JP3S"
     MODELS_FOLDER = "/Volumes/externalSSD/models"
     DOWNLOAD_FOLDER = "/Volumes/externalSSD/tmp/raw"
     REDDIT_TEMPLATE_AUD = "/Volumes/externalSSD/tmp/reddit/reddit_music.mp3"
@@ -98,7 +102,7 @@ elif sys.platform.startswith("darwin"):
 else:
     DOWNLOAD_FOLDER = os.path.expanduser("~/Downloads")
 
-
+ADB_PATH = "/storage/self/primary/DCIM"
 FONT_PATH = "fonts/WorkSans-Bold.ttf"
 
 E_FONT_PATH = "fonts/NotoColorEmoji-Regular.ttf"

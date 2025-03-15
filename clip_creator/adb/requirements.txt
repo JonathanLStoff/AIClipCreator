@@ -1,3 +1,0 @@
-uiautomator
-pytesseract
-pytube
