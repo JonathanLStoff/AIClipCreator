@@ -13,7 +13,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
-
+from clip_creator.utils.scan_text import dirty_remove_cuss
 from PIL import Image, ImageDraw, ImageFont
 from pilmoji import Pilmoji
 from tqdm import tqdm
@@ -543,6 +543,16 @@ def render_html_to_png(post_id:str, title:str, subreddit:str, subreddit_id:str, 
         html_file (str): Path to the input HTML file.
         output_png (str): Path to the output PNG file.
         replacements (dict, optional): Dictionary of replacements (key: old_string, value: new_string).
+        *SUBREDDIT*
+        *SUBREDDIT_ID*
+        *USER_ID*
+        *TIME_AGO* # "15 hr." ago
+        *USER_NAME*
+        *SCORE_INT*
+        *COMMENT_INT*
+        *SUB_IMG_PATH*
+        *TITLE*
+        *USER_IMG*
     """
     output_png:str=f"{output_png_fold}/{post_id}_post.png"
     output_png_abs = os.path.abspath(output_png)
@@ -685,7 +695,7 @@ def render_html_to_png_selenium(html_file, output_png, width=1080, height=1920):
     except Exception as e:
         print(f"Error rendering HTML to PNG: {traceback.format_exc()}")
         
-def render_html_to_png_comment(post_id:str, title:str, subreddit:str, subreddit_id:str, user_id:str, user_name:str, time_ago:datetime, score_int:int=0, comment_int:int=0, output_png_fold:str="./tmp",html_file:str="clip_creator/utils/real_reddit.html"):
+def render_html_to_png_comment(post_id:str, chunk_id:str, comment_json:dict={}, reply:bool=False, output_png_fold:str="./tmp",html_file:str="clip_creator/utils/real_reddit_com.html", html_file_reply:str="clip_creator/utils/real_reddit_comrpl.html"):
     """
     Renders an HTML file with potential replacements to a PNG image.
 
@@ -693,62 +703,59 @@ def render_html_to_png_comment(post_id:str, title:str, subreddit:str, subreddit_
         html_file (str): Path to the input HTML file.
         output_png (str): Path to the output PNG file.
         replacements (dict, optional): Dictionary of replacements (key: old_string, value: new_string).
+        
+        _comrpl:
+        *AUTHOR_NAME1*
+        *AUTHOR_NAME2*
+        *TEXT1*
+        *TEXT2*
+        *TIME_AGO1*
+        *TIME_AGO2* # 2025-02-18T19:30:59.979000+0000
+        *SCORE1*
+        *SCORE2*
+
+        _com:
+        *ABS_IMAGE* # Path to profile image (probably reddit.jpg)
+        *AUTHOR_NAME1*
+        *TEXT1*
+        *TIME_AGO1*
+        *SCORE1*
     """
-    output_png:str=f"{output_png_fold}/{post_id}_post.png"
-    output_png_abs = os.path.abspath(output_png)
-    html_file_abs = os.path.abspath(html_file)
+    #dirty_remove_cuss()
+    
     try:
+        html_file_abs = os.path.abspath(html_file if not reply else html_file_reply)
+
+        output_png:str=f"{output_png_fold}/{post_id}_{chunk_id}_post.png"
+        output_png_abs = os.path.abspath(output_png)
+        
         with open(html_file_abs, 'r', encoding='utf-8') as f:
             html_content = f.read()
-
-        html_content= html_content.replace("*SUBREDDIT*", subreddit)
-        html_content= html_content.replace("*SUBREDDIT_ID*", subreddit_id)
-        html_content= html_content.replace("*USER_ID*", user_id)
-        now = datetime.now(timezone.utc) # Might cause issues for time being off
-        delta = now - time_ago
-        years = delta.days // 365
-        months = delta.days // 30
-        days = delta.days
-        hours = delta.seconds // 3600
-        minutes = (delta.seconds % 3600) // 60
-
-        if years >= 1:
-            time_diff = f"{years} year{'s' if years > 1 else ''}"
-        elif months >= 1:
-            time_diff = f"{months} month{'s' if months > 1 else ''}"
-        elif days >= 1:
-            time_diff = f"{days} day{'s' if days > 1 else ''}"
-        elif hours >= 1:
-            time_diff = f"{hours} hr"
-        elif minutes >= 1:
-            time_diff = f"{minutes} min"
+        total_content = comment_json.get("content", "")
+        html_content= html_content.replace("*AUTHOR_NAME1*", comment_json.get("author", ""))
+        html_content= html_content.replace("*TIME_AGO1*", comment_json.get("posted_at", ""))
+        html_content= html_content.replace("*TEXT1*", comment_json.get("content", ""))
+        html_content= html_content.replace("*SCORE1*", comment_json.get("upvotes", ""))
+        if reply:
+            total_content += " " + comment_json.get('best_reply',{}).get("content", "")
+            html_content= html_content.replace("*AUTHOR_NAME2*", comment_json.get('best_reply',{}).get("author", ""))
+            html_content= html_content.replace("*TIME_AGO2*", comment_json.get('best_reply',{}).get("posted_at", ""))
+            html_content= html_content.replace("*TEXT2*", comment_json.get('best_reply',{}).get("content", ""))
+            html_content= html_content.replace("*SCORE2*", comment_json.get('best_reply',{}).get("upvotes", ""))
         else:
-            time_diff = "just now"
-        img_path = os.path.join("clip_creator/utils/imgs", "amitheahole.png")
-        for file in os.listdir("clip_creator/utils/imgs"):
-            if file.startswith(subreddit):
-                img_path = os.path.join("clip_creator/utils/imgs", file)
-        html_content = html_content.replace("*TIME_AGO*", time_diff)
-        if not user_name:
-            user_name = "Unknown"
-        html_content= html_content.replace("*USER_NAME*", ("u/"+user_name))
-        html_content= html_content.replace("*SCORE_INT*", str(score_int))
-        html_content= html_content.replace("*COMMENT_INT*", str(comment_int))
-        html_content= html_content.replace("*SUB_IMG_PATH*", os.path.abspath(img_path))
-        html_content= html_content.replace("*TITLE*", title)
-        html_content= html_content.replace("*USER_IMG*", os.path.abspath("clip_creator/utils/imgs/reddit.jpg"))
+            html_content= html_content.replace("*ABS_IMAGE*", os.path.abspath(os.path.abspath("clip_creator/utils/imgs/reddit.jpg")))
         with open("./tmp/real_reddit.html", 'w', encoding='utf-8') as f:
             f.write(html_content)
             
 
         LOGGER.info(f"Rendering HTML to PNG: {html_file_abs} -> {output_png_abs}")
-        if len(title) > 60:
-            lines = int(len(title)/69)
+        if len(total_content) > 99:
+            lines = int(len(total_content)/99)
         else:
             lines = 0
         height = 255 + 30*lines
         LOGGER.info(f"Height: {height}")
-        if height > 600:
+        if height > 800:
             height = 255
         # Render HTML to PNG
         line_count = render_html_to_png_selenium(os.path.abspath("./tmp/real_reddit.html"), output_png_abs, width=600, height=height)

@@ -120,7 +120,7 @@ def main_reddit_coms_orch():
                 swap_words_numbers(
                     reddit_acronym(
                         reddit_remove_bad_words(
-                            "\n" + num2words(idx + 1) + "\n" + comment['content'] + "\n" + comment['best_reply'].get('content', "") if comment['best_reply'].get('upvotes', "") > comments_above else ""
+                            "\n" + num2words(idx + 1) + "\n" + comment['content'] + "\n" + (comment['best_reply'].get('content', "") if comment['best_reply'].get('upvotes', "") > comments_above else "")
                             )
                         )
                     )
@@ -128,7 +128,9 @@ def main_reddit_coms_orch():
             
             posts_to_use[pid]["chunks"][uuid.uuid4()] = {
                     "idx": idx + 1, 
-                    "text": tt_text
+                    "text": tt_text,
+                    "reply": True if comment['best_reply'].get('upvotes', "") > comments_above else False,
+                    "com_json": comment
                 }
             
     ########################################
@@ -252,14 +254,9 @@ def main_reddit_coms_orch():
                 else:
                     post_png_file = render_html_to_png_comment(
                         post_id=pid,
-                        title=post['title'],
-                        subreddit=sub_name,
-                        subreddit_id=sub_name,
-                        user_id="reddit",
-                        user_name=dirty_remove_cuss(post['author']),
-                        time_ago=datetime.fromisoformat(post['posted_at'][:-2] + ':' + post['posted_at'][-2:]),
-                        score_int=post['upvotes'],
-                        comment_int=post['comments']
+                        chunk_id=uid,
+                        comment_json=chunk['com_json'],
+                        reply=chunk.get("reply", False),
                     )
             
             background = choice(mpfours)

@@ -4,7 +4,7 @@ import uuid
 import os
 import shutil
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from random import choice, randint, sample
 
 from clip_creator.conf import LOGGER, CLIPS_FOLDER, REDDIT_TEMPLATE_BG, WK_SCHED, TMP_CLIPS_FOLDER, POSSIBLE_TRANSLATE_LANGS, POSSIBLE_TRANSLATE_LANGS_TTS
@@ -12,14 +12,15 @@ from clip_creator.tts.ai import TTSModelKokoro
 from clip_creator.utils.forcealign import force_align
 from clip_creator.lang.translate import translate_en_to
 from clip_creator.social.custom_tiktok import upload_video_tt
-from clip_creator.social.reddit import reddit_posts_orch, find_sub_reddit_posts
+from clip_creator.social.reddit import reddit_posts_orch, find_sub_reddit_posts, straight_update_reddit
 from clip_creator.utils.path_setup import check_and_create_dirs
-from clip_creator.utils.scan_text import reddit_remove_bad_words, reddit_acronym, split_audio, get_top_posts, swap_words_numbers, remove_non_letters, dirty_remove_cuss, get_id_from_vfile
+from clip_creator.utils.scan_text import reddit_remove_bad_words, reddit_acronym, split_audio, get_top_posts, swap_words_numbers, remove_non_letters, dirty_remove_cuss, get_id_from_vfile, str_to_datetime
 from clip_creator.vid_ed.red_vid_edit import get_clip_duration, get_audio_duration, create_reddit_video
 from clip_creator.utils.caption_img import render_html_to_png
 from clip_creator.db.db import (
     get_reddit_post_clip_by_id,
-    update_reddit_post_clip,
+    update_reddit_post_clip_old,
+    update_reddit_post_clip_tt,
     create_database,
     add_reddit_post_clip,
     get_rows_where_tiktok_null_or_empty,
@@ -118,13 +119,30 @@ def main_reddit_posts_orch():
     #####################################
     # Check if Updates are needed
     #####################################
-    # href_list = []
-    # if not args.noretrieve and not args.usevids:
-    #     for pid, post in posts_to_use.items():
-    #         fixed_date_str = post.get('posted_at', None)[:-5] + post.get('posted_at', None)[-5:-2] + ":" + post.get('posted_at', None)[-2:]
-    #         if post.get('posted_at', None):
-                
-    #             netw_redd_posts = reddit_posts_orch(href_list, found_posts, min_post=10, max_post=20)
+    href_list = []
+    if not args.noretrieve and not args.usevids:
+        for pid, post in posts_to_use.items():
+            if post.get('updated_at') != None and post.get('updated_at') != "":
+                post_dt = str_to_datetime(post.get('updated_at', ""))
+            else:
+                post_dt = str_to_datetime(post.get('posted_at', ""))
+            LOGGER.info("Post dt: %s", post_dt)
+            if (datetime.now(timezone.utc) - post_dt) > timedelta(days=7):
+                posty = straight_update_reddit(post.get('url',""))
+                if posty.get('title'):
+                    LOGGER.info("Updating Post %s", posty['url'])
+                    update_reddit_post_clip_old(
+                            post_id=pid,
+                            title=posty['title'],
+                            posted_at=posty['posted_at'],
+                            content=posty['content'],
+                            url=posty['url'],
+                            upvotes=posty['upvotes'],
+                            comments=posty['comments'],
+                            nsfw=posty['nsfw'],
+                            author=posty['author'],
+                            updated_at=datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")
+                        )
     ########################################
     # Calc time to post
     ########################################
@@ -421,10 +439,10 @@ def main_reddit_posts_orch():
                             only_me=True
                         )
         
-        update_reddit_post_clip(
-            post_id=pid, 
-            tiktok_posted=scheduled_datetime, 
-            length=post.get('audio_length', 0)
+        update_reddit_post_clip_tt(
+            post_id=pid,
+            tiktok_posted=scheduled_datetime,
+            length=post['audio_length'],
         )
         for lang in POSSIBLE_TRANSLATE_LANGS:
             if post.get('parts', 1) > 1:
@@ -474,17 +492,18 @@ def main_reddit_posts_orch():
                 LOGGER.error("Error: %s", e)
             for lang in POSSIBLE_TRANSLATE_LANGS:
                 try:
-                    if not post.get(f"sched_{lang}"):# or posts_to_use[pid].get(f"audio_length_{lang}", 0) < 60:
-                        continue
                     if post.get(f'parts_{lang}', 1) > 1:
                         for i in range(post[f'parts_{lang}']):
                             shutil.copyfile(post[f'vfile_{lang}'].replace(f"{pid}", f"{pid}_p{i}"), f"{CLIPS_FOLDER}/reddit{lang}_p{i}_{pid}.mp4")
                             os.remove(post[f'vfile_{lang}'].replace(f"{pid}", f"{pid}_p{i}"))
+                            LOGGER.info("Deleting %s", post[f'vfile_{lang}'].replace(f"{pid}", f"{pid}_p{i}"))
                     else:
                         
-                        shutil.copyfile(posts_to_use[pid]['vfile_{lang}'], f"{CLIPS_FOLDER}/reddit{lang}_{pid}.mp4")
+                        shutil.copyfile(posts_to_use[pid][f'vfile_{lang}'], f"{CLIPS_FOLDER}/reddit{lang}_{pid}.mp4")
                         os.remove(post[f'vfile_{lang}'])
+                        LOGGER.info("Deleting %s", post[f'vfile_{lang}'])
                     os.remove(post[f'filename_{lang}'])
+                    LOGGER.info("Deleting %s", post[f'filename_{lang}'])
                 except Exception as e:
                     LOGGER.error("Error: %s", e)
         for file in os.listdir("tmp/audios"):

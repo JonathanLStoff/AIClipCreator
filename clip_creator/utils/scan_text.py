@@ -2,7 +2,7 @@ import re
 import math
 from num2words import num2words
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 
 from clip_creator.conf import CURSE_WORDS, LOGGER, RM_TIMESTAMP_REGEX, TIMESTAMP_REGEX, REDDIT_ACCRO_SUB, REGEX_FOR_UPDATE, REGEX_FOR_UPDATE_RM
 
@@ -431,3 +431,20 @@ def split_audio(duration, aligned_transcript):
         closest_indices.append(closest_index)
     
     return closest_indices
+
+def str_to_datetime(datetime_str):
+    """
+    Converts a datetime string in the format "%Y-%m-%dT%H:%M:%S.%f+0000" to a datetime object.
+
+    Args:
+        datetime_str: The datetime string to convert.
+
+    Returns:
+        A datetime object, or None if the string is invalid.
+    """
+    try:
+        dt_object = datetime.strptime(datetime_str, "%Y-%m-%dT%H:%M:%S.%f+0000")
+        # Ensure the datetime object is timezone-aware and in UTC:
+        return dt_object.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None

@@ -1,7 +1,7 @@
 import datetime
 import json
 import sqlite3
-
+from clip_creator.conf import LOGGER
 import pandas as pd
 
 
@@ -20,6 +20,8 @@ def create_database(db_name="aiclipcreator.db"):
     existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
     if "author" not in existing_columns:
         cursor.execute("ALTER TABLE reddit_coms_clips ADD COLUMN author TEXT")
+    if "updated_at" not in existing_columns:
+        cursor.execute("ALTER TABLE reddit_posts_clips ADD COLUMN updated_at TEXT")
     try:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS reddit_posts_clips (
@@ -37,7 +39,8 @@ def create_database(db_name="aiclipcreator.db"):
                 transcript TEXT,
                 length REAL,
                 parent_post_id TEXT,
-                author TEXT
+                author TEXT,
+                updated_at TEXT
             );
         """)
         cursor.execute("""
@@ -808,6 +811,40 @@ def add_reddit_post_clip(post_id, title, content, upvotes, comments, nsfw, poste
     finally:
         if conn:
             conn.close()
+def update_reddit_post_clip_old(post_id, title, content, upvotes, comments, nsfw, posted_at, url, updated_at, parent_id=None, author=None, db_path="aiclipcreator.db"):
+    """Updates an existing Reddit post clip in the database based on post_id."""
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        if parent_id:
+            cursor.execute(
+                """
+                UPDATE reddit_posts_clips
+                SET title = ?, content = ?, upvotes = ?, comments = ?, nsfw = ?, posted_at = ?, url = ?, author = ?, parent_post_id = ?, updated_at = ?
+                WHERE post_id = ?
+                """,
+                (title, content, upvotes, comments, nsfw, posted_at, url, author, parent_id, post_id, updated_at)
+            )
+        else:
+            cursor.execute(
+                """
+                UPDATE reddit_posts_clips
+                SET title = ?, content = ?, upvotes = ?, comments = ?, nsfw = ?, posted_at = ?, url = ?, author = ?, updated_at = ?
+                WHERE post_id = ?
+                """,
+                (title, content, upvotes, comments, nsfw, posted_at, url, author, post_id, updated_at)
+            )
+
+        conn.commit()
+        LOGGER.info(f"Post clip with post_id '{post_id}' updated successfully.")
+
+    except sqlite3.Error as e:
+        LOGGER.error(f"An error occurred: {e}")
+
+    finally:
+        if conn:
+            conn.close()
 def get_reddit_post_clip_by_id(post_id, db_name="aiclipcreator.db"):
     try:
         conn = sqlite3.connect(db_name)
@@ -824,48 +861,68 @@ def get_reddit_post_clip_by_id(post_id, db_name="aiclipcreator.db"):
     finally:
         if conn:
             conn.close()
-def update_reddit_post_clip(post_id, tiktok_posted=None, insta_posted=None, yt_posted=None, transcript=None, length=None, db_path="aiclipcreator.db"):
+def update_reddit_post_clip(post_id, tiktok_posted=None, insta_posted=None, yt_posted=None, transcript=None, db_path="aiclipcreator.db"):
     """Updates a Reddit post clip in the database."""
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-
+        LOGGER.info(f"Updating post clip with post_id: {post_id}")
         update_fields = []
         update_values = []
 
         if tiktok_posted is not None:
             update_fields.append("tiktok_posted = ?")
-            update_values.append(tiktok_posted)
+            update_values.append(str(tiktok_posted))
         if insta_posted is not None:
             update_fields.append("insta_posted = ?")
-            update_values.append(insta_posted)
+            update_values.append(str(insta_posted))
         if yt_posted is not None:
             update_fields.append("yt_posted = ?")
-            update_values.append(yt_posted)
+            update_values.append(str(yt_posted))
         if transcript is not None:
             update_fields.append("transcript = ?")
             update_values.append(transcript)
-        if length is not None:
-            update_fields.append("length = ?")
-            update_values.append(length)
 
         if not update_fields:
-            print("No fields to update.")
+            LOGGER.error("No fields to update.")
             return
-
+        LOGGER.info(f"Update fields: {update_fields}")
         update_query = "UPDATE reddit_posts_clips SET " + ", ".join(update_fields) + " WHERE post_id = ?"
         update_values.append(post_id)
-
+        LOGGER.info(f"Update values: {update_values}")
         cursor.execute(update_query, update_values)
-
+        LOGGER.info(f"Cursor executed: {update_query}")
+        conn.commit()
         if cursor.rowcount > 0:
-            conn.commit()
-            print(f"Post clip with post_id '{post_id}' updated successfully.")
+            LOGGER.info(f"Post clip with post_id '{post_id}' updated successfully.")
         else:
-            print(f"Post clip with post_id '{post_id}' not found.")
+            LOGGER.error(f"Post clip with post_id '{post_id}' not found.")
 
     except sqlite3.Error as e:
-        print(f"An error occurred: {e}")
+        LOGGER.error(f"An error occurred: {e}")
+
+    finally:
+        if conn:
+            conn.close()
+def update_reddit_post_clip_tt(post_id, tiktok_posted=None, length=0, db_path="aiclipcreator.db"):
+    """Updates a Reddit post clip in the database."""
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        LOGGER.info(f"Updating post clip with post_id: {post_id}")
+
+
+        update_query = "UPDATE reddit_posts_clips SET tiktok_posted = ?, length = ? WHERE post_id = ?"
+        cursor.execute(update_query, (str(tiktok_posted), length, post_id))
+        LOGGER.info(f"Cursor executed: {update_query}")
+        conn.commit()
+        if cursor.rowcount > 0:
+            LOGGER.info(f"Post clip with post_id '{post_id}' updated successfully.")
+        else:
+            LOGGER.error(f"Post clip with post_id '{post_id}' not found.")
+
+    except sqlite3.Error as e:
+        LOGGER.error(f"An error occurred: {e}")
 
     finally:
         if conn:
@@ -954,13 +1011,13 @@ def update_reddit_post_clip_com(post_id, tiktok_posted=None, insta_posted=None, 
 
         if tiktok_posted is not None:
             update_fields.append("tiktok_posted = ?")
-            update_values.append(tiktok_posted)
+            update_values.append(str(tiktok_posted))
         if insta_posted is not None:
             update_fields.append("insta_posted = ?")
-            update_values.append(insta_posted)
+            update_values.append(str(insta_posted))
         if yt_posted is not None:
             update_fields.append("yt_posted = ?")
-            update_values.append(yt_posted)
+            update_values.append(str(yt_posted))
         if transcript is not None:
             update_fields.append("transcript = ?")
             update_values.append(transcript)
@@ -1010,3 +1067,12 @@ def get_all_post_ids_red_com(db_path="aiclipcreator.db"):
             conn.close()
 
     return post_ids
+
+if __name__ == "__main__":
+    update_reddit_post_clip(
+        "1j8so7n",
+        tiktok_posted=datetime.datetime.now(),
+        length=60.5,
+    )
+    
+    
