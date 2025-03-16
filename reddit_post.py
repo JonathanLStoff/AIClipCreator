@@ -421,6 +421,8 @@ def main_reddit_posts_orch():
             scheduled_datetime = "now"
         if post.get('parts', 1) > 1:
             for i in range(post['parts']):
+                try:
+                    upload_phsyphone()
                 upload_video_tt(
                         os.path.abspath(post['vfile'].replace(f"{pid}", f"{pid}_p{i}")),
                         scheduled_datetime,#+timedelta(minutes=i*5),

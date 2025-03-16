@@ -12,3 +12,5 @@ pm create-user User_Name
 am switch-user User_ID
 pm list users
 pm remove-user User_ID
+
+adb shell uiautomator dump /sdcard/window_dump.xml && adb pull /sdcard/window_dump.xml .

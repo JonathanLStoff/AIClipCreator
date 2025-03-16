@@ -102,7 +102,7 @@ elif sys.platform.startswith("darwin"):
 else:
     DOWNLOAD_FOLDER = os.path.expanduser("~/Downloads")
 
-ADB_PATH = "/storage/self/primary/DCIM"
+ADB_PATH = "/storage/self/primary"
 FONT_PATH = "fonts/WorkSans-Bold.ttf"
 
 E_FONT_PATH = "fonts/NotoColorEmoji-Regular.ttf"
@@ -119,12 +119,15 @@ POSSIBLE_TRANSLATE_LANGS = [
     ] 
 POSSIBLE_TRANSLATE_LANGS_TTS = {
         "es": { # spanish
-            "es":"e", 
-            "tts" : [
-                            ("ef_dora",1.4),
-                            ("em_alex",1.2),
-                        ]
-               }, 
+                "es":"e", 
+                "tts" : [
+                                ("ef_dora",1.4),
+                                ("em_alex",1.2),
+                            ],
+                "profile":"Reddit ciudad",
+                "username":"reddit_city_span"
+               }
+            
     }
 COLORS = {
     "black": (0, 0, 0, 255),
