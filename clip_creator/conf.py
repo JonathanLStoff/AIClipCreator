@@ -48,7 +48,7 @@ if sys.platform.startswith("win"):
     # FFMPEG_PARAMS = ["-cq", "28"]
     CODEC = "h264_nvenc"
     BLUESTACKS_PATH = r"C:/Program Files/BlueStacks_nxt/HD-Player.exe"
-    ADB_DEVICE = "127.0.0.1:5555"
+    ADB_DEVICE = "ZY22H5JP3S"
     DOWNLOAD_FOLDER = "D:/tmp/raw"
     TMP_DOWNLOAD_FOLDER = "tmp/raw"
     TMP_CLIPS_FOLDER = "tmp/clips"
@@ -244,12 +244,12 @@ REGEX_FOR_UPDATE = r"https:\/\/www\.reddit\.com[^\s]+"
 REGEX_FOR_UPDATE_RM = r".*www\.reddit\.com[^\s]*.*"
 
 WK_SCHED = [
-    ["06:00", "07:50", "16:00","22:10"], # Monday
-    ["06:00", "16:50", "17:55", "23:30"], # Tuesday
+    ["06:00", "16:50", "18:35","22:40"], # Monday
+    ["06:00", "16:50", "18:55", "23:30"], # Tuesday
     ["06:00", "18:00", "22:15", "22:40"], # Wednesday
     ["06:00", "16:20", "21:05", "23:55"], # Thursday
     ["06:00", "17:00", "21:35", "23:50"], # Friday
     ["06:00", "17:10", "20:10", "23:20"], # Saturday
-    ["06:00", "18:05", "20:50", "23:30"], # Sunday
+    ["06:00", "17:35", "20:50", "23:30"], # Sunday
 ]
 

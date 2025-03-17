@@ -203,7 +203,7 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
     caption: List of dictionaries with "start" and "text" keys.
     """
     try:
-        font = ImageFont.truetype(FONT_PATH, size=60)
+        font = ImageFont.truetype(FONT_PATH, size=100)
     except Exception as e:
         print(f"Error loading font: {e}. Trying default.")
         try:
@@ -314,7 +314,7 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
 
             # Draw each word in the line
             for k, caption in enumerate(line):
-                word = caption.get("text", "")
+                wordt:str = caption.get("text", "")
                 color = COLORS[paired] if k == i else COLORS[bg_choiced_color]
                 if word_to_change == k:
                     color = COLORS[word_to_change_color]
@@ -323,7 +323,7 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
                     for dy in range(-outline_width, outline_width + 1):
                         final_draw.text(
                             (x + dx, current_y + dy),
-                            word,
+                            (str(wordt)+" ") if len(line) > k+1 else wordt,
                             font=font,
                             fill="black",
                             align="center",
@@ -331,7 +331,11 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
 
                 # Draw text
                 final_draw.text(
-                    (x, current_y), word, font=font, fill=color, align="center"
+                    (x, current_y), 
+                    (str(wordt)+" ") if len(line) > k+1 else wordt,
+                    font=font, 
+                    fill=color, 
+                    align="center"
                 )
                 # Key fix: Use k instead of i for word_widths index
                 x += word_widths[k] + word_spacing

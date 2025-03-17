@@ -74,7 +74,8 @@ class ADBUploader:
         
     def add_location_tt(self):
         pass
-    def add_video(self, video_path:str):
+    def add_video(self, video_path:str)->bool:
+        # Make sure the path exists
         try:
             LOGGER.info(self.adb_stri_command(["shell", "rm", "-rf", f'"{RELATIVE_PATH}/*"']))
             LOGGER.info("Deleted old files")
@@ -83,17 +84,21 @@ class ADBUploader:
             pass
         # LOGGER.info('Making new folder: %s', RELATIVE_PATH)
         # LOGGER.info(self.adb_wait(["shell", "mkdir", '-m', '777', RELATIVE_PATH]))
-        
+        try:
         # Copy files to device
-        base_file_name = os.path.basename(video_path)
-        LOGGER.info(f'Copying {video_path} to {RELATIVE_PATH}/{base_file_name}')
-        self.d.push(os.path.abspath(video_path), f"{RELATIVE_PATH}/{base_file_name}")
-        LOGGER.info(f'Copying {video_path} to {RELATIVE_PATH_T}/{base_file_name}')
-        self.d.push(os.path.abspath(video_path), f"{RELATIVE_PATH_T}/{base_file_name}")
-        # Call the media scanner to add the video to the media content provider
-        # I don't know why it's like this, but for some reason the first one only works on my emulator
-        self.d.shell(f'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://{RELATIVE_PATH}/{base_file_name}')
-        self.d.shell(f'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://{RELATIVE_PATH_T}/{base_file_name}')
+            base_file_name = os.path.basename(video_path)
+            LOGGER.info(f'Copying {video_path} to {RELATIVE_PATH}/{base_file_name}')
+            self.d.push(os.path.abspath(video_path), f"{RELATIVE_PATH}/{base_file_name}")
+            LOGGER.info(f'Copying {video_path} to {RELATIVE_PATH_T}/{base_file_name}')
+            self.d.push(os.path.abspath(video_path), f"{RELATIVE_PATH_T}/{base_file_name}")
+            # Call the media scanner to add the video to the media content provider
+            # I don't know why it's like this, but for some reason the first one only works on my emulator
+            self.d.shell(f'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://{RELATIVE_PATH}/{base_file_name}')
+            self.d.shell(f'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file://{RELATIVE_PATH_T}/{base_file_name}')
+        except Exception as e:
+            LOGGER.error(e)
+            return False
+        return True
     def upload_yt(self, title=None, description=None, tags=None, location=None, draft=False, photo_mode=False, only_me=False):
         self.d.app_stop(YT_APP)
         
@@ -170,8 +175,13 @@ class ADBUploader:
         if self.d(text="Start new video").exists(timeout=3):
             self.d(text="Start new video").click()
         sleep(2)
-        self.d(resourceId='com.instagram.android:id/gallery_grid_item_bottom_container', instance=0).wait()
-        self.d(resourceId='com.instagram.android:id/gallery_grid_item_bottom_container', instance=0).click()
+        self.d(text="Templates").wait()
+        LOGGER.info('Found templates')
+        _, templatey = self.d(text="Templates").center()
+        self.touch(0.5, (templatey*2)/self.d.info.get('displayHeight', 1))
+        # self.d(resourceId='com.instagram.android:id/gallery_grid_item_bottom_container', instance=0).wait()
+        # self.d(resourceId='com.instagram.android:id/gallery_grid_item_bottom_container', instance=0).click()
+        
         self.d(text="Next").wait()
         self.d(text="Next").click()
         LOGGER.info('Clicked on next')
@@ -217,177 +227,192 @@ class ADBUploader:
         if not APP_NAME:
             APP_NAME = 'com.zhiliaoapp.musically'
         self.d.app_stop(APP_NAME)
-
-        if not APP_NAME:
-            LOGGER.info('TikTok not found')
-            return
-
-
-        # Start tiktok app
-        self.d.app_start(APP_NAME)
-        self.d.app_wait(APP_NAME, front=True)
-        LOGGER.info('Started TikTok')
-        # Click on the upload button
-        self.d(text='Profile').wait()
-        LOGGER.info('Found profile')
-        self.d(text='Profile').click()
-        self.d(text="Following").wait()
-        if lang == "en":
-            if not self.d(text="reddit_city_ai").exists(timeout=5):
-                self.d(resourceId="com.zhiliaoapp.musically:id/kn4").click()
-                self.d(text="reddit_city_ai").wait()
-                self.d(text="reddit_city_ai").click()
-        else:
-            LOGGER.info('Changing language to %s', POSSIBLE_TRANSLATE_LANGS_TTS[lang])
-            profile_name = POSSIBLE_TRANSLATE_LANGS_TTS[lang]['profile']
-            profile_user = POSSIBLE_TRANSLATE_LANGS_TTS[lang]['username']
-            if not self.d(text=profile_name).exists(timeout=5):
-                self.d(resourceId="com.zhiliaoapp.musically:id/kn4").click()
-                self.d(text=profile_user).wait()
-                self.d(text=profile_user).click()
-        
-        self.d(text='Profile').wait()
-        sleep(2)
-        (xi, yi) = self.d(text='Profile').center()
-        LOGGER.info('Found profile')
-        self.touch(0.5, yi/self.d.info.get('displayHeight', 1))
-        
-        # Click on the gallery button
-        self.d(description='Flash').wait()
-        self.touch(0.784, 0.76)
-        LOGGER.info('Clicked on upload')
-        select_multiple = self.d(text='Select multiple')
-        if select_multiple and not self.d(className='android.widget.CheckBox').info['checked']:
-            select_multiple.click()
-        sleep(1)
-        self.touch(0.169, 0.185)
-
-        # Click on the first video
-        # for i in range(ITEM_COUNT):
-        #     element = self.d(className="androidx.recyclerview.widget.RecyclerView").child(className="android.widget.FrameLayout").child(className="android.widget.TextView")
-            
-
-        #     if i == ITEM_COUNT - 1:
-        #         element.wait()
-        #         element.click()
-        #     else:
-        #         element.click()
-
-        # Press Next
-        next_button = self.d(text='Next').wait()
-        if not next_button:
-            next_button = self.d(text='Next (%s)' % 1)
-        if not next_button:
-            for text_view in self.d(className='android.widget.TextView'):
-                if 'Next' in text_view.text:
-                    text_view.wait()
-                    text_view.click()
-                    break
-        else:
-            self.d(text='Next').click()
-
-        if photo_mode:
-            if not self.d(text='Switch to video mode'):
-                # Press "Switch to photo mode" button
-                self.d(text='Switch to photo mode').click.wait()
-
-        if sound:
-            self.add_sound_tt()
-            # Click audio button
-            # for layout in self.d(className="android.widget.LinearLayout"):
-            #     if layout.info['clickable']:
-            #         layout.click.wait()
-            #         break
-            # # Click magnifying glass
-            # self.d(className='android.widget.ImageView')[0].wait()
-            # self.d(className='android.widget.ImageView')[0].click()
-            # self.d(text='Search').set_text(tiktok_audio)
-            # self.d(text='Search').wait()
-            # self.d(text='Search').click()
-
-            # # Click first result
-            # first_result = self.d(className="androidx.recyclerview.widget.RecyclerView") \
-            #     .child(className="android.widget.LinearLayout")
-            # first_result.child(index=0).click()
-
-            # sleep(0.2)
-
-            # # Press check button
-            # first_result.child(className="android.widget.LinearLayout") \
-            #     .child(className="android.widget.LinearLayout").click.wait()
-
-            # if original_audio != 1 or added_audio != 1:
-            #     # Press 'Volume' button
-            #     self.d(text='Volume').wait()
-            #     self.d(text='Volume').click()
-                
-            #     # "android.widget.SeekBar"
-            #     # 0 = original audio
-            #     # 1 = added audio
-
-            #     def set_seekbar(seekbar, value):
-            #         target = seekbar.info['bounds']['left'] + ((seekbar.info['bounds']['right']-seekbar.info['bounds']['left']*0.985) * value)
-            #         height = seekbar.info['bounds']['bottom'] - seekbar.info['bounds']['top']
-            #         y = seekbar.info['bounds']['top'] + height / 2
-
-            #         self.d.click(target, y)
-
-            #     # Set original audio volume
-            #     set_seekbar(self.d(className='android.widget.SeekBar', instance=0), original_audio / 2)
-
-            #     # Set added audio volume
-            #     set_seekbar(self.d(className='android.widget.SeekBar', instance=1), added_audio / 2)
-
-            #     #  Press 'Done' button
-            #     self.d(text='Done').click.wait()
-            # else:
-            #     # Press the back button
-            #     self.d.press("back")
-        sleep(2)
-        # Press 'Next' button
-        self.d(text='Next').wait()
-        self.d(text='Next').click()
-        LOGGER.info('Clicked on next')
-        if description:
-            # Description
-            self.d(className='android.widget.EditText').set_text(description)
-            # Press back button
-            self.d.press("back")
-            self.d(text=description).wait()
-        if only_me:
-            try:
-                self.d(text='Everyone can view this post').wait()
-                self.d(text='Everyone can view this post').click()
-                self.d(text='Only you').wait()
-                self.d(text='Only you').click()
-                sleep(1)
-                self.d.press("back")
-                sleep(2)
-            except Exception as e:
-                LOGGER.error(e)
-
-        if draft:
-            # Press 'Save' button
-            self.touch(0.28, 0.95)
-        else:
-            # Press 'Post' button
-            self.touch(0.74, 0.95)
-
-        # Check if we got a prompt
         try:
-            self.d(text='Post Now').wait()
-            self.d(text='Post Now').click()
-        except:
-            pass
+            if not APP_NAME:
+                LOGGER.info('TikTok not found')
+                return
 
-        # Wait until the upload is done
-        timout_time = 100
-        cur_time = 0
-        while self.d(resourceId='%s:id/hs0' % APP_NAME):
+
+            # Start tiktok app
+            self.d.app_start(APP_NAME)
+            self.d.app_wait(APP_NAME, front=True)
+            LOGGER.info('Started TikTok')
+            # Click on the upload button
+            self.d(text='Profile').wait()
+            LOGGER.info('Found profile')
+            self.d(text='Profile').click()
+            self.d(text="Following").wait()
+            if lang == "en":
+                if not self.d(text="reddit_city_ai").exists(timeout=5):
+                    self.d(resourceId="com.zhiliaoapp.musically:id/kn4").click()
+                    self.d(text="reddit_city_ai").wait()
+                    self.d(text="reddit_city_ai").click()
+            else:
+                LOGGER.info('Changing language to %s', POSSIBLE_TRANSLATE_LANGS_TTS[lang])
+                profile_name = POSSIBLE_TRANSLATE_LANGS_TTS[lang]['profile']
+                profile_user = POSSIBLE_TRANSLATE_LANGS_TTS[lang]['username']
+                if not self.d(text=profile_name).exists(timeout=5):
+                    self.d(resourceId="com.zhiliaoapp.musically:id/kn4").click()
+                    self.d(text=profile_user).wait()
+                    self.d(text=profile_user).click()
+            
+            self.d(text='Profile').wait()
+            sleep(2)
+            (xi, yi) = self.d(text='Profile').center()
+            LOGGER.info('Found profile')
+            self.touch(0.5, yi/self.d.info.get('displayHeight', 1))
+            post_button_y = yi/self.d.info.get('displayHeight', 1)
+            # Click on the gallery button
+            self.d(description='Flash').wait()
+            self.touch(0.784, 0.76)
+            sleep(4)
+            LOGGER.info('Clicked on upload')
+            self.d(text='Select multiple').wait()
+            select_multiple = self.d(text='Select multiple')
+            if select_multiple and not self.d(className='android.widget.CheckBox').info['checked']:
+                select_multiple.click()
             sleep(1)
-            cur_time += 1
-            if cur_time > timout_time:
-                break
-        self.d.app_stop(APP_NAME)
-        #                  ^^^^^ THIS (maybe) NEEDS TO BE UPDATED
-        # I can't find a quick and reliable way to check if the upload is done, feel free to make a PR
+            self.touch(0.169, 0.185)
+
+            # Click on the first video
+            # for i in range(ITEM_COUNT):
+            #     element = self.d(className="androidx.recyclerview.widget.RecyclerView").child(className="android.widget.FrameLayout").child(className="android.widget.TextView")
+                
+
+            #     if i == ITEM_COUNT - 1:
+            #         element.wait()
+            #         element.click()
+            #     else:
+            #         element.click()
+
+            # Press Next
+            next_button = self.d(text='Next').wait()
+            if not next_button:
+                next_button = self.d(text='Next (%s)' % 1)
+            if not next_button:
+                for text_view in self.d(className='android.widget.TextView'):
+                    if 'Next' in text_view.text:
+                        text_view.wait()
+                        text_view.click()
+                        break
+            else:
+                self.d(text='Next').click()
+
+            if photo_mode:
+                if not self.d(text='Switch to video mode'):
+                    # Press "Switch to photo mode" button
+                    self.d(text='Switch to photo mode').click.wait()
+
+            if sound:
+                self.add_sound_tt()
+                # Click audio button
+                # for layout in self.d(className="android.widget.LinearLayout"):
+                #     if layout.info['clickable']:
+                #         layout.click.wait()
+                #         break
+                # # Click magnifying glass
+                # self.d(className='android.widget.ImageView')[0].wait()
+                # self.d(className='android.widget.ImageView')[0].click()
+                # self.d(text='Search').set_text(tiktok_audio)
+                # self.d(text='Search').wait()
+                # self.d(text='Search').click()
+
+                # # Click first result
+                # first_result = self.d(className="androidx.recyclerview.widget.RecyclerView") \
+                #     .child(className="android.widget.LinearLayout")
+                # first_result.child(index=0).click()
+
+                # sleep(0.2)
+
+                # # Press check button
+                # first_result.child(className="android.widget.LinearLayout") \
+                #     .child(className="android.widget.LinearLayout").click.wait()
+
+                # if original_audio != 1 or added_audio != 1:
+                #     # Press 'Volume' button
+                #     self.d(text='Volume').wait()
+                #     self.d(text='Volume').click()
+                    
+                #     # "android.widget.SeekBar"
+                #     # 0 = original audio
+                #     # 1 = added audio
+
+                #     def set_seekbar(seekbar, value):
+                #         target = seekbar.info['bounds']['left'] + ((seekbar.info['bounds']['right']-seekbar.info['bounds']['left']*0.985) * value)
+                #         height = seekbar.info['bounds']['bottom'] - seekbar.info['bounds']['top']
+                #         y = seekbar.info['bounds']['top'] + height / 2
+
+                #         self.d.click(target, y)
+
+                #     # Set original audio volume
+                #     set_seekbar(self.d(className='android.widget.SeekBar', instance=0), original_audio / 2)
+
+                #     # Set added audio volume
+                #     set_seekbar(self.d(className='android.widget.SeekBar', instance=1), added_audio / 2)
+
+                #     #  Press 'Done' button
+                #     self.d(text='Done').click.wait()
+                # else:
+                #     # Press the back button
+                #     self.d.press("back")
+            sleep(2)
+            # Press 'Next' button
+            self.d(text='Next').wait()
+            self.d(text='Next').click()
+            LOGGER.info('Clicked on next')
+            if description:
+                # Description
+                self.d(className='android.widget.EditText').set_text(description)
+                # Press back button
+                self.d.press("back")
+                self.d(text=description).wait()
+            if only_me:
+                try:
+                    self.d(text='Everyone can view this post').wait()
+                    self.d(text='Everyone can view this post').click()
+                    self.d(text='Only you').wait()
+                    self.d(text='Only you').click()
+                    sleep(1)
+                    self.d.press("back")
+                    sleep(2)
+                except Exception as e:
+                    LOGGER.error(e)
+
+            if draft:
+                # Press 'Save' button
+                self.touch(0.28, post_button_y)
+                sleep(2)
+                if self.d(text='Profile').exists(timeout=5):
+                    self.touch(0.28, post_button_y)
+            else:
+                # Press 'Post' button
+                self.touch(0.74, post_button_y)
+                sleep(2)
+                if self.d(text='Profile').exists(timeout=5):
+                    self.touch(0.74, post_button_y)
+
+            # Check if we got a prompt
+            try:
+                self.d(text='Post Now').wait()
+                self.d(text='Post Now').click()
+            except:
+                pass
+
+            # Wait until the upload is done
+            timout_time = 100
+            cur_time = 0
+            sleep(5)
+            while self.d(resourceId='%s:id/hs0' % APP_NAME):
+                sleep(1)
+                cur_time += 1
+                if cur_time > timout_time:
+                    break
+            sleep(10)
+            self.d.app_stop(APP_NAME)
+            #                  ^^^^^ THIS (maybe) NEEDS TO BE UPDATED
+            # I can't find a quick and reliable way to check if the upload is done, feel free to make a PR
+        except Exception as e:
+            self.d.app_stop(APP_NAME)
+            LOGGER.error(e)
+            return False
+        return True

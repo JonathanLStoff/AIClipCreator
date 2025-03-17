@@ -20,7 +20,7 @@ import sys
 def orchestrate_tiktok_bfour():
     # Start time is 2:50 am, need to end at 3:30 am
     time_to_wait = random.randint(1, 25)
-    for _ in tqdm.tqdm(range(time_to_wait), desc="Waiting to start..."):
+    for _ in tqdm(range(time_to_wait), desc="Waiting to start..."):
         tm.sleep(60)
     time_stop = datetime.combine(datetime.today(), time(3, 30))
     scroll_endlessly(time_stop)

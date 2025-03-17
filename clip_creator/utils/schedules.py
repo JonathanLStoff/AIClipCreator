@@ -51,6 +51,9 @@ def none_old_timestamps()->list:
             updated.append(t)
             continue
         hour, minute = map(int, t.split(":"))
+        if minute > 59:
+            minute = 59
+        LOGGER.info("sched: %s, %s, %s, %s", hour, minute, now.hour, now.minute)
         scheduled_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         updated.append(None if scheduled_dt < now else t)
     return updated

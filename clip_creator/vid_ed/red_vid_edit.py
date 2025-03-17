@@ -4,6 +4,7 @@ from pydub import AudioSegment
 from clip_creator.utils.scan_text import remove_non_letters, swap_words_numbers
 from clip_creator.conf import LOGGER, REDDIT_TEMPLATE_AUD, REDDIT_TEMPLATE_MUS
 import os
+from PIL import Image
 from clip_creator.utils.caption_img import (
         create_caption_images_reddit,
         create_emojis,
@@ -19,7 +20,7 @@ def get_audio_duration(audio_path):
     return len(audio) / 1000.0
 
 
-def create_postimg_clip(post_png_file, transcript, title):
+def create_postimg_clip(post_png_file, transcript, title, th=1920, tw=1080):
     start = 0
     title = swap_words_numbers(remove_non_letters(title.upper()))
     for i, section in enumerate(transcript):
@@ -29,10 +30,11 @@ def create_postimg_clip(post_png_file, transcript, title):
             break
     if transcript[-1]['start'] == start:
         start = len(title)*(160/60)
-    clip = ImageClip(post_png_file, duration=start).with_position("center", "center").with_layer_index(4).with_start(0).with_effects([Resize(.90)])
+    clip = ImageClip(post_png_file, duration=start).with_position("center", "center").with_layer_index(4).with_start(0).with_effects([Resize(width=tw)]).with_effects([Resize(.90)])
+    LOGGER.info("POST SIZE: %s", clip.size)
     return clip, start
 def create_reddit_video(video_path, audio_path, output_path, start_time, end_time, pid, transcript, th, tw, paragraph, parts=1, part_start=[], post_png_file=None, title=""):
-    clip_pt_img, end_image_time = create_postimg_clip(post_png_file, transcript, title)
+    clip_pt_img, end_image_time = create_postimg_clip(post_png_file, transcript, title, th, tw)
     
     
     if parts > 1:
@@ -88,12 +90,22 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
         temp_audio.write_audiofile(f"tmp/audios/{pid}_aud.mp3", codec="libmp3lame")
         video = VideoFileClip(video_path).subclipped(start_time, end_time).with_audio(
             AudioFileClip(f"tmp/audios/{pid}_aud.mp3").with_start(0)
-        ).with_effects([Resize(height=th, width=tw)])
-        output_dir, cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(video.h, video.w), end_image_time=end_image_time)
-        LOGGER.info("video type: %s", type(video))
-        LOGGER.info("cap_clips: %s", type(cap_clips[-1]))
+        ).with_effects([Resize(width=tw)])
+        output_dir, cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(tw, th), end_image_time=end_image_time)
+        LOGGER.info("Pvideo: %s", video.size)
         final_clip = CompositeVideoClip([video, clip_pt_img]+cap_clips)
-        final_clip.write_videofile(output_path, codec="libx264", audio_codec="libmp3lame")
+        LOGGER.info("Pfinal_clip: %s", final_clip.size)
+        final_clip.write_videofile(
+            output_path,
+            pixel_format="yuv420p",
+            codec="libx264",
+            audio_codec="libmp3lame",
+            ffmpeg_params=[
+                "-crf", "23",        
+                "-vf", "format=yuv420p",  # Force video format conversion
+                "-profile:v", "baseline",  # Set the H.264 profile to baseline
+                ],
+            )
         
         for file in os.listdir(output_dir):
             if pid in file:
@@ -141,7 +153,7 @@ def create_captions(
             not_found = False
             break
     if not_found:
-        create_caption_images_reddit(prefix, transcript, int(target_size[1]*0.9), output_dir, part)
+        create_caption_images_reddit(prefix, transcript, int(target_size[0]*0.9), output_dir, part)
 
     clip_list = []
 
@@ -152,13 +164,17 @@ def create_captions(
                 file_name = file
 
         if i + 1 >= len(transcript):
-            duration = section["duration"] + 1
+            duration = section["duration"] + .5
         else:
             duration = transcript[i + 1]["start"] - section["start"]
             if duration > 3:
                 duration = 3
-        pos_y = target_size[0] * 2 / 6
+        pos_y = target_size[1] * 2 / 6
         file_path = os.path.join(output_dir, file_name)
+        try:
+            fix_img_size(file_path, target_size[0], target_size[1])
+        except Exception as e:
+            LOGGER.error("Error fixing image size: %s", e)
         #LOGGER.info("file_path: %s", file_path)
         caption_clip = ImageClip(file_path, duration=duration)
         if section["start"] < end_image_time:
@@ -168,14 +184,46 @@ def create_captions(
             .with_position(("center", pos_y))
             .with_layer_index(1)
         )
-        if caption_clip.w > target_size[1]:
-            caption_clip = caption_clip.with_effects([Resize(height=caption_clip.h, width=target_size[1]*.95)])
+        if caption_clip.w > target_size[0]:
+            widthy=target_size[0]*.95
+            widthy = int(widthy)
+            if widthy % 2 != 0:
+                widthy += 1
+            caption_clip = caption_clip.with_effects([Resize(height=caption_clip.h, width=widthy)])
+        if caption_clip.h % 2 != 0:
+            caption_clip = caption_clip.with_effects([Resize(height=caption_clip.h+1, width=caption_clip.w)])
+        if caption_clip.w % 2 != 0:
+            caption_clip = caption_clip.with_effects([Resize(height=caption_clip.h, width=caption_clip.w+1)])
         # Composite the caption image onto the video.
         clip_list.append(caption_clip)
 
     return output_dir, clip_list
-    
+def fix_img_size(image_path, width, height):
+    with Image.open(image_path) as img:
+        if img.size[0] >= width:
+            LOGGER.info("fix_img_size: %s", img.size)
+            ration = width/img.size[0]
+            height = int(img.size[1]*ration)
+            img = img.resize((int(width*0.95), int(height*0.95)), resample=1)
+            img.save(image_path)
+def check_meta(video_path):
+    """
+    Checks if a video uses 4:2:0 chroma subsampling.
+
+    Args:
+        video_path (str): The path to the video file.
+
+    Returns:
+        bool: True if the video uses 4:2:0, False if it uses 4:4:4 or another format, or None if an error occurs.
+    """
+    try:
+        return 
+
+    except Exception as e:
+        LOGGER.info(f"Error checking chroma subsampling: {e}")
+        return None
+
 if __name__ == "__main__":
-    video_path = "path/to/your/video.mp4"  # Replace with your video file path
-    duration = get_clip_duration(video_path)
+    video_path = "D:/tmp/clips/reddites_1j4xwhl.mp4"  # Replace with your video file path
+    duration = check_meta(video_path)
     print(f"Video duration: {duration} seconds")

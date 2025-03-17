@@ -277,8 +277,8 @@ def main_reddit_coms_orch():
                 part_start=posts_to_use[pid]['part_start'],
                 parts=posts_to_use[pid]['parts'],
                 transcript=posts_to_use[pid]['aligned_ts'],
-                th=1080,
-                tw=1920,
+                tw=1080,
+                th=1920,
                 paragraph=posts_to_use[pid]['content'],
                 post_png_file=post_png_file,
                 title=swap_words_numbers(reddit_acronym(reddit_remove_bad_words(posts_to_use[pid]['title'])))
@@ -307,8 +307,8 @@ def main_reddit_coms_orch():
                     part_start=posts_to_use[pid][f'part_start_{lang}'],
                     parts=posts_to_use[pid][f'parts_{lang}'],
                     transcript=posts_to_use[pid][f'aligned_ts_{lang}'],
-                    th=1080,
-                    tw=1920,
+                    tw=1080,
+                    th=1920,
                     paragraph=posts_to_use[pid][f'content_{lang}'],
                     post_png_file=post_png_file,
                     title=translate_en_to(swap_words_numbers(reddit_acronym(reddit_remove_bad_words(posts_to_use[pid]['title']))), lang)

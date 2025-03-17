@@ -476,19 +476,21 @@ def find_sub_reddit_coms(used_posts:list[str], min_posts:int=10) -> list[str]:
     return href_list
 def straight_update_reddit(href:str) -> dict:
     try:
-        #time.sleep(5)
+        if not "www.reddit.com" in href:
+            href = REDDIT_POST_DOMAIN+href
+        LOGGER.info(f"href: {href}")
         try:
-            response = requests.get(REDDIT_POST_DOMAIN+href+".json").json()
+            response = requests.get(href+".json").json()
             if response is None or response == {}:
                 time.sleep(15)
-                response = requests.get(REDDIT_POST_DOMAIN+href+".json").json()
+                response = requests.get(href+".json").json()
         except Exception as e:
             LOGGER.debug(f"Error getting author from json: {traceback.format_exc()}")
             time.sleep(15)
-            response = requests.get(REDDIT_POST_DOMAIN+href+".json").json()
+            response = requests.get(href+".json").json()
         LOGGER.debug(f"response: {response}")
         datasx, _ = reddit_json_all(response)
-        LOGGER.debug(f"datasx: {datasx}")
+        LOGGER.info(f"datasx: {datasx}")
         _, content = reg_get_og(datasx.get("content", ""), datasx.get('title', ""))
         post = {
                 'title': datasx.get("title", ""),
@@ -615,4 +617,4 @@ def reddit_coms_orch(href_list, used_posts:list=[], min_post:int=10, max_post:in
     return posts
 if __name__ == "__main__":
     
-    print(straight_update_reddit("/r/Conservative/comments/1j904nr/reddit_is_cooked_and_im_out/"))
+    print(straight_update_reddit("/r/AmItheAsshole/comments/1j9dagd/aita_for_taking_an_uber_home_instead_of_sitting/"))
