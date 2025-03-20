@@ -211,9 +211,10 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
         except Exception as e2:
             print(f"Error loading default font: {e2}. Please install a font.")
             return
-
+    
     h_padding = 20
     padding = 20
+    max_width = max_width - padding
     word_spacing = 15
     outline_width = 5
     lines_text: list[list[dict]] = [[]]

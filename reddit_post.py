@@ -72,9 +72,12 @@ def main_reddit_posts_orch():
         #####################################
         # Start Scrolling
         #####################################
-        adb = ADBScroll()
-        adb_thread = threading.Thread(target=adb.scroll_tiktok)
-        adb_thread.start()
+        try:
+            adb = ADBScroll()
+            adb_thread = threading.Thread(target=adb.scroll_tiktok)
+            adb_thread.start()
+        except Exception:
+            pass
         #####################################
         # Create database
         #####################################
@@ -557,25 +560,16 @@ def main_reddit_posts_orch():
         #####################################
         # Stop Scrolling
         #####################################
-        LOGGER.info("Stopping Scroll...")
-        adb_thread.join()  # Wait for the thread to finish
-        adb.running = False
-        adb.kill_apps()
+        try:
+            LOGGER.info("Stopping Scroll...")
+            
+            adb.running = False
+            adb.kill_apps()
+            adb_thread.join()  # Wait for the thread to finish
+        except Exception as e:
+            LOGGER.error("Error stopping scroll: %s", e)
         time.sleep(5)
-        #####################################
-        # Run one upload
-        #####################################
-        sched_run(skipscroll=True,)
-        LOGGER.info("Done All")
-        #####################################
-        # Scroll more
-        #####################################
-        adb = ADBScroll()
-        adb.scroll_tiktok(max_time_min=random.randint(10, 35))
-        LOGGER.info("Stopping...")
-        adb.running = False
-        adb.kill_apps()
-        LOGGER.info("Stopped.")
+        
     except Exception as e:
         LOGGER.error("Fail in main: %s", e)
         adb_thread.join()

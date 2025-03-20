@@ -23,6 +23,7 @@ def sched_run(skipscroll=False):
     parser = argparse.ArgumentParser(description="AI Clip Creator")
     parser.add_argument("--scrolltime", type=int, help="Number of minutes to scroll")
     parser.add_argument("--skipscroll", action="store_true", help="Skip scrolling")
+    parser.add_argument("--scrollonly", action="store_true", help="scroll")
     args = parser.parse_args()
     #####################################
     # Scroll more
@@ -42,7 +43,8 @@ def sched_run(skipscroll=False):
             LOGGER.info("Stopped.")
         except Exception as e:
             LOGGER.error("Error scrolling: %s", e)
-            
+        if args.scrollonly:
+            return
     #####################################
     # Setup logging
     #####################################
