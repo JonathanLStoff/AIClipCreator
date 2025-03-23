@@ -61,6 +61,11 @@ def main_reddit_posts_orch():
         action="store_true",
         help="Retrieve new videos from YouTube if set",
     )
+    parser.add_argument(
+        "--skipscroll",
+        action="store_true",
+        help="skip scrolling",
+    )
     args = parser.parse_args()
     LOGGER.info("Arguments: %s", args)
     try:
@@ -72,12 +77,14 @@ def main_reddit_posts_orch():
         #####################################
         # Start Scrolling
         #####################################
-        try:
-            adb = ADBScroll()
-            adb_thread = threading.Thread(target=adb.scroll_tiktok)
-            adb_thread.start()
-        except Exception:
-            pass
+        if not args.skipscroll and not args.dryrun:
+            ############## Scroll ##############
+            try:
+                adb = ADBScroll()
+                adb_thread = threading.Thread(target=adb.scroll_tiktok)
+                adb_thread.start()
+            except Exception:
+                pass
         #####################################
         # Create database
         #####################################
@@ -560,15 +567,16 @@ def main_reddit_posts_orch():
         #####################################
         # Stop Scrolling
         #####################################
-        try:
-            LOGGER.info("Stopping Scroll...")
-            
-            adb.running = False
-            adb.kill_apps()
-            adb_thread.join()  # Wait for the thread to finish
-        except Exception as e:
-            LOGGER.error("Error stopping scroll: %s", e)
-        time.sleep(5)
+        if not args.skipscroll and not args.dryrun:
+            try:
+                LOGGER.info("Stopping Scroll...")
+                
+                adb.running = False
+                adb.kill_apps()
+                adb_thread.join()  # Wait for the thread to finish
+            except Exception as e:
+                LOGGER.error("Error stopping scroll: %s", e)
+            time.sleep(5)
         
     except Exception as e:
         LOGGER.error("Fail in main: %s", e)

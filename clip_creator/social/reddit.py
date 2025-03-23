@@ -608,6 +608,7 @@ def reddit_coms_orch(href_list, used_posts:list=[], min_post:int=10, max_post:in
                 'url':  datasx.get("url", href),
                 'post_id': datasx.get("post_id", ""),
                 'author': datasx.get('author', ""), # the username not the id
+                'comments_list': datasx.get('comments_list', []),
             }
             posts.append(post)
         except Exception as e:

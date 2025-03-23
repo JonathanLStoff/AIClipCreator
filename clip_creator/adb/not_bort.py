@@ -26,6 +26,11 @@ class ADBScroll:
         self.device_size = (0,0)  
         self.d = u2.connect(ADB_DEVICE)
         self.d.shell('input keyevent 82')
+        try:
+            self.d.shell(["settings", "put", "system", "screen_brightness", "1"])
+        except Exception as e:
+            LOGGER.error(e)    
+        
         self.d.shell('input keyevent 3')
         self.device_size = (self.d.info['displayWidth'], self.d.info['displayHeight'])
         self.running = True
@@ -50,6 +55,7 @@ class ADBScroll:
             tm.sleep(5)
             if self.d(resourceId="com.zhiliaoapp.musically:id/knl").exists(timeout=5):
                 self.click_with_random_offset(self.d(resourceId="com.zhiliaoapp.musically:id/knl").child(index=0))
+            tm.sleep(2)
             if not self.d(text=profname).exists(timeout=5):
                 self.click_with_random_offset(self.d(resourceId="com.zhiliaoapp.musically:id/kn4"))
                 self.d(text=username).wait()

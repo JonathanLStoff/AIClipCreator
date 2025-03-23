@@ -10,20 +10,7 @@ def create_database(db_name="aiclipcreator.db"):
 
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(reddit_posts_clips)")
-    existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
-    if "parent_post_id" not in existing_columns:
-        cursor.execute("ALTER TABLE reddit_posts_clips ADD COLUMN parent_post_id TEXT")
-    if "author" not in existing_columns:
-        cursor.execute("ALTER TABLE reddit_posts_clips ADD COLUMN author TEXT")
-    if "tiktok_uploaded" not in existing_columns:
-        cursor.execute("ALTER TABLE reddit_posts_clips ADD COLUMN tiktok_uploaded BOOLEAN")
-    if "updated_at" not in existing_columns:
-        cursor.execute("ALTER TABLE reddit_posts_clips ADD COLUMN updated_at TEXT")
-    cursor.execute("PRAGMA table_info(reddit_coms_clips)")
-    existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
-    if "author" not in existing_columns:
-        cursor.execute("ALTER TABLE reddit_coms_clips ADD COLUMN author TEXT")
+    
     
     try:
         cursor.execute("""
@@ -63,7 +50,9 @@ def create_database(db_name="aiclipcreator.db"):
                 transcript TEXT,
                 comments_json TEXT,
                 length REAL,
-                author TEXT
+                author TEXT,
+                updated_at TEXT,
+                tiktok_uploaded BOOLEAN
             );
         """)
         # Check and create/update videos table
@@ -230,8 +219,21 @@ def create_database(db_name="aiclipcreator.db"):
                     )
 
         conn.commit()
-        print(f"Database '{db_name}' created or updated successfully.")
-
+        LOGGER.info(f"Database '{db_name}' created or updated successfully.")
+        cursor.execute("PRAGMA table_info(reddit_posts_clips)")
+        existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
+        if "parent_post_id" not in existing_columns:
+            cursor.execute("ALTER TABLE reddit_posts_clips ADD COLUMN parent_post_id TEXT")
+        if "author" not in existing_columns:
+            cursor.execute("ALTER TABLE reddit_posts_clips ADD COLUMN author TEXT")
+        if "tiktok_uploaded" not in existing_columns:
+            cursor.execute("ALTER TABLE reddit_posts_clips ADD COLUMN tiktok_uploaded BOOLEAN")
+        if "updated_at" not in existing_columns:
+            cursor.execute("ALTER TABLE reddit_posts_clips ADD COLUMN updated_at TEXT")
+        cursor.execute("PRAGMA table_info(reddit_coms_clips)")
+        existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
+        if "author" not in existing_columns:
+            cursor.execute("ALTER TABLE reddit_coms_clips ADD COLUMN author TEXT")
     except sqlite3.Error as e:
         print(f"An error occurred: {e}")
         conn.rollback()
@@ -948,6 +950,29 @@ def update_reddit_post_clip_tt(post_id, tiktok_posted=None, length=0, db_path="a
 
 
         update_query = "UPDATE reddit_posts_clips SET tiktok_posted = ?, length = ? WHERE post_id = ?"
+        cursor.execute(update_query, (str(tiktok_posted), length, post_id))
+        LOGGER.info(f"Cursor executed: {update_query}")
+        conn.commit()
+        if cursor.rowcount > 0:
+            LOGGER.info(f"Post clip with post_id '{post_id}' updated successfully.")
+        else:
+            LOGGER.error(f"Post clip with post_id '{post_id}' not found.")
+
+    except sqlite3.Error as e:
+        LOGGER.error(f"An error occurred: {e}")
+
+    finally:
+        if conn:
+            conn.close()
+def update_reddit_post_clip_tt_com(post_id, tiktok_posted=None, length=0, db_path="aiclipcreator.db"):
+    """Updates a Reddit post clip in the database."""
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        LOGGER.info(f"Updating post clip with post_id: {post_id}")
+
+
+        update_query = "UPDATE reddit_coms_clips SET tiktok_posted = ?, length = ? WHERE post_id = ?"
         cursor.execute(update_query, (str(tiktok_posted), length, post_id))
         LOGGER.info(f"Cursor executed: {update_query}")
         conn.commit()

@@ -228,26 +228,39 @@ class ADBUploader:
         max_tries = 5
         curr_tries = 0
         while curr_tries < max_tries:
-            LOGGER.info('Switching profile')
-            sleep(5)
-            if self.d(resourceId="com.zhiliaoapp.musically:id/knl").exists(timeout=5):
-                self.click_with_random_offset(self.d(resourceId="com.zhiliaoapp.musically:id/knl").child(index=0))
-            if not self.d(text=profname).exists(timeout=5):
-                self.click_with_random_offset(self.d(resourceId="com.zhiliaoapp.musically:id/kn4"))
-                self.d(text=username).wait()
-                self.click_with_random_offset(self.d(text=username))
-            sleep(2)
-            self.d(text='Profile').wait()
-            if self.d(text='Profile').info['selected'] == False:
-                self.click_with_random_offset(self.d(text='Profile'))
-            LOGGER.info('Does profile exist? %s', self.d(text=profname).exists)
-            if self.d(text=profname).exists(timeout=5):
-                break
-            curr_tries += 1
-            if curr_tries == max_tries:
-                LOGGER.info('Could not switch profile')
-                break
-    def check_if_posted_tt(self, description="", dumpdo=False):
+            try:
+                LOGGER.info('Switching profile')
+                sleep(5)
+                if self.d(resourceId="com.zhiliaoapp.musically:id/knl").exists(timeout=5):
+                    self.click_with_random_offset(self.d(resourceId="com.zhiliaoapp.musically:id/knl").child(index=0))
+                sleep(2)
+                if not self.d(text=profname).exists(timeout=5):
+                    sleep(1)
+                    self.click_with_random_offset(self.d(resourceId="com.zhiliaoapp.musically:id/kn4"))
+                    sleep(1)
+                    self.d(text=username).wait()
+                    sleep(1)
+                    self.click_with_random_offset(self.d(text=username))
+                sleep(2)
+                self.d(text='Profile').wait()
+                if self.d(text='Profile').info['selected'] == False:
+                    LOGGER.info('profile not selected')
+                    self.click_with_random_offset(self.d(text='Profile'))
+                LOGGER.info('Does profile exist? %s', self.d(text=profname).exists)
+                if self.d(text=profname).exists(timeout=5):
+                    break
+                curr_tries += 1
+                if curr_tries == max_tries:
+                    LOGGER.info('Could not switch profile')
+                    break
+            except Exception as e:
+                LOGGER.error(e)
+                curr_tries += 1
+                if curr_tries == max_tries:
+                    LOGGER.info('Could not switch profile')
+                    raise SessionBrokenError(e)
+                    
+    def check_if_posted_tt(self, description="", dumpdo=False, lang="en"):
         '''
         Returns True if the post is found
         '''
@@ -285,25 +298,25 @@ class ADBUploader:
                     sleep(2)
                 # Get text from description and check if it matches
                 
-                part_desc = " ".join(description.split()[:5])
+                part_desc = (" ".join(description.replace("\n", "").split()[:5])).encode('ascii', 'ignore').decode('ascii')
+                LOGGER.info("Part desc: %s", part_desc)
                 if self.d(resourceId="com.zhiliaoapp.musically:id/desc", instance=0).exists(timeout=5):
                     text_decs = self.d(resourceId="com.zhiliaoapp.musically:id/desc", instance=0).info['text'].encode('ascii', 'ignore').decode('ascii')
+                    LOGGER.info('resourceId="com.zhiliaoapp.musically:id/desc"')
                 elif self.d(textStartsWith=part_desc).exists(timeout=5):
                     return True
                 else:
                     text_decs = self.d(resourceId="com.zhiliaoapp.musically:id/dsy", index=0).child(index=0).info['text'].encode('ascii', 'ignore').decode('ascii')
-                
+                    LOGGER.info('resourceId="com.zhiliaoapp.musically:id/dsy"')
                 LOGGER.info("Description: %s", text_decs)
-                for i, word in enumerate(description.split()):
-                    if word.lower() not in text_decs.lower():
-                        self.d.press("back")
-                        sleep(2)
-                        self.d.press("back")
-                        sleep(2)
-                        LOGGER.info("Description not found")
-                        return False
-                    if i == 4:
-                        break
+                returnsz = False
+                if part_desc.lower() not in text_decs.lower():
+                    LOGGER.info("%s not in %s", part_desc, text_decs)
+                    LOGGER.info("Description not found")
+                    if lang != "en":
+                        returnsz = True
+                else:
+                    returnsz = True
                 self.d.press("back")
                 sleep(2)
                 self.d.press("back")
@@ -317,9 +330,9 @@ class ADBUploader:
                     return False
                 
                 continue
-            LOGGER.info('Post has correct description')
+            LOGGER.info('Post has description found? %s', returnsz)
             
-            return True
+            return returnsz
     def upload_tiktok(self, sound=None, original_audio=1, added_audio=1, draft=False, description=None, photo_mode=False, only_me=False, lang="en"):
         # Find app
         

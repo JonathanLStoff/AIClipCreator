@@ -4,9 +4,10 @@ import argparse
 import json
 import shutil
 import uuid
+from datetime import datetime
 from random import choice, randint
 from num2words import num2words
-from clip_creator.conf import LOGGER, CLIPS_FOLDER, REDDIT_TEMPLATE_BG, POSSIBLE_TRANSLATE_LANGS, POSSIBLE_TRANSLATE_LANGS_TTS
+from clip_creator.conf import LOGGER, CLIPS_FOLDER, REDDIT_TEMPLATE_BG, POSSIBLE_TRANSLATE_LANGS, POSSIBLE_TRANSLATE_LANGS_TTS, RED_COM_DELAY
 from clip_creator.tts.ai import TTSModelKokoro
 from clip_creator.lang.translate import translate_en_to
 from clip_creator.utils.forcealign import force_align
@@ -15,16 +16,17 @@ from clip_creator.social.reddit import reddit_coms_orch, find_sub_reddit_coms
 from clip_creator.utils.path_setup import check_and_create_dirs
 from clip_creator.utils.caption_img import render_html_to_png, render_html_to_png_comment
 from clip_creator.utils.math_things import get_88_percentile
-from clip_creator.utils.scan_text import reddit_remove_bad_words, sort_and_loop_by_max_int_key_coms, get_top_posts_coms, swap_words_numbers, remove_non_letters, reddit_acronym
-from clip_creator.vid_ed.red_vid_edit import get_clip_duration, get_audio_duration, create_reddit_video
+from clip_creator.utils.scan_text import reddit_remove_bad_words, sort_and_loop_by_max_int_key_coms, get_top_posts_coms, swap_words_numbers, remove_non_letters, reddit_acronym, dirty_remove_cuss
+from clip_creator.vid_ed.red_vid_edit import get_clip_duration, get_audio_duration, create_reddit_video_com
 from clip_creator.utils.schedules import get_timestamps
-from clip_creator.utils.schedules import none_old_timestamps
+from clip_creator.utils.schedules import none_old_timestamps_com
 from clip_creator.db.db import (
     update_reddit_post_clip_com,
     create_database,
     add_reddit_post_clip_com,
     get_rows_where_tiktok_null_or_empty_com,
     get_all_post_ids_red_com,
+    update_reddit_post_clip_tt_com
 )
 def main_reddit_coms_orch():
     parser = argparse.ArgumentParser(description="AI Clip Creator")
@@ -56,11 +58,16 @@ def main_reddit_coms_orch():
     # Create database
     #####################################
     create_database()
+    LOGGER.info("Database created")
+    
     found_posts = get_all_post_ids_red_com()
+    LOGGER.info("Found posts: %s", len(found_posts))
     
     href_list = find_sub_reddit_coms(found_posts, min_posts=10)
-    netw_redd_posts = reddit_coms_orch(href_list, found_posts, min_post=10, max_post=20)
+    LOGGER.info("Found hrefs: %s", len(href_list))
     
+    netw_redd_posts = reddit_coms_orch(href_list, found_posts, min_post=10, max_post=20)
+    LOGGER.info("Found posts: %s", len(netw_redd_posts))
     
     #####################################
     # Add posts to database
@@ -70,6 +77,7 @@ def main_reddit_coms_orch():
             if post['url'].split("/")[3] in found_posts:
                 LOGGER.error(f"ITEM ADDED FROM POSTS IS ALREADY IN DB: {post['url']}")
             else:
+                LOGGER.info(f"Adding post to DB: {post['url']}")
                 add_reddit_post_clip_com(
                     post_id=post['post_id'],
                     title=post['title'],
@@ -136,7 +144,7 @@ def main_reddit_coms_orch():
     ########################################
     # Calc time to post
     ########################################
-    day_sched = none_old_timestamps()
+    day_sched = none_old_timestamps_com()
     LOGGER.info("Day Sched: %s", day_sched)
     best_posts = get_top_posts_coms(posts_to_use, len(day_sched))
         
@@ -181,12 +189,14 @@ def main_reddit_coms_orch():
     if not args.usevids:
         tts_model = TTSModelKokoro()
         for pid, post in posts_to_use.items():
+            posts_to_use[pid]['audio_length'] = 0
             LOGGER.info("Creating Audio for %s", pid)
             for uid, chunk in post['chunks'].items():
                 
                 posts_to_use[pid]['chunks'][uid]['auFile'] = f"tmp/audios/{pid}_{uid}.wav"
                 if not os.path.exists(f"tmp/audios/{pid}_{uid}.wav"):
                     tts_model.run_it(posts_to_use[pid]['chunks'][uid]['auFile'], chunk['text'])
+                posts_to_use[pid]['audio_length'] += get_audio_duration(posts_to_use[pid]['chunks'][uid]['auFile']) + RED_COM_DELAY
         
         # Create Audio for other languages
         
@@ -197,12 +207,14 @@ def main_reddit_coms_orch():
                 lang_code=POSSIBLE_TRANSLATE_LANGS_TTS[lang][lang]
                 )
             for pid, post in posts_to_use.items():
-            
+                posts_to_use[pid][f'audio_length_{lang}'] = 0
                 LOGGER.info("Creating Audio for %s", pid)
                 for uid, chunk in post[f'chunks_{lang}'].items():
                     posts_to_use[pid][f'chunks_{lang}'][uid]['auFile'] = f"tmp/audios/{pid}_{lang}_{uid}.wav"
                     if not os.path.exists(posts_to_use[pid][f'chunks_{lang}'][uid]['auFile']):
                         tts_model_lang.run_it(posts_to_use[pid][f'chunks_{lang}'][uid]['auFile'], chunk['text'])
+                    posts_to_use[pid][f'audio_length_{lang}'] += get_audio_duration(posts_to_use[pid][f'chunks_{lang}'][uid]['auFile']) + RED_COM_DELAY
+                    posts_to_use[pid][f'chunks_{lang}'][uid]['audio_length'] = get_audio_duration(posts_to_use[pid][f'chunks_{lang}'][uid]['auFile'])
     #####################################
     # Force align text to audio
     #####################################
@@ -240,7 +252,7 @@ def main_reddit_coms_orch():
             # Create img for post
             for uid, chunk in post['chunks'].items():
                 if chunk.get('idx') == 0:
-                    post_png_file = render_html_to_png(
+                    posts_to_use[pid]['chunks'][uid]["img"] = render_html_to_png(
                         post_id=pid,
                         title=chunk['text'],
                         subreddit=sub_name,
@@ -252,7 +264,7 @@ def main_reddit_coms_orch():
                         comment_int=post['comments']
                     )
                 else:
-                    post_png_file = render_html_to_png_comment(
+                    posts_to_use[pid]['chunks'][uid]["img"] = render_html_to_png_comment(
                         post_id=pid,
                         chunk_id=uid,
                         comment_json=chunk['com_json'],
@@ -267,51 +279,48 @@ def main_reddit_coms_orch():
             end = start + posts_to_use[pid]['audio_length']
             # run video creator that combines video with audio with transcript
             posts_to_use[pid]['vfile'] = f"tmp/clips/reddit_{pid}.mp4"
-            create_reddit_video(
+            create_reddit_video_com(
                 video_path=os.path.join(REDDIT_TEMPLATE_BG, background),
-                audio_path=posts_to_use[pid]['filename'],
                 output_path=posts_to_use[pid]['vfile'],
                 start_time=start,
                 end_time=end,
                 pid=pid,
-                part_start=posts_to_use[pid]['part_start'],
-                parts=posts_to_use[pid]['parts'],
-                transcript=posts_to_use[pid]['aligned_ts'],
                 tw=1080,
                 th=1920,
-                paragraph=posts_to_use[pid]['content'],
-                post_png_file=post_png_file,
-                title=swap_words_numbers(reddit_acronym(reddit_remove_bad_words(posts_to_use[pid]['title'])))
+                chunks=posts_to_use[pid]['chunks'],
             )
             for lang in POSSIBLE_TRANSLATE_LANGS:
-                post_png_file = render_html_to_png(
-                    post_id=pid,
-                    title=translate_en_to(post['title'], lang),
-                    subreddit=translate_en_to(sub_name, lang),
-                    subreddit_id=translate_en_to(sub_name, lang),
-                    user_id="reddit",
-                    user_name=translate_en_to(dirty_remove_cuss(post['author']), lang),
-                    time_ago=datetime.fromisoformat(post['posted_at'][:-2] + ':' + post['posted_at'][-2:]),
-                    score_int=post['upvotes'],
-                    comment_int=post['comments']
-                )
+                for uid, chunk in post[f'chunks_{lang}'].items():
+                    if chunk.get('idx') == 0:
+                        posts_to_use[pid][f'chunks_{lang}'][uid]["img"] = render_html_to_png(
+                            post_id=pid,
+                            title=chunk['text'],
+                            subreddit=sub_name,
+                            subreddit_id=sub_name,
+                            user_id="reddit",
+                            user_name=dirty_remove_cuss(post['author']),
+                            time_ago=datetime.fromisoformat(post['posted_at'][:-2] + ':' + post['posted_at'][-2:]),
+                            score_int=post['upvotes'],
+                            comment_int=post['comments']
+                        )
+                    else:
+                        posts_to_use[pid][f'chunks_{lang}'][uid]["img"] = render_html_to_png_comment(
+                            post_id=pid,
+                            chunk_id=uid,
+                            comment_json=chunk['com_json'],
+                            reply=chunk.get("reply", False),
+                        )
                 posts_to_use[pid][f'vfile_{lang}'] = f"tmp/clips/reddit{lang}_{pid}.mp4"
                 end = start + posts_to_use[pid][f'audio_length_{lang}']
-                create_reddit_video(
+                create_reddit_video_com(
                     video_path=os.path.join(REDDIT_TEMPLATE_BG, background),
-                    audio_path=posts_to_use[pid][f'filename_{lang}'],
                     output_path=posts_to_use[pid][f'vfile_{lang}'],
                     start_time=start,
                     end_time=end,
                     pid=pid,
-                    part_start=posts_to_use[pid][f'part_start_{lang}'],
-                    parts=posts_to_use[pid][f'parts_{lang}'],
-                    transcript=posts_to_use[pid][f'aligned_ts_{lang}'],
                     tw=1080,
                     th=1920,
-                    paragraph=posts_to_use[pid][f'content_{lang}'],
-                    post_png_file=post_png_file,
-                    title=translate_en_to(swap_words_numbers(reddit_acronym(reddit_remove_bad_words(posts_to_use[pid]['title']))), lang)
+                    chunks=posts_to_use[pid][f'chunks_{lang}'],
                 )
     else:
         for pid, post in posts_to_use.items():
@@ -344,38 +353,66 @@ def main_reddit_coms_orch():
         else:
             LOGGER.error("Not enough timestamps for %s", pid)
             posts_to_use[pid]['sched'] = None
-    
+    for pid, post in posts_to_use.items():
+        if not post.get("sched"):# or posts_to_use[pid].get("audio_length", 61) < 60:
+            continue
+        if not post['sched'] == "now":
+            time_str = post['sched']
+            today = datetime.today().date()
+            time_obj = datetime.strptime(time_str, "%H:%M").time()
+            scheduled_datetime = datetime.combine(today, time_obj)
+            LOGGER.info(scheduled_datetime)
+            #scheduled_datetime = None
+        else:
+            scheduled_datetime = "now"
+        update_reddit_post_clip_tt_com(
+                post_id=pid,
+                tiktok_posted=scheduled_datetime,
+                length=post['audio_length'],
+            )
     ######################################
     # Compile Description
     ######################################
     for pid, post in posts_to_use.items():
-        posts_to_use[pid]["desc"] = (
-            "#fyp #gaming #clip #fyppppppppppppp\ncredit"
-            f"{post['title']} on Reddit\n"
-        )    
-    #####################################
-    # Upload tiktok
-    #####################################
-    for pid, post in posts_to_use.items():
-        upload_video_tt(
-                        post['vfile'], 
-                        post['sched'], 
-                        post["desc"], 
-                        submit=True
-                    )
-        update_reddit_post_clip(
-            post_id=pid, 
-            tiktok_posted=post['sched'], 
-            transcript=post['aligned_ts'], 
-            length=post['audio_length']
-        )
+        if post.get('parts', 1) > 1:
+            posts_to_use[pid]["desc"] = []
+            for i in range(post['parts']):
+                posts_to_use[pid]["desc"].append(
+                    f"Part {i+1} | {reddit_remove_bad_words(post['title'])}\n\n"
+                    f"#part{i+1} #reddit #reddittreadings #reddit_tiktok \n #redditstorytime #askreddit #fyp"
+                    
+                )  
+        else:
+            posts_to_use[pid]["desc"] = (
+                f"{reddit_remove_bad_words(post['title'])}\n\n"
+                "#reddit #reddittreadings #reddit_tiktok \n #redditstorytime #askreddit #fyp"
+            )
+        for lang in POSSIBLE_TRANSLATE_LANGS:
+            if post.get('parts', 1) > 1:
+                posts_to_use[pid][f"desc_{lang}"] = []
+                for i in range(post['parts']):
+                    posts_to_use[pid][f"desc_{lang}"].append(translate_en_to(posts_to_use[pid]["desc"][i], lang))
+            else:
+                posts_to_use[pid][f"desc_{lang}"] = translate_en_to(posts_to_use[pid]["desc"], lang)
+                  
+    
     #####################################
     # Clean up
     #####################################
     for pid, post in posts_to_use.items():
-        shutil.copyfile(post['vfile'], f"{CLIPS_FOLDER}/reddit_p_{pid}.mp4")
+        shutil.copyfile(post['vfile'], f"{CLIPS_FOLDER}/reddit_{pid}.mp4")
         os.remove(post['vfile'])
-        os.remove(post['filename'])
+        for uid, chunk in post['chunks'].items():
+            os.remove(chunk['auFile'])
+            
+            os.remove(chunk['img'])
+        for lang in POSSIBLE_TRANSLATE_LANGS:
+            shutil.copyfile(post[f'vfile_{lang}'], f"{CLIPS_FOLDER}/reddit{lang}_{pid}.mp4")
+            os.remove(post[f'vfile_{lang}'])
+            for uid, chunk in post[f'chunks_{lang}'].items():
+                os.remove(chunk['auFile'])
+                os.remove(chunk['img'])
+        
     LOGGER.info("Reddit posts done")
     
 if __name__ == "__main__":

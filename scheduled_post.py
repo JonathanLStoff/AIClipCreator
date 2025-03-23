@@ -58,40 +58,36 @@ def sched_run(skipscroll=False):
     posts_to_use = {}
     for post in all_posts_to_post:
         if post.get('tiktok_posted') and post.get('tiktok_posted') != "None" and not post.get('tiktok_uploaded'):
+            # No need to check date, just that it hasn't been posted
+            ############## Post ##############
             
-            try:
-                dt_t = datetime.strptime(post.get('tiktok_posted').split(".")[0], "%Y-%m-%d %H:%M:%S")
-            except Exception as e:
-                LOGGER.error("Error parsing date: %s", e)
-                continue
-            if dt_t > datetime.now(): # 160 minium words in a post
-                LOGGER.info("Post to use %s", post['post_id'])
-                posts_to_use[post['post_id']] = (post)
-                posts_to_use[post['post_id']]["vfile"] = f"{CLIPS_FOLDER}/reddit_{post['post_id']}.mp4"
+            LOGGER.info("Post to use %s", post['post_id'])
+            posts_to_use[post['post_id']] = (post)
+            posts_to_use[post['post_id']]["vfile"] = f"{CLIPS_FOLDER}/reddit_{post['post_id']}.mp4"
+            if post.get('parts', 1) > 1:
+                posts_to_use[post['post_id']]["desc"] = []
+                for i in range(post['parts']):
+                    posts_to_use[post['post_id']]["desc"].append(
+                        f"Part {i+1} | {reddit_remove_bad_words(post['title'])}\n\n"
+                        f"#part{i+1} #reddit #reddittreadings #reddit_tiktok \n #redditstorytime #askreddit #fyp"
+                        
+                    )  
+            else:
+                posts_to_use[post['post_id']]["desc"] = (
+                    f"{reddit_remove_bad_words(post['title'])}\n\n"
+                    "#reddit #reddittreadings #reddit_tiktok \n #redditstorytime #askreddit #fyp"
+                )
+            for lang in POSSIBLE_TRANSLATE_LANGS:
+                posts_to_use[post['post_id']][f"vfile_{lang}"] = f"{CLIPS_FOLDER}/reddit{lang}_{post['post_id']}.mp4"
                 if post.get('parts', 1) > 1:
-                    posts_to_use[post['post_id']]["desc"] = []
+                    posts_to_use[post['post_id']][f"desc_{lang}"] = []
                     for i in range(post['parts']):
-                        posts_to_use[post['post_id']]["desc"].append(
-                            f"Part {i+1} | {reddit_remove_bad_words(post['title'])}\n\n"
-                            f"#part{i+1} #reddit #reddittreadings #reddit_tiktok \n #redditstorytime #askreddit #fyp"
-                            
-                        )  
+                        posts_to_use[post['post_id']][f"desc_{lang}"].append(translate_en_to(posts_to_use[post['post_id']]["desc"][i], lang))
                 else:
-                    posts_to_use[post['post_id']]["desc"] = (
-                        f"{reddit_remove_bad_words(post['title'])}\n\n"
-                        "#reddit #reddittreadings #reddit_tiktok \n #redditstorytime #askreddit #fyp"
-                    )
-                for lang in POSSIBLE_TRANSLATE_LANGS:
-                    posts_to_use[post['post_id']][f"vfile_{lang}"] = f"{CLIPS_FOLDER}/reddit{lang}_{post['post_id']}.mp4"
-                    if post.get('parts', 1) > 1:
-                        posts_to_use[post['post_id']][f"desc_{lang}"] = []
-                        for i in range(post['parts']):
-                            posts_to_use[post['post_id']][f"desc_{lang}"].append(translate_en_to(posts_to_use[post['post_id']]["desc"][i], lang))
-                    else:
-                        posts_to_use[post['post_id']][f"desc_{lang}"] = translate_en_to(posts_to_use[post['post_id']]["desc"], lang)
+                    posts_to_use[post['post_id']][f"desc_{lang}"] = translate_en_to(posts_to_use[post['post_id']]["desc"], lang)
     
     for pid, post in posts_to_use.items():
-        LOGGER.info(f"Running scheduled task for {post}...")
+        LOGGER.info(f"Running scheduled task for {pid}...")
         suvvedd = upload_phsyphone(
             os.path.abspath(posts_to_use[post['post_id']]["vfile"]),
             posts_to_use[post['post_id']]["desc"],
@@ -99,6 +95,7 @@ def sched_run(skipscroll=False):
         if not suvvedd:
             LOGGER.error("Error uploading video")
             continue
+
         update_reddit_post_clip_sc(post['post_id'], True)
         for lang in POSSIBLE_TRANSLATE_LANGS:
             LOGGER.info(f"Running scheduled task for {lang}...")

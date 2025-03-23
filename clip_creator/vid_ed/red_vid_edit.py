@@ -2,7 +2,7 @@ from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, ImageClip,
 from moviepy.video.fx import Resize
 from pydub import AudioSegment
 from clip_creator.utils.scan_text import remove_non_letters, swap_words_numbers
-from clip_creator.conf import LOGGER, REDDIT_TEMPLATE_AUD, REDDIT_TEMPLATE_MUS
+from clip_creator.conf import LOGGER, REDDIT_TEMPLATE_AUD, REDDIT_TEMPLATE_MUS, RED_COM_DELAY
 import os
 from PIL import Image
 from clip_creator.utils.caption_img import (
@@ -34,86 +34,167 @@ def create_postimg_clip(post_png_file, transcript, title, th=1920, tw=1080):
     LOGGER.info("POST SIZE: %s", clip.size)
     return clip, start
 def create_reddit_video(video_path, audio_path, output_path, start_time, end_time, pid, transcript, th, tw, paragraph, parts=1, part_start=[], post_png_file=None, title=""):
-    clip_pt_img, end_image_time = create_postimg_clip(post_png_file, transcript, title, th, tw)
-    
-    
-    if parts > 1:
-        for i, start_section_idx in enumerate(part_start):
-            LOGGER.info("part_start: %s", part_start)
-            # repostion the clip_pt_img
-            if i != 0:
-                clip_pt_img = clip_pt_img.with_start(0).with_position("center", th/20).with_layer_index(4)
-            
-            
-            # Setup/Load Audio
-            start_section = transcript[start_section_idx].get("start", 0)
-            end_idx = -1 if i == parts-1 else part_start[i+1]
-            end_time_sec = end_time - start_time if i == parts-1 else transcript[end_idx].get("start", 0)
-            temp_audio = CompositeAudioClip(
-                    [
+    use_hi = False
+    while True:
 
-                        # TTS Audio
-                        AudioFileClip(audio_path).subclipped(start_section, end_time_sec).with_start(0),
-                        # Background Music
-                        AudioFileClip(REDDIT_TEMPLATE_MUS).subclipped(0, end_time_sec).with_start(0),
+        rezivid = Resize(height=th) if use_hi else Resize(width=tw)
 
-                    ]
+        try:
+            clip_pt_img, end_image_time = create_postimg_clip(post_png_file, transcript, title, th, tw)
+        
+        
+            if parts > 1:
+                for i, start_section_idx in enumerate(part_start):
+                    LOGGER.info("part_start: %s", part_start)
+                    # repostion the clip_pt_img
+                    if i != 0:
+                        clip_pt_img = clip_pt_img.with_start(0).with_position("center", th/20).with_layer_index(4)
+                    
+                    
+                    # Setup/Load Audio
+                    start_section = transcript[start_section_idx].get("start", 0)
+                    end_idx = -1 if i == parts-1 else part_start[i+1]
+                    end_time_sec = end_time - start_time if i == parts-1 else transcript[end_idx].get("start", 0)
+                    temp_audio = CompositeAudioClip(
+                            [
+
+                                # TTS Audio
+                                AudioFileClip(audio_path).subclipped(start_section, end_time_sec).with_start(0),
+                                # Background Music
+                                AudioFileClip(REDDIT_TEMPLATE_MUS).subclipped(0, end_time_sec).with_start(0),
+
+                            ]
+                            )
+                    temp_audio.write_audiofile(f"tmp/audios/{pid}_aud_{i}.mp3", codec="libmp3lame")
+                    
+                    # Load the video and add the captions
+                    video = VideoFileClip(video_path).subclipped(start_time+start_section, min(end_time_sec + start_time, end_time)).with_audio(
+                        AudioFileClip(f"tmp/audios/{pid}_aud_{i}.mp3").with_start(0)
+                    ).with_effects([rezivid])
+                    LOGGER.info("rsize: %s", rezivid.new_size)
+                    
+                    # Create the caption clips
+                    output_dir,cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript[start_section_idx:end_idx], target_size=(video.h, video.w), part=i, end_image_time=end_image_time, parts_offset=start_section)
+                    final_clip = CompositeVideoClip([video, clip_pt_img] + cap_clips)
+                    
+                    # Write the final video
+                    final_clip.write_videofile(output_path.replace(f"{pid}", f"{pid}_p{i}"), codec="libx264", audio_codec="libmp3lame")
+                    for file in os.listdir(output_dir):
+                        if pid in file:
+                            os.remove(os.path.join(output_dir, file))
+                
+            else:
+                temp_audio = CompositeAudioClip(
+                        [
+
+                            # TTS Audio
+                            AudioFileClip(audio_path).with_start(0),
+                            # Background Music
+                            AudioFileClip(REDDIT_TEMPLATE_MUS).subclipped(0, (end_time-start_time)).with_start(0),
+                            
+                            
+                        ])
+                
+                temp_audio.write_audiofile(f"tmp/audios/{pid}_aud.mp3", codec="libmp3lame")
+                video = VideoFileClip(video_path).subclipped(start_time, end_time).with_audio(
+                    AudioFileClip(f"tmp/audios/{pid}_aud.mp3").with_start(0)
+                ).with_effects([rezivid])
+                LOGGER.info("Pvideo: %s", video.size)
+                
+                output_dir, cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(tw, th), end_image_time=end_image_time)
+                LOGGER.info("Pvideo: %s", video.size)
+                final_clip = CompositeVideoClip([video, clip_pt_img]+cap_clips)
+                LOGGER.info("Pfinal_clip: %s", final_clip.size)
+                final_clip.write_videofile(
+                    output_path,
+                    pixel_format="yuv420p",
+                    codec="libx264",
+                    audio_codec="libmp3lame",
+                    ffmpeg_params=[
+                        "-crf", "23",        
+                        "-vf", "format=yuv420p",  # Force video format conversion
+                        "-profile:v", "baseline",  # Set the H.264 profile to baseline
+                        ],
                     )
-            temp_audio.write_audiofile(f"tmp/audios/{pid}_aud_{i}.mp3", codec="libmp3lame")
-            
-            # Load the video and add the captions
-            video = VideoFileClip(video_path).subclipped(start_time+start_section, min(end_time_sec + start_time, end_time)).with_audio(
-                AudioFileClip(f"tmp/audios/{pid}_aud_{i}.mp3").with_start(0)
-            ).with_effects([Resize(height=th, width=tw)])
-            
-            # Create the caption clips
-            output_dir,cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript[start_section_idx:end_idx], target_size=(video.h, video.w), part=i, end_image_time=end_image_time, parts_offset=start_section)
-            final_clip = CompositeVideoClip([video, clip_pt_img] + cap_clips)
-            
-            # Write the final video
-            final_clip.write_videofile(output_path.replace(f"{pid}", f"{pid}_p{i}"), codec="libx264", audio_codec="libmp3lame")
-            for file in os.listdir(output_dir):
-                if pid in file:
-                    os.remove(os.path.join(output_dir, file))
-        
-    else:
-        temp_audio = CompositeAudioClip(
-                [
+                
+                for file in os.listdir(output_dir):
+                    if pid in file:
+                        os.remove(os.path.join(output_dir, file))
+            try:
+                os.remove(post_png_file)
+            except:
+                pass  
+        except Exception as e:
+            if "divisible by 2" in str(e):
+                LOGGER.error("Error: %s", e)
+                use_hi = not use_hi
+                continue
+            else:
+                break
+        break   
+def create_postimg_clip_com(chunks:dict, tw=1080):
+    start = 0
+    duration = 0
+    clips_list = []
+    for cid, chunk in chunks.items():
+        duration += chunk["audio_length"] + RED_COM_DELAY
+        clips_list.append(ImageClip(chunk['img'], duration=duration).with_position("center", "center").with_layer_index(4).with_effects([Resize(width=tw)]).with_effects([Resize(.90)]).with_start(start))
+        start += chunk["audio_length"] + RED_COM_DELAY
+        LOGGER.info("reddit img SIZE: %s", clips_list[-1].size)
+    return clips_list
+def load_audio_clips(chunks):
+    audio_clip_list = []
+    start = 0
+    for cid, chunk in chunks.items():
+        audio_clip = AudioFileClip(chunk["auFile"]).with_start(start)
+        start += chunk["audio_length"] + RED_COM_DELAY
+        audio_clip_list.append(audio_clip)
+    return audio_clip_list
+def create_reddit_video_com(video_path, output_path, start_time, end_time, pid, th, tw, chunks={}):
+    use_hi = False
+    while True:
 
-                    # TTS Audio
-                    AudioFileClip(audio_path).with_start(0),
-                    # Background Music
-                    AudioFileClip(REDDIT_TEMPLATE_MUS).subclipped(0, (end_time-start_time)).with_start(0),
-                    
-                    
-                ])
-        temp_audio.write_audiofile(f"tmp/audios/{pid}_aud.mp3", codec="libmp3lame")
-        video = VideoFileClip(video_path).subclipped(start_time, end_time).with_audio(
-            AudioFileClip(f"tmp/audios/{pid}_aud.mp3").with_start(0)
-        ).with_effects([Resize(width=tw)])
-        output_dir, cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(tw, th), end_image_time=end_image_time)
-        LOGGER.info("Pvideo: %s", video.size)
-        final_clip = CompositeVideoClip([video, clip_pt_img]+cap_clips)
-        LOGGER.info("Pfinal_clip: %s", final_clip.size)
-        final_clip.write_videofile(
-            output_path,
-            pixel_format="yuv420p",
-            codec="libx264",
-            audio_codec="libmp3lame",
-            ffmpeg_params=[
-                "-crf", "23",        
-                "-vf", "format=yuv420p",  # Force video format conversion
-                "-profile:v", "baseline",  # Set the H.264 profile to baseline
-                ],
-            )
+        rezivid = Resize(height=th) if use_hi else Resize(width=tw)
+
+        try:
+            clip_pt_imgs, end_image_time = create_postimg_clip_com(chunks, tw)
+            audio_clip_list = load_audio_clips(chunks)
         
-        for file in os.listdir(output_dir):
-            if pid in file:
-                os.remove(os.path.join(output_dir, file))
-    try:
-        os.remove(post_png_file)
-    except:
-        pass        
+            temp_audio = CompositeAudioClip(
+                    [AudioFileClip(REDDIT_TEMPLATE_MUS).subclipped(0, (end_time-start_time)).with_start(0)]+audio_clip_list
+                )
+            
+            temp_audio.write_audiofile(f"tmp/audios/{pid}_aud.mp3", codec="libmp3lame")
+            video = VideoFileClip(video_path).subclipped(start_time, end_time).with_audio(
+                AudioFileClip(f"tmp/audios/{pid}_aud.mp3").with_start(0)
+            ).with_effects([rezivid])
+            LOGGER.info("Pvideo: %s", video.size)
+            
+            #output_dir, cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(tw, th), end_image_time=end_image_time)
+            LOGGER.info("Pvideo: %s", video.size)
+            final_clip = CompositeVideoClip([video]+clip_pt_imgs)
+            LOGGER.info("Pfinal_clip: %s", final_clip.size)
+            final_clip.write_videofile(
+                output_path,
+                pixel_format="yuv420p",
+                codec="libx264",
+                audio_codec="libmp3lame",
+                ffmpeg_params=[
+                    "-crf", "23",        
+                    "-vf", "format=yuv420p",  # Force video format conversion
+                    "-profile:v", "baseline",  # Set the H.264 profile to baseline
+                    ],
+                )
+            
+            os.remove(f"tmp/audios/{pid}_aud.mp3")
+        except Exception as e:
+            if "divisible by 2" in str(e):
+                LOGGER.error("Error: %s", e)
+                use_hi = not use_hi
+                continue
+            else:
+                break
+        break   
 def create_captions(
     prefix: str,
     paragraph: str,

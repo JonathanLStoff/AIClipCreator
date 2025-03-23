@@ -57,6 +57,22 @@ def none_old_timestamps()->list:
         scheduled_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         updated.append(None if scheduled_dt < now else t)
     return updated
+def none_old_timestamps_com()->list:
+    today_index = datetime.today().weekday()  # Monday is 0, Sunday is 6
+    schedule = WK_SCHED[today_index]
+    now = datetime.now()
+    updated = []
+    for t in schedule:
+        if ":" not in t:
+            updated.append(t)
+            continue
+        hour, minute = map(int, t.split(":"))
+        if minute > 59:
+            minute = 59
+        LOGGER.info("sched: %s, %s, %s, %s", hour, minute, now.hour, now.minute)
+        scheduled_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        updated.append(None if scheduled_dt < now else t)
+    return updated
 # Example usage:
 if __name__ == "__main__":
     # Divide the interval into 5 sections (you will get 6 timestamps including start and end)
