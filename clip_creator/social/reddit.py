@@ -468,7 +468,7 @@ def find_sub_reddit_coms(used_posts:list[str], min_posts:int=10) -> list[str]:
             except Exception as e:
                 LOGGER.error(f"Error processing subreddit {suby}: {traceback.format_exc()}")
                 time.sleep(15)
-        if number_runs > 10:
+        if number_runs > min_posts:
             break
         time.sleep(5)
         number_runs += 1
@@ -548,6 +548,8 @@ def reddit_json_all(dict_list:list[dict]):
                     
                 elif child.get('kind') == 't1': # t1 is a comment
                     data = child.get('data', {})
+                    if int(data.get('score', 0)) < 1:
+                        continue
                     comment = {
                         'author': data.get('author'),
                         'upvotes': int(data.get('score', 0)),
@@ -562,6 +564,8 @@ def reddit_json_all(dict_list:list[dict]):
                     for kid in data.get('replies', {}).get('data', {}).get('children', []):
                         if kid.get('kind') == 't1':
                             kid_data = kid.get('data', {})
+                            if int(kid_data.get('score', 0)) < 2:
+                                continue
                             if kid_data.get('score', 0) > best_comment.get('upvotes', 0):
                                 best_comment = {
                                     'author': kid_data.get('author'),

@@ -1,6 +1,7 @@
 from moviepy import VideoFileClip, AudioFileClip, CompositeVideoClip, ImageClip, CompositeAudioClip
 from moviepy.video.fx import Resize
 from pydub import AudioSegment
+import traceback
 from clip_creator.utils.scan_text import remove_non_letters, swap_words_numbers
 from clip_creator.conf import LOGGER, REDDIT_TEMPLATE_AUD, REDDIT_TEMPLATE_MUS, RED_COM_DELAY
 import os
@@ -134,30 +135,31 @@ def create_reddit_video(video_path, audio_path, output_path, start_time, end_tim
         break   
 def create_postimg_clip_com(chunks:dict, tw=1080):
     start = 0
-    duration = 0
     clips_list = []
+    
     for cid, chunk in chunks.items():
-        duration += chunk["audio_length"] + RED_COM_DELAY
-        clips_list.append(ImageClip(chunk['img'], duration=duration).with_position("center", "center").with_layer_index(4).with_effects([Resize(width=tw)]).with_effects([Resize(.90)]).with_start(start))
+        
+        if not chunk['img']:
+            LOGGER.error("No image found for chunk %s", chunk.keys())
+            raise Exception(f"No image found for chunk {cid}")
+        clips_list.append(ImageClip(chunk['img'], duration=chunk["audio_length"] + RED_COM_DELAY).with_position("center", "center").with_layer_index(4).with_effects([Resize(width=tw)]).with_effects([Resize(.90)]).with_start(chunk["start"]))
         start += chunk["audio_length"] + RED_COM_DELAY
         LOGGER.info("reddit img SIZE: %s", clips_list[-1].size)
     return clips_list
 def load_audio_clips(chunks):
     audio_clip_list = []
-    start = 0
     for cid, chunk in chunks.items():
-        audio_clip = AudioFileClip(chunk["auFile"]).with_start(start)
-        start += chunk["audio_length"] + RED_COM_DELAY
+        audio_clip = AudioFileClip(chunk["auFile"]).with_start(chunk["start"])
         audio_clip_list.append(audio_clip)
     return audio_clip_list
 def create_reddit_video_com(video_path, output_path, start_time, end_time, pid, th, tw, chunks={}):
     use_hi = False
     while True:
-
+        LOGGER.info("chunks: %s",len(chunks.keys()))
         rezivid = Resize(height=th) if use_hi else Resize(width=tw)
 
         try:
-            clip_pt_imgs, end_image_time = create_postimg_clip_com(chunks, tw)
+            clip_pt_imgs = create_postimg_clip_com(chunks, tw)
             audio_clip_list = load_audio_clips(chunks)
         
             temp_audio = CompositeAudioClip(
@@ -193,7 +195,9 @@ def create_reddit_video_com(video_path, output_path, start_time, end_time, pid, 
                 use_hi = not use_hi
                 continue
             else:
+                LOGGER.error("Error: %s", traceback.format_exc())
                 break
+            
         break   
 def create_captions(
     prefix: str,

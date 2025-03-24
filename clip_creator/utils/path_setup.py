@@ -1,4 +1,5 @@
 import os
+import time
 
 
 def check_and_create_dirs(base_dir="tmp"):
@@ -25,6 +26,20 @@ def check_and_create_dirs(base_dir="tmp"):
         else:
             
             print(f"Directory already exists: {path}")
+    logs_dir = os.path.join(base_dir, "logs")
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir, exist_ok=True)
+        print(f"Created directory: {logs_dir}")
+
+    one_week_seconds = 7 * 24 * 60 * 60
+    current_time = time.time()
+
+    for file in os.listdir(logs_dir):
+        file_path = os.path.join(logs_dir, file)
+        if os.path.isfile(file_path):
+            if current_time - os.path.getmtime(file_path) > one_week_seconds:
+                os.remove(file_path)
+                print(f"Deleted log file (older than a week): {file_path}")
     # for file in os.listdir(os.path.join(base_dir, "audios")):
     #     os.remove(os.path.join(os.path.join(base_dir, "audios"), file))
 

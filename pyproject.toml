@@ -46,6 +46,7 @@ num2words = "^0.5.14"
 googletrans = "^4.0.2"
 uiautomator = "^1.0.2"
 uiautomator2 = "^3.2.8"
+orjson = "^3.10.16"
 
 
 [tool.poetry.group.dev.dependencies]

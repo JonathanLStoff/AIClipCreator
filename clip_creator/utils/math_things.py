@@ -1,7 +1,23 @@
 import math
+from clip_creator.conf import LOGGER, RED_COM_DELAY
 from typing import List, Dict
 
-def get_88_percentile(dicts: List[Dict]) -> List[Dict]:
+def start_times_per_chunk(chunks:dict)->dict:
+    next_start = 0
+    new_chunks = {}
+    for i in range(len(chunks.items())):
+        
+        for k, v in chunks.items():
+                
+            if v['idx'] == i:
+                LOGGER.info(f"Starting time for chunk {i} is {v['audio_length']}")
+                v['start'] = next_start
+                next_start += v['audio_length'] + RED_COM_DELAY
+                new_chunks[k]= v
+    
+    return new_chunks
+
+def get_88_percentile(dicts: List[Dict]):
     """
     Returns a list of dictionaries whose 'upvotes' value is strictly greater than the
     88th percentile value of the upvotes in the input list.
@@ -22,10 +38,19 @@ def get_88_percentile(dicts: List[Dict]) -> List[Dict]:
     index = math.ceil(n * 0.88) - 1
     index = max(0, min(index, n - 1))
     
-    threshold = upvotes[index]
+    threshold_rpl = upvotes[index]
     
+
+    upvotes = sorted(item.get("upvotes", 0) for item in dicts)
+    n = len(upvotes)
+    
+    # Calculate the index corresponding to the 88th percentile.
+    index = math.ceil(n * 0.88) - 1
+    index = max(0, min(index, n - 1))
+    
+    threshold = upvotes[index]
     # Return all dictionaries whose upvotes are strictly above the threshold.
-    return [item for item in dicts if item.get("upvotes", 0) > threshold]
+    return threshold, threshold_rpl
 
 # Example usage:
 if __name__ == "__main__":

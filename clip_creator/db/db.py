@@ -898,6 +898,22 @@ def get_reddit_post_clip_by_id(post_id, db_name="aiclipcreator.db"):
     finally:
         if conn:
             conn.close()
+def get_reddit_post_clip_by_id_com(post_id, db_name="aiclipcreator.db"):
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM reddit_coms_clips WHERE post_id = ?", (post_id,))
+        row = cursor.fetchone()
+        if row:
+            columns = [desc[0] for desc in cursor.description]
+            return dict(zip(columns, row))
+        return None
+    except sqlite3.Error as e:
+        print(f"SQLite error: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
 def update_reddit_post_clip(post_id, tiktok_posted=None, insta_posted=None, yt_posted=None, transcript=None, db_path="aiclipcreator.db"):
     """Updates a Reddit post clip in the database."""
     try:
@@ -1085,16 +1101,16 @@ def get_rows_where_tiktok_null_or_empty_com(db_name="aiclipcreator.db"):
     finally:
         if conn:
             conn.close()
-def add_reddit_post_clip_com(post_id:str, title:str, content:str, upvotes:int, comments:int, comments_json:dict|list, nsfw:bool, posted_at:str, url:str, db_path="aiclipcreator.db"):
+def add_reddit_post_clip_com(post_id:str, title:str, content:str, upvotes:int, comments:int, comments_json:dict|list, nsfw:bool, author:str, posted_at:str, url:str, db_path="aiclipcreator.db"):
     """Adds a new Reddit post clip to the database."""
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         cursor.execute("""
-            INSERT INTO reddit_coms_clips (post_id, title, content, upvotes, comments, comments_json, nsfw, posted_at, url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (post_id, title, content, upvotes, comments, json.dumps(comments_json), nsfw, posted_at, url))
+            INSERT INTO reddit_coms_clips (post_id, title, content, upvotes, comments, comments_json, nsfw, posted_at, url, author)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (post_id, title, content, upvotes, comments, json.dumps(comments_json), nsfw, posted_at, url, author))
 
         conn.commit()
         print(f"Post clip with post_id '{post_id}' added successfully.")

@@ -253,13 +253,13 @@ REGEX_FOR_UPDATE_RM = r".*www\.reddit\.com[^\s]*.*"
 #     ["06:00", "17:35", "20:50", "23:30"], # Sunday
 # ]
 WK_SCHED = [
-    ["23:50", "23:50"], # Monday
-    ["23:50", "23:50"], # Tuesday
-    ["23:50", "23:50"], # Wednesday
-    ["23:50", "23:50"], # Thursday
-    ["23:50", "23:50"], # Friday
-    ["23:50", "23:50"], # Saturday
-    ["23:50", "23:50"], # Sunday
+    ["23:50", "23:50", "23:50", "23:50"], # Monday
+    ["23:50", "23:50", "23:50", "23:50"], # Tuesday
+    ["23:50", "23:50", "23:50", "23:50"], # Wednesday
+    ["23:50", "23:50", "23:50", "23:50"], # Thursday
+    ["23:50", "23:50", "23:50", "23:50"], # Friday
+    ["23:50", "23:50", "23:50", "23:50"], # Saturday
+    ["23:50", "23:50", "23:50", "23:50"], # Sunday
 ]
 WK_SCHED_COM = [
     ["23:50", "23:50"], # Monday
@@ -271,4 +271,54 @@ WK_SCHED_COM = [
     ["23:50", "23:50"], # Sunday
 ]
 
-RED_COM_DELAY = 0.5
+RED_COM_DELAY = 0.2
+# Find and replace all text.
+REPLACE_CURSE_WORDS_DIRT = { 
+    "fuck": "frick",
+    "sex": "seggs",
+    "asshole": "a hole",
+    "24/7": "twenty four seven",
+    "died": "unalived",
+    "killed": "unalived",
+    "10s": " teens",
+    "20s": " twenties",
+    "30s": " thirties",
+    "40s": " forties",
+    "50s": " fifties",
+    "60s": " sixties",
+    "70s": " seventies",
+    "80s": " eighties",
+    "90s": " nineties",
+}
+# This will only replace if they are the same
+REPLACE_WORDS_CLEAN = {
+    "rape":"grape",
+    "rapist":"grapist",
+    "i'd": "I would",
+    "we'd": "we would",
+    "you're": "you are",
+    "you've": "you have",
+    "you'll": "you will",
+    "can't": "cannot",
+    "won't": "will not",
+    "isn't": "is not",
+    "aren't": "are not",
+    "wasn't": "was not",
+    "weren't": "were not",
+    "didn't": "did not",
+    "doesn't": "does not",
+    "don't": "do not",
+    "hasn't": "has not",
+    "haven't": "have not",
+    "couldn't": "could not",
+    "wouldn't": "would not",
+    "shouldn't": "should not",
+    "mightn't": "might not",
+    "mustn't": "must not",
+    "I'm": "I am",
+    "I'll": "I will",
+    "we're": "we are",
+    "they're": "they are",
+    "they'll": "they will",
+    "they've": "they have",
+}

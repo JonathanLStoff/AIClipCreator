@@ -4,7 +4,7 @@ from num2words import num2words
 from collections import Counter
 from datetime import datetime, timezone
 
-from clip_creator.conf import CURSE_WORDS, LOGGER, RM_TIMESTAMP_REGEX, TIMESTAMP_REGEX, REDDIT_ACCRO_SUB, REGEX_FOR_UPDATE, REGEX_FOR_UPDATE_RM
+from clip_creator.conf import REPLACE_WORDS_CLEAN, REPLACE_CURSE_WORDS_DIRT, CURSE_WORDS, LOGGER, RM_TIMESTAMP_REGEX, TIMESTAMP_REGEX, REDDIT_ACCRO_SUB, REGEX_FOR_UPDATE, REGEX_FOR_UPDATE_RM
 
 
 def most_common_ngrams(text, n=3):
@@ -64,8 +64,9 @@ def swap_words_numbers(text: str) -> str:
     for i, word in enumerate(words):
         #LOGGER.info("maubbe Replacing %s", remove_non_numbers(word))
         if remove_non_numbers(word).isdigit() and remove_non_numbers(word) != "":
+            word = re.sub(r"(\d+)([FMfm])\b", r"\1 \2", word)
             LOGGER.debug("Replacing %s %s", str(remove_non_numbers(word)), str(num2words(remove_non_numbers(word))))
-            text = text.replace(str(remove_non_numbers(word)), str(num2words(remove_non_numbers(word)))+" ")
+            text = text.replace(str(remove_non_numbers(word)), str(num2words(remove_non_numbers(word)))+" ").replace("-", " ")
     return text
 def remove_non_numbers(text: str) -> str:
     """
@@ -99,7 +100,6 @@ def convert_timestamp_to_seconds(timestamp: str) -> int | None:
         LOGGER.error("Invalid timestamp format: %s", timestamp)
     return None
 
-
 def find_timestamp_clips(raw_transcript: list, timestamp: int) -> list[dict]:
     """
     Find timestamp in a text only if exactly one timestamp is found, otherwise returns None.
@@ -123,12 +123,15 @@ def reddit_remove_bad_words(text: str) -> str:
     Remove bad words from a text.
     """
     for word in text.split():
+        for replace_word, keep_word in REPLACE_WORDS_CLEAN.items():
+            if word.lower() == replace_word:
+                text = text.replace(word, keep_word)
+        for d_word, d_word_r in REPLACE_CURSE_WORDS_DIRT.items():
+            if d_word in word.lower() and "mother" not in word.lower():
+                text = text.replace(d_word, d_word_r)
         for curse_word in CURSE_WORDS:
-            if "fuck" in word and "mother" not in word:
-                text = text.replace("fuck", "frick")
-            if "sex" in word:
-                text = text.replace("sex", "seggs") 
-            elif curse_word == remove_non_letters(word.lower()):
+            
+            if curse_word == remove_non_letters(word.lower()):
                 text = replace_word_ignoring_punctuation(text, word, "beep")
     return text
 
@@ -160,6 +163,8 @@ def get_id_from_vfile(file:str)->str|None:
     return None
 
 def dirty_remove_cuss(text:str)->str:
+    if not text or text == "":
+        return ""
     for cuss in CURSE_WORDS:
         if "fuck" in cuss:
             text.replace("fuck", "frick")
@@ -201,7 +206,7 @@ def get_top_posts(posts, n):
     return dict(sorted_items[:n])
 def get_top_posts_coms(posts, n):
 
-    return dict(sorted_items = sorted(posts.items(), key=lambda item: item[1]['comments'], reverse=True)[:n])
+    return [key for key, _ in sorted(posts.items(), key=lambda item: item[1].get('upvotes', 0), reverse=True)[:n]]
 def find_bad_words(true_transcript: list[dict], uncensored_transcript) -> (list[list[int]], list[dict]):
     """
     Find bad words in a text.
