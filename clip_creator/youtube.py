@@ -2,7 +2,6 @@ import json
 import os
 import time
 import traceback
-
 from datetime import UTC, datetime, timedelta
 
 # import subprocess
@@ -11,8 +10,8 @@ from datetime import UTC, datetime, timedelta
 # from selenium.webdriver.support.ui import WebDriverWait
 # from selenium.webdriver.support import expected_conditions as EC
 import isodate
-from bs4 import BeautifulSoup
 import youtube_transcript_api
+from bs4 import BeautifulSoup
 from googleapiclient.discovery import build
 from yt_dlp import YoutubeDL
 
@@ -39,6 +38,8 @@ def Download(video_id: str, path: str = "videos", filename: str | None = None):
             os.rename(file, f"{path}/{filename}.{file.split('.')[-1]}")
 
     LOGGER.info("Download is completed successfully")
+
+
 def get_svg_image_from_html(html_string, output_path="output.png"):
     """
     Extracts an SVG from HTML and converts it to a PNG.
@@ -47,20 +48,22 @@ def get_svg_image_from_html(html_string, output_path="output.png"):
         html_string (str): The HTML string containing the SVG.
         output_path (str): The path to save the PNG image.
     """
-    soup = BeautifulSoup(html_string, 'html.parser')
-    svg_element = soup.find('svg', class_='ytp-heat-map-svg') # Find the svg with the correct class
+    soup = BeautifulSoup(html_string, "html.parser")
+    svg_element = soup.find(
+        "svg", class_="ytp-heat-map-svg"
+    )  # Find the svg with the correct class
     if svg_element:
         svg_string = str(svg_element)
         svg_to_png(svg_string, output_path)
     else:
         print("SVG element not found in the HTML.")
 
+
 def subscriptions():
     """Gets the user's YouTube subscriptions."""
     response = None
     api_inx = 0
     while True:
-        
         yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
         request = yt.subscriptions().list(
             part="snippet",
@@ -152,7 +155,7 @@ def get_subscriptions_videos(
     LOGGER.info("Subscriptions: %s", subscriptions_list)
     for subscription in subscriptions_list:
         channel_id = subscription["snippet"]["resourceId"]["channelId"]
-        #LOGGER.info("Channel ID: %s", channel_id)
+        # LOGGER.info("Channel ID: %s", channel_id)
         dt_object = datetime.strptime(
             subscription["snippet"]["publishedAt"], "%Y-%m-%dT%H:%M:%S.%fZ"
         ).replace(tzinfo=UTC)
@@ -369,7 +372,7 @@ def get_comments(video_id, max_comments=100):  # Added max_comments
     except Exception as e:
         LOGGER.info(f"Error getting comments: {traceback.format_exc()}")
         LOGGER.info(f"Error getting comments: {e}")
-        
+
         return []
 
 
@@ -409,22 +412,26 @@ def get_top_comment(comments: list[dict], max_words: int, creator: str) -> str:
 
     return top_comment, backup_comment
 
-def get_svg_heatmap(html_string): # Returns svg string
+
+def get_svg_heatmap(html_string):  # Returns svg string
     """
     Extracts an SVG from HTML and converts it to a PNG.
 
     Args:
         html_string (str): The HTML string containing the SVG (Youtube vid).
     """
-    
-    soup = BeautifulSoup(html_string, 'html.parser')
-    svg_element = soup.find('svg', class_='ytp-heat-map-svg') # Find the svg with the correct class
+
+    soup = BeautifulSoup(html_string, "html.parser")
+    svg_element = soup.find(
+        "svg", class_="ytp-heat-map-svg"
+    )  # Find the svg with the correct class
     if svg_element:
-        svg_string = str(svg_element) #.encode('utf-8')
+        svg_string = str(svg_element)  # .encode('utf-8')
         return svg_string
     else:
         LOGGER.error("SVG element not found in the HTML.")
         return None
+
 
 if __name__ == "__main__":
     comments = get_comments("Rivbvb2JDCw")

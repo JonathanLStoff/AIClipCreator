@@ -61,7 +61,6 @@ def start_android_vbox(vbox_vm_name, android_image_path, mode="screen"):
                     "2",
                     "--nic1",
                     "nat",
-                    
                 ],
                 check=True,
                 capture_output=True,

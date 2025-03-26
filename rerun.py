@@ -13,7 +13,6 @@ from clip_creator.db.db import (
     update_post_status,
 )
 from clip_creator.social.custom_tiktok import upload_video_tt
-from clip_creator.social.insta import InstaGramUp
 from clip_creator.utils.path_setup import get_unused_videos
 from clip_creator.utils.schedules import get_timestamps
 
@@ -80,7 +79,7 @@ def main():
     ########################################
     # Post to TikTok & Instagram
     ########################################
-    #insta = InstaGramUp()
+    # insta = InstaGramUp()
     for id, clipy in clips.items():
         if clipy:
             upload_video_tt(

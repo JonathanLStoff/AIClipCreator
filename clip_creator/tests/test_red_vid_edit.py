@@ -1,13 +1,14 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 # File: clip_creator/vid_ed/test_red_vid_edit.py
 from clip_creator.vid_ed.red_vid_edit import (
-    get_clip_duration,
-    get_audio_duration,
-    create_postimg_clip,
     create_captions,
+    create_postimg_clip,
+    get_audio_duration,
+    get_clip_duration,
 )
+
 
 class TestRedVidEdit(unittest.TestCase):
     @patch("clip_creator.vid_ed.red_vid_edit.VideoFileClip")
@@ -27,7 +28,7 @@ class TestRedVidEdit(unittest.TestCase):
     def test_get_audio_duration(self, mock_audio_segment):
         dummy_audio = MagicMock()
         # Set the __len__ return value to simulate 5000 ms.
-        dummy_audio.__len__.return_value = 5000  
+        dummy_audio.__len__.return_value = 5000
         mock_audio_segment.from_file.return_value = dummy_audio
 
         audio_path = "dummy_audio.mp3"
@@ -57,7 +58,7 @@ class TestRedVidEdit(unittest.TestCase):
         mock_imageclip.return_value = dummy_clip_instance
 
         clip, start = create_postimg_clip(post_png_file, transcript, title)
-        expected_start = len(title) * (160/60)
+        expected_start = len(title) * (160 / 60)
         self.assertAlmostEqual(start, expected_start)
         self.assertEqual(clip, dummy_clip_instance)
         # Verify that the scanning functions were called correctly.
@@ -67,7 +68,9 @@ class TestRedVidEdit(unittest.TestCase):
     @patch("clip_creator.vid_ed.red_vid_edit.create_caption_images_reddit")
     @patch("clip_creator.vid_ed.red_vid_edit.os.listdir")
     @patch("clip_creator.vid_ed.red_vid_edit.ImageClip")
-    def test_create_captions_no_clips_due_to_end_image_time(self, mock_imageclip, mock_listdir, mock_create_caption_images):
+    def test_create_captions_no_clips_due_to_end_image_time(
+        self, mock_imageclip, mock_listdir, mock_create_caption_images
+    ):
         # Setup: transcript with one dummy segment.
         transcript = [{"start": 0, "text": "dummy", "duration": 2}]
         # Simulate no matching files found
@@ -87,9 +90,12 @@ class TestRedVidEdit(unittest.TestCase):
             end_image_time=1,
         )
         # Verify that create_caption_images_reddit was called since file wasn't found.
-        mock_create_caption_images.assert_called_once_with("testprefix", transcript, 640, "./tmp/caps_img", 0)
+        mock_create_caption_images.assert_called_once_with(
+            "testprefix", transcript, 640, "./tmp/caps_img", 0
+        )
         # Since section start (0) is less than end_image_time (1), the caption clip is skipped.
         self.assertEqual(clip_list, [])
+
 
 if __name__ == "__main__":
     unittest.main()

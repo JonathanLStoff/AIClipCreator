@@ -1,10 +1,13 @@
-from googletrans import Translator
 import asyncio
+
+from googletrans import Translator
+
 
 def translate_en_to(text, lang="es"):
     translator = Translator()
     translation = asyncio.run(translator.translate(text, src="en", dest=lang))
     return translation.text
+
 
 if __name__ == "__main__":
     original_text = input("Enter text in English: ")

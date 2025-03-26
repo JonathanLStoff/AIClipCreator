@@ -1,7 +1,6 @@
-import math
-import time
 import os
 import shutil
+import time
 from random import randint
 
 import numpy as np
@@ -19,21 +18,22 @@ from speechbrain.inference.enhancement import SpectralMaskEnhancement
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
 from clip_creator.conf import (
+    BAD_WORD_SUB,
     CODEC,
     EMOJIS_RE,
     FONT_PATH,
     LOGGER,
     LOW_CPU_MEM,
     NUM_CORES,
-    BAD_WORD_SUB
 )
-from clip_creator.utils.forcealign import force_align
 from clip_creator.utils.caption_img import (
     create_caption_images,
     create_emojis,
     remove_curse_words,
 )
+from clip_creator.utils.forcealign import force_align
 from clip_creator.utils.scan_text import find_bad_words
+
 
 def edit_vid_orchestrator(
     prefix: str,
@@ -45,47 +45,52 @@ def edit_vid_orchestrator(
     end_time=60,
     text: str = "",
     ft_transcript: str = "",
-    yt_transcript: list[dict] = [],
+    yt_transcript: list[dict] | None = None,
 ):
     #########################################
     # Make my own transcription for captions
     #########################################
+    if yt_transcript is None:
+        yt_transcript = []
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda:0"
         torch.cuda.empty_cache()
     ft_transcript = ft_transcript.replace("[\u00a0__\u00a0]", "****")
-    audio_file, outputa_file = get_info_from_audio(prefix, input_file, start_time, end_time)
-    #LOGGER.info("stuff1: %s %s %s %s %s", audio_file, outputa_file, number_runs, secs_per_segment, duration)
-    #true_transcript = []
+    audio_file, outputa_file = get_info_from_audio(
+        prefix, input_file, start_time, end_time
+    )
+    # LOGGER.info("stuff1: %s %s %s %s %s", audio_file, outputa_file, number_runs, secs_per_segment, duration)
+    # true_transcript = []
     timestamps_obj = timestamps()
     # if run, will cause openai to fail
-    #segment_files = create_aud_seg(number_runs, secs_per_segment, prefix, audio_file)
+    # segment_files = create_aud_seg(number_runs, secs_per_segment, prefix, audio_file)
     uncensored_transcript = timestamps_obj.get_word_timestamps_openai(
-            audio_file,
-            audio_clip_length=end_time-start_time,
-            time_add=0,
-        )     
+        audio_file,
+        audio_clip_length=end_time - start_time,
+        time_add=0,
+    )
     LOGGER.info("uncensored_transcript: %s", uncensored_transcript)
-    #exit()
+    # exit()
     true_transcript = force_align(audio_file, ft_transcript, device)
 
     return edit_video(
-            prefix,
-            input_file,
-            output_file,
-            zoom=zoom,
-            target_size=target_size,
-            start_time=start_time,
-            end_time=end_time,
-            text=text,
-            true_transcript=true_transcript,
-            audio_file=audio_file,
-            outputa_file=outputa_file,
-            uncensored_transcript = uncensored_transcript,
-            ft_transcript = ft_transcript,
-            yt_transcript = yt_transcript   
-        )
+        prefix,
+        input_file,
+        output_file,
+        zoom=zoom,
+        target_size=target_size,
+        start_time=start_time,
+        end_time=end_time,
+        text=text,
+        true_transcript=true_transcript,
+        audio_file=audio_file,
+        outputa_file=outputa_file,
+        uncensored_transcript=uncensored_transcript,
+        ft_transcript=ft_transcript,
+        yt_transcript=yt_transcript,
+    )
+
 
 def remove_bad_audio(audio_file):
     device = "cpu"
@@ -94,13 +99,10 @@ def remove_bad_audio(audio_file):
         torch.cuda.empty_cache()
 
     # Reduce Noise
-    model = SpectralMaskEnhancement.from_hparams(
-        "speechbrain/mtl-mimic-voicebank"
-    )
+    model = SpectralMaskEnhancement.from_hparams("speechbrain/mtl-mimic-voicebank")
     model.enhance_file(audio_file, output_filename=audio_file)
-    
 
-    
+
 def create_aud_seg(number_runs, secs_per_segment, prefix, audio_file):
     """
     Creates audio segments using pydub.
@@ -114,7 +116,7 @@ def create_aud_seg(number_runs, secs_per_segment, prefix, audio_file):
     Returns:
         list: A list of paths to the created segment files.
     """
-    #remove_bad_audio(audio_file, prefix)
+    # remove_bad_audio(audio_file, prefix)
     segment_files = []
     try:
         full_audio = AudioSegment.from_file(audio_file)
@@ -123,14 +125,18 @@ def create_aud_seg(number_runs, secs_per_segment, prefix, audio_file):
         return []
 
     for i in range(number_runs):
-        segment_start_ms = i * secs_per_segment * 1000  # Convert seconds to milliseconds
-        segment_end_ms = min((i + 1) * secs_per_segment * 1000, len(full_audio)) #convert to ms
+        segment_start_ms = (
+            i * secs_per_segment * 1000
+        )  # Convert seconds to milliseconds
+        segment_end_ms = min(
+            (i + 1) * secs_per_segment * 1000, len(full_audio)
+        )  # convert to ms
         if segment_start_ms == 0 and len(full_audio) == segment_end_ms:
             shutil.copyfile(audio_file, f"./tmp/audios/audio_{prefix}_segment_{i}.wav")
             break
         segment = full_audio[segment_start_ms:segment_end_ms]
         segment_file = f"./tmp/audios/audio_{prefix}_segment_{i}.wav"
-        
+
         # Ensure the directory exists
         os.makedirs(os.path.dirname(segment_file), exist_ok=True)
 
@@ -138,18 +144,18 @@ def create_aud_seg(number_runs, secs_per_segment, prefix, audio_file):
         segment_files.append(segment_file)
     del full_audio
     return segment_files
-def get_info_from_audio(prefix, input_file, start_time=0, end_time=60):
-    
 
+
+def get_info_from_audio(prefix, input_file, start_time=0, end_time=60):
     audio_file = f"./tmp/audio_{prefix}.mp3"
     outputa_file = f"./tmp/audioo_{prefix}.mp3"
-    
+
     clip = VideoFileClip(input_file)
     LOGGER.debug(f"Original duration: {clip.duration}, Audio: {clip.audio is not None}")
 
     # Ensure valid subclip times
     assert end_time < clip.duration, "End time exceeds video duration"
-    
+
     subclip = clip.subclipped(start_time, end_time)
 
     # Explicitly handle audio (if needed)
@@ -163,10 +169,11 @@ def get_info_from_audio(prefix, input_file, start_time=0, end_time=60):
     del subclip
     clip.audio.close()
     clip.close()  # Close the video clip to release resources
-    
+
     del clip
-    
+
     return audio_file, outputa_file
+
 
 def edit_video(
     prefix: str,
@@ -182,7 +189,7 @@ def edit_video(
     true_transcript: list[dict] | None = None,
     uncensored_transcript: list[dict] | None = None,
     ft_transcript: str = "",
-    yt_transcript: list[dict] = [],
+    yt_transcript: list[dict] | None = None,
 ):
     """
     Crops a landscape video to a portrait orientation and “zooms in” on the center portion.
@@ -192,11 +199,12 @@ def edit_video(
       • zoom         : zoom factor (>1 zooms in more on a smaller crop area).
       • target_size  : tuple (width, height) for the portrait video.
     """
+    if yt_transcript is None:
+        yt_transcript = []
     if text.strip() != "":
         emojis, text = extract_emojis(text)
         text = remove_curse_words(text)
-    
-    
+
     clip = VideoFileClip(input_file).subclipped(start_time, end_time)
     full_length = clip.duration
     LOGGER.info(f"Video duration: {end_time-start_time} seconds")
@@ -272,7 +280,7 @@ def edit_video(
         pos_x = (
             cropped_clip.w / 2
             - (
-                int(target_h * 0.93) # target h is actually width
+                int(target_h * 0.93)  # target h is actually width
                 if lines_total > 1
                 else int(((target_h / max_chars) * len(text)) / 2)
             )
@@ -280,7 +288,9 @@ def edit_video(
         text_commm_pos = text_commm.with_position((pos_x, int(th / 10)))
         if text_commm_pos.w + pos_x > tw or pos_x < 0:
             if text_commm_pos.w > tw:
-                text_commm_pos = text_commm.with_position((0, int(th / 10))).with_effects(Resize((tw, text_commm.h)))
+                text_commm_pos = text_commm.with_position(
+                    (0, int(th / 10))
+                ).with_effects(Resize((tw, text_commm.h)))
             else:
                 text_commm_pos = text_commm.with_position((0, int(th / 10)))
         if len(emojis) > 5:
@@ -295,20 +305,35 @@ def edit_video(
                 int(pixels_per_char * 1.2) * 5,
             )
             emoji_commm = (
-                ImageClip(output_e_file, duration=cropped_clip.duration
-                    ).with_position((int(text_commm.w / 2)-len(emojis) * pixels_per_char, int((th / 10) - (pixels_per_char * 3))))
-                .rotated(rotate_tilt, expand=True).with_effects([Resize((
-                        int(len(emojis) * (pixels_per_char * 3.5)),
-                        int(pixels_per_char * 3.5)
-                    ))])
+                ImageClip(output_e_file, duration=cropped_clip.duration)
+                .with_position(
+                    (
+                        int(text_commm.w / 2) - len(emojis) * pixels_per_char,
+                        int((th / 10) - (pixels_per_char * 3)),
+                    )
+                )
+                .rotated(rotate_tilt, expand=True)
+                .with_effects([
+                    Resize(
+                        (
+                            int(len(emojis) * (pixels_per_char * 3.5)),
+                            int(pixels_per_char * 3.5),
+                        )
+                    )
+                ])
             )  # Place above normal text.
             os.remove(output_e_file)
 
     old_audio_file = audio_file
     true_transcript, audio_file = censor_words(
-        true_transcript, audio_file, outputa_file, uncensored_transcript, ft_transcript, yt_transcript
+        true_transcript,
+        audio_file,
+        outputa_file,
+        uncensored_transcript,
+        ft_transcript,
+        yt_transcript,
     )
-    
+
     if text.strip() != "" and len(emojis) > 0:
         final_clip = CompositeVideoClip(
             [
@@ -348,7 +373,7 @@ def edit_video(
     )
     final_clip.close()
     clip.close()
-    
+
     for clip in clip_list:
         clip.close()
     # Remove caption images
@@ -360,15 +385,29 @@ def edit_video(
     return output_file, true_transcript
 
 
-def censor_words(transcript, audio_file, output_file, uncensored_transcript, ft_transcript, yt_transcript):
+def censor_words(
+    transcript,
+    audio_file,
+    output_file,
+    uncensored_transcript,
+    ft_transcript,
+    yt_transcript,
+):
     ts_bw, ftranscript = find_bad_words(transcript, uncensored_transcript)
-    LOGGER.info("Bad words: %s",ts_bw)
+    LOGGER.info("Bad words: %s", ts_bw)
     if BAD_WORD_SUB in ft_transcript:
-        ts_bw.extend(infer_bad_words(transcript, uncensored_transcript, ft_transcript, yt_transcript))
+        ts_bw.extend(
+            infer_bad_words(
+                transcript, uncensored_transcript, ft_transcript, yt_transcript
+            )
+        )
     audio_file_out = mute_sections(audio_file, output_file, ts_bw)
     return ftranscript, audio_file_out
 
-def infer_bad_words(transcript:list[dict], uncensored_transcript, ft_transcript, yt_transcript):
+
+def infer_bad_words(
+    transcript: list[dict], uncensored_transcript, ft_transcript, yt_transcript
+):
     """_summary_
 
     Args:
@@ -378,46 +417,59 @@ def infer_bad_words(transcript:list[dict], uncensored_transcript, ft_transcript,
         yt_transcript (_type_): transcript from youtube
     """
     bad_word_sections = []
-    for i, part in enumerate(yt_transcript): # part == {text: "text in a sentence", start: 0.0, duration: 0.0}
-        if BAD_WORD_SUB in part['text']:
-            part['index'] = part['text'].index(BAD_WORD_SUB)
+    for i, part in enumerate(
+        yt_transcript
+    ):  # part == {text: "text in a sentence", start: 0.0, duration: 0.0}
+        if BAD_WORD_SUB in part["text"]:
+            part["index"] = part["text"].index(BAD_WORD_SUB)
             bad_word_sections.append(part)
             # Check for length of context, if less than 3 words, check previous and next sections
-            if i > 0 and i < len(yt_transcript)-1 and (part['text'].split() < 3 or part['index'] < 3):
-                bad_word_sections[-1]['text'] = yt_transcript[i-1]['text'] + " " + part['text']
-                bad_word_sections[-1]['start'] = yt_transcript[i-1]['start']
-                bad_word_sections[-1]['duration'] = part['duration'] + yt_transcript[i-1]['duration']
-                part['index'] = bad_word_sections[-1]['text'].index(BAD_WORD_SUB)
+            if (
+                i > 0
+                and i < len(yt_transcript) - 1
+                and (part["text"].split() < 3 or part["index"] < 3)
+            ):
+                bad_word_sections[-1]["text"] = (
+                    yt_transcript[i - 1]["text"] + " " + part["text"]
+                )
+                bad_word_sections[-1]["start"] = yt_transcript[i - 1]["start"]
+                bad_word_sections[-1]["duration"] = (
+                    part["duration"] + yt_transcript[i - 1]["duration"]
+                )
+                part["index"] = bad_word_sections[-1]["text"].index(BAD_WORD_SUB)
     mute_sexz = []
     for i, part in enumerate(bad_word_sections):
-        phrase = part['text'].split(" ")[0:part['index']]
+        phrase = part["text"].split(" ")[0 : part["index"]]
         words_to_match = len(phrase)
         matchesz = 0
-        for j, word in enumerate(phrase):
+        for _j, word in enumerate(phrase):
             for k, parttwo in enumerate(transcript):
-                if parttwo['text'].lower() == word.lower():
+                if parttwo["text"].lower() == word.lower():
                     matchesz += 1
                     if matchesz == words_to_match:
                         # get the time stamp from this and the next parttwo to infer the time
                         if k + 1 < len(transcript):
-                            mute_sexz.append(
-                                [
-                                    (parttwo['start'] + parttwo['duration'])*1000, 
-                                    transcript[k+1]['start']*1000
-                                ]
-                                )
+                            mute_sexz.append([
+                                (parttwo["start"] + parttwo["duration"]) * 1000,
+                                transcript[k + 1]["start"] * 1000,
+                            ])
                         else:
-                            mute_sexz.append(
-                                [
-                                    parttwo['start'] + parttwo['duration']*1000, 
-                                    (transcript[k]['start'] + transcript[k]['duration'] + 2.0)*1000]
+                            mute_sexz.append([
+                                parttwo["start"] + parttwo["duration"] * 1000,
+                                (
+                                    transcript[k]["start"]
+                                    + transcript[k]["duration"]
+                                    + 2.0
                                 )
+                                * 1000,
+                            ])
                         matchesz = 0
                 else:
                     matchesz = 0
     return mute_sexz
-    
-def mute_sections(input_file, output_file, mute_section:list[list[float]]):
+
+
+def mute_sections(input_file, output_file, mute_section: list[list[float]]):
     """
     Mute specific sections of an MP3 file
 
@@ -446,7 +498,7 @@ def mute_sections(input_file, output_file, mute_section:list[list[float]]):
         start_sample = int(start_ms * samples_per_ms)
         end_sample = int(end_ms * samples_per_ms)
         LOGGER.info(f"Muting section: {start_sample} to {end_sample}")
-        
+
         # Ensure indices are within bounds
         start_sample = max(0, start_sample)
         end_sample = min(len(samples), end_sample)
@@ -667,13 +719,14 @@ def add_text_to_video(
     final_clip.close()  # Close the final clip
     print(f"Video with text saved to {output_path}")
 
+
 class timestamps:
     def __init__(self):
         self.device = "cpu"
         if torch.cuda.is_available():
             self.device = "cuda:0"
             torch.cuda.empty_cache()
-            
+
         self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
 
         self.model_id = "openai/whisper-large-v3-turbo"
@@ -683,23 +736,24 @@ class timestamps:
             torch_dtype=self.torch_dtype,
             low_cpu_mem_usage=LOW_CPU_MEM,
             use_safetensors=True,
-            attn_implementation="sdpa",#"eager",
+            attn_implementation="sdpa",  # "eager",
         )
         self.model.to(self.device)
         LOGGER.debug("Model loaded")
         self.processor = AutoProcessor.from_pretrained(self.model_id)
         LOGGER.debug("Processor loaded")
-            
+
         self.pipe = pipeline(
-                "automatic-speech-recognition",
-                model=self.model,
-                tokenizer=self.processor.tokenizer,
-                feature_extractor=self.processor.feature_extractor,
-                torch_dtype=self.torch_dtype,
-                device=self.device,
-                #stride_length_s=chunk_length_s * 0.15,  # 15% overlap for better continuity
-                #chunk_length_s=chunk_length_s,
-            )
+            "automatic-speech-recognition",
+            model=self.model,
+            tokenizer=self.processor.tokenizer,
+            feature_extractor=self.processor.feature_extractor,
+            torch_dtype=self.torch_dtype,
+            device=self.device,
+            # stride_length_s=chunk_length_s * 0.15,  # 15% overlap for better continuity
+            # chunk_length_s=chunk_length_s,
+        )
+
     def get_word_timestamps_openai(
         self,
         audio_path,
@@ -722,11 +776,17 @@ class timestamps:
                 "end": End time of the word in seconds (float).
             Returns an empty list if there's an error.
         """
-        LOGGER.debug("get_word_timestamps_openai %s %s %s %s %s", audio_path, time_add, self.device, audio_clip_length, chunk_length_s)
+        LOGGER.debug(
+            "get_word_timestamps_openai %s %s %s %s %s",
+            audio_path,
+            time_add,
+            self.device,
+            audio_clip_length,
+            chunk_length_s,
+        )
         retries = 0
         while True:
-            
-            #LOGGER.info("MP3 STats %s", os.stat(audio_path))
+            # LOGGER.info("MP3 STats %s", os.stat(audio_path))
             LOGGER.debug("Pipeline loaded")
             time.sleep(10)
             result = self.pipe(
@@ -735,7 +795,7 @@ class timestamps:
                 return_timestamps="word",
             )
             LOGGER.debug("Transcription %s", result)
-            
+
             if result["chunks"] == [] and retries < 3:
                 retries += 1
                 continue
@@ -746,7 +806,7 @@ class timestamps:
                 retries += 1
                 continue
             break
-        
+
         outout = []
         for r in result["chunks"]:
             start, end = r["timestamp"]

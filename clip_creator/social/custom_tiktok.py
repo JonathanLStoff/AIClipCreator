@@ -11,7 +11,6 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
 
 from clip_creator.conf import CHROME_USER_PATH, CONFIG, LOGGER
@@ -24,7 +23,7 @@ def upload_video_tt(
     description: str = "",
     submit: bool = False,
     save_draft: bool = False,
-    lang:str = "en",
+    lang: str = "en",
     only_me: bool = False,
 ):
     """
@@ -76,21 +75,34 @@ def upload_video_tt(
             LOGGER.error(f"File not found: {video_path}")
             return None
         set_draftjs_text(driver, description, wait)
-        #edit_video_tt_mus(driver)
-        #add_location_tt(driver, lang=lang)
+        # edit_video_tt_mus(driver)
+        # add_location_tt(driver, lang=lang)
         if only_me:
             try:
                 button = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "//button[@aria-haspopup='dialog' and .//div[contains(text(), 'Everyone')]]"))
+                    EC.element_to_be_clickable(
+                        (
+                            By.XPATH,
+                            (
+                                "//button[@aria-haspopup='dialog' and"
+                                " .//div[contains(text(), 'Everyone')]]"
+                            ),
+                        )
+                    )
                 )
                 button.click()
                 privacy_element = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "//div[@role='option' and .//div[text()='Only you']]"))
+                    EC.element_to_be_clickable(
+                        (
+                            By.XPATH,
+                            "//div[@role='option' and .//div[text()='Only you']]",
+                        )
+                    )
                 )
                 privacy_element.click()
             except Exception as e:
                 LOGGER.error(f"Failed to set privacy to 'Only me': {e}")
-        if schedule and str(schedule) != 'now':
+        if schedule and str(schedule) != "now":
             # Select the "Schedule" radio option
             span_element = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable(
@@ -108,7 +120,6 @@ def upload_video_tt(
             LOGGER.info("Selected the 'Schedule' option.")
             _set_schedule_video(driver, schedule)
             if submit:
-                
                 schedule_button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable(
                         (By.XPATH, "//button[.//div[contains(text(), 'Schedule')]]")
@@ -116,16 +127,16 @@ def upload_video_tt(
                 )
                 schedule_button.click()
             elif save_draft:
-                
                 draft_button = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "//button[@data-e2e='save_draft_button']"))
+                    EC.element_to_be_clickable(
+                        (By.XPATH, "//button[@data-e2e='save_draft_button']")
+                    )
                 )
                 draft_button.click()
                 LOGGER.info("Clicked the 'draft' button successfully.")
             else:
                 time.sleep(600)
-        elif submit or str(schedule) == 'now':
-
+        elif submit or str(schedule) == "now":
             time.sleep(5)
             post_button = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable(
@@ -136,7 +147,9 @@ def upload_video_tt(
         elif save_draft:
             time.sleep(5)
             draft_button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[@data-e2e='save_draft_button']"))
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//button[@data-e2e='save_draft_button']")
+                )
             )
             draft_button.click()
             LOGGER.info("Clicked the 'draft' button successfully.")
@@ -150,6 +163,8 @@ def upload_video_tt(
         return None
     finally:
         driver.quit()
+
+
 def edit_video_tt_mus(driver):
     try:
         wait = WebDriverWait(driver, 10)
@@ -160,15 +175,19 @@ def edit_video_tt_mus(driver):
         LOGGER.info("Clicked the edit video button successfully.")
         # Hover over the music card operation element
         music_element = wait.until(
-            EC.presence_of_element_located((By.XPATH, "//*[contains(@class, 'music-card-operation')]"))
+            EC.presence_of_element_located(
+                (By.XPATH, "//*[contains(@class, 'music-card-operation')]")
+            )
         )
         ActionChains(driver).move_to_element(music_element).perform()
         LOGGER.info("Hovered over the music element successfully.")
         music_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//*[contains(@class, 'music-card-operation')]"))
+            EC.element_to_be_clickable(
+                (By.XPATH, "//*[contains(@class, 'music-card-operation')]")
+            )
         )
         music_button.click()
-        
+
         try:
             image_element = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable(
@@ -190,14 +209,18 @@ def edit_video_tt_mus(driver):
         size = range_input.size
 
         # Calculate the middle of the element
-        middle_x = location['x'] + size['width'] / 2
-        middle_y = location['y'] + size['height'] / 2
+        middle_x = location["x"] + size["width"] / 2
+        middle_y = location["y"] + size["height"] / 2
 
         # Create an ActionChains object
         actions = ActionChains(driver)
 
         # Move to the middle of the element, click and hold, and then drag
-        actions.move_to_element_with_offset(range_input, size['width'] / 2, size['height'] / 2).click_and_hold().move_to_element_with_offset(range_input, -int((size['width']/2) + 20), 0).release().perform()
+        actions.move_to_element_with_offset(
+            range_input, size["width"] / 2, size["height"] / 2
+        ).click_and_hold().move_to_element_with_offset(
+            range_input, -int((size["width"] / 2) + 20), 0
+        ).release().perform()
         LOGGER.info("Updated range input value without dragging.")
         # try:
         #     save_button = WebDriverWait(driver, 10).until(
@@ -210,7 +233,9 @@ def edit_video_tt_mus(driver):
         #     LOGGER.error("Failed to click the save button: %s", e)
         time.sleep(2)
         save_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, '//button[@data-e2e="editor_save_button"]'))
+            EC.element_to_be_clickable(
+                (By.XPATH, '//button[@data-e2e="editor_save_button"]')
+            )
         )
         save_button.click()
 
@@ -219,27 +244,42 @@ def edit_video_tt_mus(driver):
         LOGGER.info("Clicked the Save button successfully.")
     except Exception as e:
         LOGGER.error("Failed to click the button: %s", e)
-def add_location_tt(driver, lang:str = "en"):
+
+
+def add_location_tt(driver, lang: str = "en"):
     try:
         button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, '//button[.//span[@data-icon="Cursor"]]'))
+            EC.element_to_be_clickable(
+                (By.XPATH, '//button[.//span[@data-icon="Cursor"]]')
+            )
         )
         button.click()
         time.sleep(2)
         # Find the input field within the button
         input_field = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, '//button[.//span[@data-icon="Cursor"]]//input'))
+            EC.presence_of_element_located(
+                (By.XPATH, '//button[.//span[@data-icon="Cursor"]]//input')
+            )
         )
         input_field.send_keys("United States" if lang == "en" else "Mexico")
         time.sleep(2)
         # Click the first location suggestion
         element = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, '//div[@role="option" and @class="Select__item Select__item--type-default Select__item--variant-fill"]'))
+            EC.element_to_be_clickable(
+                (
+                    By.XPATH,
+                    (
+                        '//div[@role="option" and @class="Select__item'
+                        ' Select__item--type-default Select__item--variant-fill"]'
+                    ),
+                )
+            )
         )
         element.click()
     except Exception as e:
         LOGGER.error("Failed to add location: %s", e)
-    
+
+
 def check_google_continue_button(driver):
     """Checks for the 'Continue with Google' button on a webpage."""
     try:
@@ -601,10 +641,11 @@ def __time_picker(driver, hour: int, minute: int) -> None:
     # click somewhere else to close the time picker
     time_picker.click()
 
-def scheduled_run(lang:str = "en"):
+
+def scheduled_run(lang: str = "en"):
     """Runs the scheduled task."""
     chrome_options = webdriver.ChromeOptions()
-    #chrome_options.add_argument("--headless")
+    # chrome_options.add_argument("--headless")
     LOGGER.info("user-data-dir: %s", CHROME_USER_PATH)
     user_agent = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0"
@@ -631,7 +672,7 @@ def scheduled_run(lang:str = "en"):
         time.sleep(5)
         post_button = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable(
-            (By.XPATH, "//button[@data-e2e='post_video_button']")
+                (By.XPATH, "//button[@data-e2e='post_video_button']")
             )
         )
         post_button.click()
@@ -644,9 +685,10 @@ def scheduled_run(lang:str = "en"):
         LOGGER.error(f"Failed to open TikTok upload page: {traceback.format_exc()}")
         return None
 
+
 if __name__ == "__main__":
     # MACOS upload_video("/Users/jonathanstoff/Downloads/B0RXp2A_Wv0.mp4", datetime(2025, 2, 23, 12, 0), "Check out this cool video!")
-    #scheduled_run(lang="en")
+    # scheduled_run(lang="en")
     upload_video_tt(
         "D:/tmp/clips/reddit1j8hml5.mp4",
         None,

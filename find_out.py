@@ -1,4 +1,5 @@
 import logging
+
 from clip_creator.conf import (
     LOGGER,
     TMP_DOWNLOAD_FOLDER,
@@ -8,10 +9,11 @@ from clip_creator.utils.scan_text import (
 )
 from clip_creator.vid_ed.video_edit import edit_vid_orchestrator, timestamps
 
+
 def main():
     # No text
     LOGGER.setLevel(logging.DEBUG)
-    #exit()
+    # exit()
     # eager == []
     # spda == [{'text': ' Oh', 'start': 6.52, 'end': 6.66, 'duration': 0.14000000000000057}, {'text': ' my', 'start': 6.66, 'end': 6.82, 'duration': 0.16000000000000014}]
     id = "l6oJa69LFuI"
@@ -512,11 +514,23 @@ def main():
     )
     LOGGER.info("Output file: %s", output_file)
     LOGGER.info("True transcript: %s", true_transcript)
-    
+
     timestamps_obj = timestamps()
-    LOGGER.info(timestamps_obj.get_word_timestamps_openai("tmp/raw/audio_l6oJa69LFuI_whis_err.mp3", 0, audio_clip_length=8))
-    LOGGER.info(timestamps_obj.get_word_timestamps_openai("tmp/raw/audio_l6oJa69LFuI_whis_err.mp3", 0))
-    LOGGER.info(timestamps_obj.get_word_timestamps_openai("tmp/raw/audio_l6oJa69LFuI_whis_err.mp3", 0, audio_clip_length=1))
+    LOGGER.info(
+        timestamps_obj.get_word_timestamps_openai(
+            "tmp/raw/audio_l6oJa69LFuI_whis_err.mp3", 0, audio_clip_length=8
+        )
+    )
+    LOGGER.info(
+        timestamps_obj.get_word_timestamps_openai(
+            "tmp/raw/audio_l6oJa69LFuI_whis_err.mp3", 0
+        )
+    )
+    LOGGER.info(
+        timestamps_obj.get_word_timestamps_openai(
+            "tmp/raw/audio_l6oJa69LFuI_whis_err.mp3", 0, audio_clip_length=1
+        )
+    )
     id = "SXoQ5gJLJdY"
     transcript = [
         {
@@ -640,7 +654,6 @@ def main():
         end_time=165,
         text=text,
     )
-    
 
 
 if __name__ == "__main__":

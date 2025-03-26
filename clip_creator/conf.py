@@ -13,12 +13,11 @@ API_KEY = [
 ]
 
 
-
 SECTIONS_TYPES = ["funny moments"]
 
 LOGGER = logging.getLogger("clip_creator")
 LOGGER.setLevel(logging.INFO)
-logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
+logging.getLogger("googleapiclient.discovery_cache").setLevel(logging.ERROR)
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(
     logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
@@ -115,20 +114,19 @@ if not os.path.exists("fonts/NotoColorEmoji-Regular.ttf"):
     LOGGER.error("And place it in the fonts folder")
     sys.exit(1)
 POSSIBLE_TRANSLATE_LANGS = [
-        "es", # spanish
-    ] 
+    "es",  # spanish
+]
 POSSIBLE_TRANSLATE_LANGS_TTS = {
-        "es": { # spanish
-                "es":"e", 
-                "tts" : [
-                                ("ef_dora",1.4),
-                                ("em_alex",1.2),
-                            ],
-                "profile":"Reddit ciudad",
-                "username":"reddit_city_span"
-               }
-            
+    "es": {  # spanish
+        "es": "e",
+        "tts": [
+            ("ef_dora", 1.4),
+            ("em_alex", 1.2),
+        ],
+        "profile": "Reddit ciudad",
+        "username": "reddit_city_span",
     }
+}
 COLORS = {
     "black": (0, 0, 0, 255),
     "white": (255, 255, 255, 255),
@@ -189,22 +187,19 @@ CURSE_WORDS = (
     open("clip_creator/utils/OffensiveWords-comma-separated-text.txt").read().split(",")
 )
 
-SUB_REDDITS = [ 
+SUB_REDDITS = [
     "amitheasshole",
     "confessions",
     "stories",
     "AITAH",
     "tifu",
-    'TwoHotTakes',
-    'relationship_advice',
-    
-    
+    "TwoHotTakes",
+    "relationship_advice",
 ]
-SUB_REDDITS_COM = [ 
+SUB_REDDITS_COM = [
     "askreddit",
     "nostupidquestions",
     "AskMen",
-
 ]
 REDDIT_ACCRO_SUB = {
     "AITA": "am I the a hole",
@@ -229,15 +224,19 @@ REDDIT_ACCRO_SUB = {
     "NSFW": "not safe for work",
     "TLDR": "too long didn't read",
     "OC": "original content",
-    
+    "24/7": "twenty four seven",
 }
 TTS_VOICES = [
-    ("af_heart",1.4),
-    ("am_adam",1.2),
+    ("af_heart", 1.4),
+    ("am_adam", 1.2),
 ]
 BAD_WORD_SUB = "[\u00a0__\u00a0]"
-REDDIT_DOMAIN = "https://www.reddit.com/svc/shreddit/community-more-posts/hot/?t=DAY&name="
-REDDIT_POST_DOMAIN = "https://www.reddit.com" # + /[0]r/[1]stories/[2]comments/[3]1izveyu/sounds_too_cheesy_to_be_real_but_it_is/
+REDDIT_DOMAIN = (
+    "https://www.reddit.com/svc/shreddit/community-more-posts/hot/?t=DAY&name="
+)
+REDDIT_POST_DOMAIN = (  # + /[0]r/[1]stories/[2]comments/[3]1izveyu/sounds_too_cheesy_to_be_real_but_it_is/
+    "https://www.reddit.com"
+)
 # example use: REDDIT_DOMAIN+"amitheasshole"
 
 REGEX_FOR_UPDATE = r"https:\/\/www\.reddit\.com[^\s]+"
@@ -253,31 +252,30 @@ REGEX_FOR_UPDATE_RM = r".*www\.reddit\.com[^\s]*.*"
 #     ["06:00", "17:35", "20:50", "23:30"], # Sunday
 # ]
 WK_SCHED = [
-    ["23:50", "23:50", "23:50", "23:50"], # Monday
-    ["23:50", "23:50", "23:50", "23:50"], # Tuesday
-    ["23:50", "23:50", "23:50", "23:50"], # Wednesday
-    ["23:50", "23:50", "23:50", "23:50"], # Thursday
-    ["23:50", "23:50", "23:50", "23:50"], # Friday
-    ["23:50", "23:50", "23:50", "23:50"], # Saturday
-    ["23:50", "23:50", "23:50", "23:50"], # Sunday
+    ["23:50", "23:50", "23:50", "23:50"],  # Monday
+    ["23:50", "23:50", "23:50", "23:50"],  # Tuesday
+    ["23:50", "23:50", "23:50", "23:50"],  # Wednesday
+    ["23:50", "23:50", "23:50", "23:50"],  # Thursday
+    ["23:50", "23:50", "23:50", "23:50"],  # Friday
+    ["23:50", "23:50", "23:50", "23:50"],  # Saturday
+    ["23:50", "23:50", "23:50", "23:50"],  # Sunday
 ]
 WK_SCHED_COM = [
-    ["23:50", "23:50"], # Monday
-    ["23:50", "23:50"], # Tuesday
-    ["23:50", "23:50"], # Wednesday
-    ["23:50", "23:50"], # Thursday
-    ["23:50", "23:50"], # Friday
-    ["23:50", "23:50"], # Saturday
-    ["23:50", "23:50"], # Sunday
+    ["23:50", "23:50"],  # Monday
+    ["23:50", "23:50"],  # Tuesday
+    ["23:50", "23:50"],  # Wednesday
+    ["23:50", "23:50"],  # Thursday
+    ["23:50", "23:50"],  # Friday
+    ["23:50", "23:50"],  # Saturday
+    ["23:50", "23:50"],  # Sunday
 ]
 
 RED_COM_DELAY = 0.2
 # Find and replace all text.
-REPLACE_CURSE_WORDS_DIRT = { 
+REPLACE_CURSE_WORDS_DIRT = {
     "fuck": "frick",
     "sex": "seggs",
     "asshole": "a hole",
-    "24/7": "twenty four seven",
     "died": "unalived",
     "killed": "unalived",
     "10s": " teens",
@@ -289,11 +287,15 @@ REPLACE_CURSE_WORDS_DIRT = {
     "70s": " seventies",
     "80s": " eighties",
     "90s": " nineties",
+    "commit suicide": "unalive myself",
+    "committed suicide": "unalive themselves",
+    
 }
 # This will only replace if they are the same
 REPLACE_WORDS_CLEAN = {
-    "rape":"grape",
-    "rapist":"grapist",
+    "dying":"unalived",
+    "rape": "grape",
+    "rapist": "grapist",
     "i'd": "I would",
     "we'd": "we would",
     "you're": "you are",

@@ -1,25 +1,23 @@
-import os
 import logging
-import traceback
-import time
+import os
 import random
-from datetime import datetime, timezone
+import time
+import traceback
+from datetime import UTC, datetime, timedelta
 from queue import Queue
 from random import choice, randint
 from threading import Thread
+
+from PIL import Image, ImageDraw, ImageFont
+from pilmoji import Pilmoji
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
-from clip_creator.utils.scan_text import dirty_remove_cuss, reddit_remove_bad_words
-from PIL import Image, ImageDraw, ImageFont
-from pilmoji import Pilmoji
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from tqdm import tqdm
-from datetime import timedelta
-from PIL import Image
+from webdriver_manager.chrome import ChromeDriverManager
 
 from clip_creator.conf import (
     COLOR_PAIRS,
@@ -29,6 +27,8 @@ from clip_creator.conf import (
     FONT_PATH,
     LOGGER,
 )
+from clip_creator.utils.scan_text import dirty_remove_cuss, reddit_remove_bad_words, reddit_acronym
+import re
 
 
 def remove_curse_words(text: str) -> str:
@@ -48,7 +48,9 @@ def remove_curse_words(text: str) -> str:
             if curse_word in text.lower():
                 tmp_txt = ""
                 for word in text.split():
-                    tmp_txt += "*" * len(curse_word) if curse_word == word.lower() else word
+                    tmp_txt += (
+                        "*" * len(curse_word) if curse_word == word.lower() else word
+                    )
                     tmp_txt += " "
                 text = tmp_txt.strip()
 
@@ -198,7 +200,11 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
 
             final_img.convert("RGB").save(file_path, "JPEG", quality=70)
             # print(f"Saved {file_path}")
-def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".", part=0):
+
+
+def create_caption_images_reddit(
+    prefix: str, captions, max_width, output_dir=".", part=0
+):
     """Creates one image *per line* of wrapped text, highlighting current word.
 
     caption: List of dictionaries with "start" and "text" keys.
@@ -212,7 +218,7 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
         except Exception as e2:
             print(f"Error loading default font: {e2}. Please install a font.")
             return
-    
+
     h_padding = 20
     padding = 20
     max_width = max_width - padding
@@ -227,7 +233,7 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
     ):
         lines_text[lines_index].append({"text": caption.get("text", ""), "index": i})
         temp_x = h_padding
-        
+
         # Create a dummy image and draw context for calculations
         dummy_img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
         dummy_draw = ImageDraw.Draw(dummy_img)
@@ -316,7 +322,7 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
 
             # Draw each word in the line
             for k, caption in enumerate(line):
-                wordt:str = caption.get("text", "")
+                wordt: str = caption.get("text", "")
                 color = COLORS[paired] if k == i else COLORS[bg_choiced_color]
                 if word_to_change == k:
                     color = COLORS[word_to_change_color]
@@ -325,7 +331,7 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
                     for dy in range(-outline_width, outline_width + 1):
                         final_draw.text(
                             (x + dx, current_y + dy),
-                            (str(wordt)+" ") if len(line) > k+1 else wordt,
+                            (str(wordt) + " ") if len(line) > k + 1 else wordt,
                             font=font,
                             fill="black",
                             align="center",
@@ -333,11 +339,11 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
 
                 # Draw text
                 final_draw.text(
-                    (x, current_y), 
-                    (str(wordt)+" ") if len(line) > k+1 else wordt,
-                    font=font, 
-                    fill=color, 
-                    align="center"
+                    (x, current_y),
+                    (str(wordt) + " ") if len(line) > k + 1 else wordt,
+                    font=font,
+                    fill=color,
+                    align="center",
                 )
                 # Key fix: Use k instead of i for word_widths index
                 x += word_widths[k] + word_spacing
@@ -346,6 +352,83 @@ def create_caption_images_reddit(prefix: str, captions, max_width, output_dir=".
             file_path = os.path.join(output_dir, filename)
 
             final_img.save(file_path, "PNG")
+
+
+def create_caption_images_reddit_com(
+    prefix: str, num: int, max_width, output_dir="./tmp/caps_img", part=0
+):
+    """Creates one image *per line* of wrapped text, highlighting current word.
+
+    caption: List of dictionaries with "start" and "text" keys.
+    """
+    try:
+        font = ImageFont.truetype(FONT_PATH, size=150)
+    except Exception as e:
+        print(f"Error loading font: {e}. Trying default.")
+        try:
+            font = ImageFont.load_default()
+        except Exception as e2:
+            print(f"Error loading default font: {e2}. Please install a font.")
+            return
+
+    h_padding = 20
+    padding = 20
+    max_width = max_width - padding
+    word_spacing = 15
+    outline_width = 5
+
+    final_img = Image.new("RGBA", (max_width, int(max_width / 2)), color=(0, 0, 0, 0))
+    # Calculate line heights
+    # Create final image
+    final_draw = ImageDraw.Draw(final_img)
+
+    # Calculate word widths and total line width
+    word_widths = []
+    total_line_width = 0
+    bbox = final_draw.textbbox((0, padding), str(num) + ".", font=font, align="center")
+    w = bbox[2] - bbox[0]
+    word_widths.append(w)
+    total_line_width += w
+
+    ran_check = randint(1, 10)
+
+    if ran_check < 3:
+        bg_choiced_color = choice(list(COLOR_PAIRS.keys()))
+        paired = choice(COLOR_PAIRS[bg_choiced_color])
+    elif ran_check < 5:
+        bg_choiced_color = "white"
+        paired = choice(COLOR_PAIRS[bg_choiced_color])
+    else:
+        bg_choiced_color = "white"
+        paired = "red"
+    # Generate an image for each word in the line
+    x = (max_width - total_line_width) // 2
+    current_y = int(max_width / 4)
+
+    # Draw each word in the line
+    wordt: str = str(num) + "."
+    color = COLORS[bg_choiced_color]
+    # Draw outline
+    for dx in range(-outline_width, outline_width + 1):
+        for dy in range(-outline_width, outline_width + 1):
+            final_draw.text(
+                (x + dx, current_y + dy),
+                wordt,
+                font=font,
+                fill="black",
+                align="center",
+            )
+
+    # Draw text
+    final_draw.text((x, current_y), wordt, font=font, fill=color, align="center")
+    # Key fix: Use k instead of i for word_widths index
+
+    filename = f"{prefix}_{num}line.png"
+    file_path = os.path.join(output_dir, filename)
+
+    final_img.save(file_path, "PNG")
+    return file_path
+
 
 def create_caption_images_thread(prefix: str, captions, max_width, output_dir="."):
     """Creates one image per line of wrapped text, highlighting current word using parallel processing."""
@@ -541,7 +624,20 @@ def create_emojis(text: str, vid: str, w: int = 90, h: int = 90) -> str:
     return image_path
 
 
-def render_html_to_png(post_id:str, title:str, subreddit:str, subreddit_id:str, user_id:str, user_name:str, time_ago:datetime, score_int:int=0, comment_int:int=0, lang:str="en", output_png_fold:str="./tmp",html_file:str="clip_creator/utils/real_reddit.html"):
+def render_html_to_png(
+    post_id: str,
+    title: str,
+    subreddit: str,
+    subreddit_id: str,
+    user_id: str,
+    user_name: str,
+    time_ago: datetime,
+    score_int: int = 0,
+    comment_int: int = 0,
+    lang: str = "en",
+    output_png_fold: str = "./tmp",
+    html_file: str = "clip_creator/utils/real_reddit.html",
+):
     """
     Renders an HTML file with potential replacements to a PNG image.
 
@@ -561,19 +657,19 @@ def render_html_to_png(post_id:str, title:str, subreddit:str, subreddit_id:str, 
         *USER_IMG*
     """
     if lang == "en":
-        output_png:str=f"{output_png_fold}/{post_id}_coms.png"
+        output_png: str = f"{output_png_fold}/{post_id}_coms.png"
     else:
-        output_png:str=f"{output_png_fold}/{post_id}_{lang}_coms.png"
+        output_png: str = f"{output_png_fold}/{post_id}_{lang}_coms.png"
     output_png_abs = os.path.abspath(output_png)
     html_file_abs = os.path.abspath(html_file)
     try:
-        with open(html_file_abs, 'r', encoding='utf-8') as f:
+        with open(html_file_abs, encoding="utf-8") as f:
             html_content = f.read()
 
-        html_content= html_content.replace("*SUBREDDIT*", subreddit)
-        html_content= html_content.replace("*SUBREDDIT_ID*", subreddit_id)
-        html_content= html_content.replace("*USER_ID*", user_id)
-        now = datetime.now(timezone.utc) # Might cause issues for time being off
+        html_content = html_content.replace("*SUBREDDIT*", subreddit)
+        html_content = html_content.replace("*SUBREDDIT_ID*", subreddit_id)
+        html_content = html_content.replace("*USER_ID*", user_id)
+        now = datetime.now(UTC)  # Might cause issues for time being off
         delta = now - time_ago
         years = delta.days // 365
         months = delta.days // 30
@@ -600,48 +696,72 @@ def render_html_to_png(post_id:str, title:str, subreddit:str, subreddit_id:str, 
         html_content = html_content.replace("*TIME_AGO*", time_diff)
         if not user_name:
             user_name = "Unknown"
-        html_content= html_content.replace("*USER_NAME*", ("u/"+user_name))
-        html_content= html_content.replace("*SCORE_INT*", str(score_int))
-        html_content= html_content.replace("*COMMENT_INT*", str(comment_int))
-        html_content= html_content.replace("*SUB_IMG_PATH*", os.path.abspath(img_path))
-        html_content= html_content.replace("*TITLE*", title)
-        html_content= html_content.replace("*USER_IMG*", os.path.abspath("clip_creator/utils/imgs/reddit.jpg"))
-        with open("./tmp/real_reddit.html", 'w', encoding='utf-8') as f:
+        html_content = html_content.replace("*USER_NAME*", ("u/" + user_name))
+        html_content = html_content.replace("*SCORE_INT*", str(score_int))
+        html_content = html_content.replace("*COMMENT_INT*", str(comment_int))
+        html_content = html_content.replace("*SUB_IMG_PATH*", os.path.abspath(img_path))
+        html_content = html_content.replace("*TITLE*", title)
+        html_content = html_content.replace(
+            "*USER_IMG*", os.path.abspath("clip_creator/utils/imgs/reddit.jpg")
+        )
+        with open("./tmp/real_reddit.html", "w", encoding="utf-8") as f:
             f.write(html_content)
-            
 
         LOGGER.debug(f"Rendering HTML to PNG: {html_file_abs} -> {output_png_abs}")
         if len(title) > 60:
-            lines = int(len(title)/69)
+            lines = int(len(title) / 69)
         else:
             lines = 0
-        height = 255 + 30*lines
+        height = 255 + 30 * lines
         LOGGER.info(f"Height: {height}")
         if height > 600:
             height = 255
         # Render HTML to PNG
-        line_count = render_html_to_png_selenium(os.path.abspath("./tmp/real_reddit.html"), output_png_abs, width=600, height=height)
-
+        sel_renderer = SelRenderer(width=600, height=height)
+        line_count = sel_renderer.render_html_to_png_selenium(
+            os.path.abspath("./tmp/real_reddit.html"),
+            output_png_abs,
+            width=600,
+            height=height,
+        )
+        sel_renderer.close()
         try:
             with Image.open(output_png_abs) as img:
                 width, height = img.size
                 # Create a mask for rounded corners
-                radius = int(min(width, height) * 0.2)  # radius is 10% of the minimum dimension
+                radius = int(
+                    min(width, height) * 0.2
+                )  # radius is 10% of the minimum dimension
                 mask = Image.new("L", (width, height), 0)
                 draw = ImageDraw.Draw(mask)
                 draw.rounded_rectangle((0, 0, width, height), radius=radius, fill=255)
-                
+
                 # Apply the mask to create transparency on the corners
                 img.putalpha(mask)
                 img.save(output_png_abs)
             return output_png_abs
-        except Exception as e:
+        except Exception:
             LOGGER.error(f"Error cropping image: {traceback.format_exc()}")
         LOGGER.debug(f"HTML rendered to {output_png} successfully.")
 
-    except Exception as e:
+    except Exception:
         print(f"Error rendering HTML to PNG: {traceback.format_exc()}")
-def render_html_to_png_com(post_id:str, title:str, subreddit:str, subreddit_id:str, user_id:str, user_name:str, time_ago:datetime, score_int:int=0, comment_int:int=0, lang:str="en", output_png_fold:str="./tmp",html_file:str="clip_creator/utils/real_reddit.html"):
+
+
+def render_html_to_png_com(
+    post_id: str,
+    title: str,
+    subreddit: str,
+    subreddit_id: str,
+    user_id: str,
+    user_name: str,
+    time_ago: datetime,
+    score_int: int = 0,
+    comment_int: int = 0,
+    lang: str = "en",
+    output_png_fold: str = "./tmp",
+    html_file: str = "clip_creator/utils/real_reddit.html",
+):
     """
     Renders an HTML file with potential replacements to a PNG image.
 
@@ -661,19 +781,19 @@ def render_html_to_png_com(post_id:str, title:str, subreddit:str, subreddit_id:s
         *USER_IMG*
     """
     if lang == "en":
-        output_png:str=f"{output_png_fold}/{post_id}_coms.png"
+        output_png: str = f"{output_png_fold}/{post_id}_coms.png"
     else:
-        output_png:str=f"{output_png_fold}/{post_id}_{lang}_coms.png"
+        output_png: str = f"{output_png_fold}/{post_id}_{lang}_coms.png"
     output_png_abs = os.path.abspath(output_png)
     html_file_abs = os.path.abspath(html_file)
     try:
-        with open(html_file_abs, 'r', encoding='utf-8') as f:
+        with open(html_file_abs, encoding="utf-8") as f:
             html_content = f.read()
 
-        html_content= html_content.replace("*SUBREDDIT*", subreddit)
-        html_content= html_content.replace("*SUBREDDIT_ID*", subreddit_id)
-        html_content= html_content.replace("*USER_ID*", user_id)
-        now = datetime.now(timezone.utc) # Might cause issues for time being off
+        html_content = html_content.replace("*SUBREDDIT*", subreddit)
+        html_content = html_content.replace("*SUBREDDIT_ID*", subreddit_id)
+        html_content = html_content.replace("*USER_ID*", user_id)
+        now = datetime.now(UTC)  # Might cause issues for time being off
         delta = now - time_ago
         years = delta.days // 365
         months = delta.days // 30
@@ -700,200 +820,241 @@ def render_html_to_png_com(post_id:str, title:str, subreddit:str, subreddit_id:s
         html_content = html_content.replace("*TIME_AGO*", time_diff)
         if not user_name:
             user_name = "Unknown"
-        html_content= html_content.replace("*USER_NAME*", ("u/"+user_name))
-        html_content= html_content.replace("*SCORE_INT*", str(score_int))
-        html_content= html_content.replace("*COMMENT_INT*", str(comment_int))
-        html_content= html_content.replace("*SUB_IMG_PATH*", os.path.abspath(img_path))
-        html_content= html_content.replace("*TITLE*", title)
-        html_content= html_content.replace("*USER_IMG*", os.path.abspath("clip_creator/utils/imgs/reddit.jpg"))
-        with open("./tmp/real_reddit.html", 'w', encoding='utf-8') as f:
+        html_content = html_content.replace("*USER_NAME*", ("u/" + user_name))
+        html_content = html_content.replace("*SCORE_INT*", str(score_int))
+        html_content = html_content.replace("*COMMENT_INT*", str(comment_int))
+        html_content = html_content.replace("*SUB_IMG_PATH*", os.path.abspath(img_path))
+        html_content = html_content.replace("*TITLE*", title)
+        html_content = html_content.replace(
+            "*USER_IMG*", os.path.abspath("clip_creator/utils/imgs/reddit.jpg")
+        )
+        with open("./tmp/real_reddit.html", "w", encoding="utf-8") as f:
             f.write(html_content)
-            
 
         LOGGER.debug(f"Rendering HTML to PNG: {html_file_abs} -> {output_png_abs}")
         if len(title) > 60:
-            lines = int(len(title)/69)
+            lines = int(len(title) / 69)
         else:
             lines = 0
-        height = 255 + 30*lines
+        height = 255 + 30 * lines
         LOGGER.info(f"Height: {height}")
         if height > 600:
             height = 255
+        sel_renderer = SelRenderer(width=600, height=height)
         # Render HTML to PNG
-        line_count = render_html_to_png_selenium(os.path.abspath("./tmp/real_reddit.html"), output_png_abs, width=600, height=height)
-
+        line_count = sel_renderer.render_html_to_png_selenium(
+            os.path.abspath("./tmp/real_reddit.html"),
+            output_png_abs,
+            width=600,
+            height=height,
+        )
+        sel_renderer.close()
         try:
             with Image.open(output_png_abs) as img:
                 width, height = img.size
                 # Crop off the right 4% of the image
-                height = height#(line_count)*20
-                new_right = width#int(width * 0.96)
-                cropped_img = img.crop((0, 0, new_right, (line_count)*20))
+                height = height  # (line_count)*20
+                new_right = width  # int(width * 0.96)
+                cropped_img = img.crop((0, 0, new_right, (line_count) * 20))
                 # Create a mask for rounded corners
-                radius = int(min(new_right, height) * 0.1)  # radius is 10% of the minimum dimension
+                radius = int(
+                    min(new_right, height) * 0.1
+                )  # radius is 10% of the minimum dimension
                 mask = Image.new("L", (new_right, height), 0)
                 draw = ImageDraw.Draw(mask)
-                draw.rounded_rectangle((0, 0, new_right, height), radius=radius, fill=255)
-                
+                draw.rounded_rectangle(
+                    (0, 0, new_right, height), radius=radius, fill=255
+                )
+
                 # Apply the mask to create transparency on the corners
                 cropped_img.putalpha(mask)
                 cropped_img.save(output_png_abs)
             return output_png_abs
-        except Exception as e:
+        except Exception:
             LOGGER.error(f"Error cropping image: {traceback.format_exc()}")
         LOGGER.debug(f"HTML rendered to {output_png} successfully.")
 
-    except Exception as e:
+    except Exception:
         print(f"Error rendering HTML to PNG: {traceback.format_exc()}")
-def render_html_to_png_selenium(html_file, output_png, width=1080, height=1920, comment=False, reply=False):
-    """
-    Renders an HTML file to a PNG image using Selenium headless.
 
-    Args:
-        html_file (str): Path to the input HTML file.
-        output_png (str): Path to the output PNG file.
-        width (int, optional): Desired width of the viewport. Defaults to 1080.
-        height (int, optional): Desired height of the viewport. Defaults to 1920.
-    """
-
-    try:
-        
+class SelRenderer:
+    def __init__(self, width=1080, height=1920):
         logging.getLogger("selenium").setLevel(logging.CRITICAL)
-        LOGGER.debug(f"Loading HTML file: {html_file} -> {output_png}")
+        
+        
+    def render_html_to_png_selenium(
+        self, html_file, output_png, width=1080, height=1920, comment=False, reply=False
+    ):
+        """
+        Renders an HTML file to a PNG image using Selenium headless.
+
+        Args:
+            html_file (str): Path to the input HTML file.
+            output_png (str): Path to the output PNG file.
+            width (int, optional): Desired width of the viewport. Defaults to 1080.
+            height (int, optional): Desired height of the viewport. Defaults to 1920.
+        """
         # Set up Chrome options for headless mode
         chrome_options = Options()
         chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
-        chrome_options.add_argument('--headless')  # Run Chrome in headless mode
-        chrome_options.add_argument(f'--window-size={width},{height}')  # Set window size
+        chrome_options.add_argument("--headless")  # Run Chrome in headless mode
+        chrome_options.add_argument(
+            f"--window-size={width},{height}"
+        )  # Set window size
 
         # Initialize the WebDriver (replace with the path to your ChromeDriver)
-        service = Service(ChromeDriverManager().install()) 
-        driver = webdriver.Chrome(service=service, options=chrome_options)
+        service = Service(ChromeDriverManager().install())
+        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        try:
+            LOGGER.debug(f"Loading HTML file: {html_file} -> {output_png}")
+            driver = self.driver
 
-        # Load the HTML file
-        driver.get(html_file)
-        if not comment:
-            # Wait for the main comment element to be visible
-            post_element = WebDriverWait(driver, 10).until(
-                EC.visibility_of_element_located((By.TAG_NAME, "shreddit-post"))
-            )
-            
-
-            # Scroll the element into view to ensure it's rendered
-            driver.execute_script("arguments[0].scrollIntoView(true);", post_element)
-
-            # Calculate FULL content dimensions including overflow
-            content_dimensions = driver.execute_script("""
-                const comment = arguments[0];
-                return {
-                    width: comment.scrollWidth,
-                    height: comment.scrollHeight
-                };
-            """, post_element)
-
-            LOGGER.debug(f"Full content dimensions: {content_dimensions}")
-
-            # Resize window to accommodate full content (add padding for safety)
-            driver.set_window_size(
-                content_dimensions['width'] + 100,
-                content_dimensions['height'] + 350
-            )
-
-            # Re-scroll into view after resizing
-            driver.execute_script("arguments[0].scrollIntoView(true);", post_element)
-
-            # Allow time for layout to stabilize after resize
-            time.sleep(0.5)
-            line_count = 0
-            # Capture screenshot of the entire element
-            post_element.screenshot(output_png)
-        elif comment:
-            # Wait for the main comment element to be visible
-            comment_element = WebDriverWait(driver, 10).until(
-                EC.visibility_of_element_located((By.CLASS_NAME, "clip-paddingbox"))
-            )
-            if reply:
-                # Wait for nested shreddit-comment elements to load
-                WebDriverWait(driver, 10).until(
-                    lambda d: len(comment_element.find_elements(By.XPATH, ".//shreddit-comment")) >= 2
+            # Load the HTML file
+            driver.get(html_file)
+            if not comment:
+                # Wait for the main comment element to be visible
+                post_element = WebDriverWait(driver, 10).until(
+                    EC.visibility_of_element_located((By.TAG_NAME, "shreddit-post"))
                 )
+
+                # Scroll the element into view to ensure it's rendered
+                driver.execute_script("arguments[0].scrollIntoView(true);", post_element)
+
+                # Calculate FULL content dimensions including overflow
+                content_dimensions = driver.execute_script(
+                    """
+                    const comment = arguments[0];
+                    return {
+                        width: comment.scrollWidth,
+                        height: comment.scrollHeight
+                    };
+                """,
+                    post_element,
+                )
+
+                LOGGER.debug(f"Full content dimensions: {content_dimensions}")
+
+                # Resize window to accommodate full content (add padding for safety)
+                driver.set_window_size(
+                    content_dimensions["width"] + 100, content_dimensions["height"] + 350
+                )
+
+                # Re-scroll into view after resizing
+                driver.execute_script("arguments[0].scrollIntoView(true);", post_element)
+
+                # Allow time for layout to stabilize after resize
+                time.sleep(0.5)
+                line_count = 0
+                # Capture screenshot of the entire element
+                post_element.screenshot(output_png)
+            elif comment:
+                # Wait for the main comment element to be visible
+                comment_element = WebDriverWait(driver, 10).until(
+                    EC.visibility_of_element_located((By.CLASS_NAME, "clip-paddingbox"))
+                )
+                if reply:
+                    # Wait for nested shreddit-comment elements to load
+                    WebDriverWait(driver, 10).until(
+                        lambda d: len(
+                            comment_element.find_elements(By.XPATH, ".//shreddit-comment")
+                        )
+                        >= 2
+                    )
+                else:
+                    # Wait for shreddit-comment elements to load
+                    WebDriverWait(driver, 10).until(
+                        lambda d: len(
+                            comment_element.find_elements(By.XPATH, ".//shreddit-comment")
+                        )
+                        >= 1
+                    )
+
+                # Scroll the element into view to ensure it's rendered
+                driver.execute_script("arguments[0].scrollIntoView(true);", comment_element)
+
+                # Calculate FULL content dimensions including overflow
+                content_dimensions = driver.execute_script(
+                    """
+                    const comment = arguments[0];
+                    return {
+                        width: comment.scrollWidth,
+                        height: comment.scrollHeight
+                    };
+                """,
+                    comment_element,
+                )
+
+                LOGGER.debug(f"Full content dimensions: {content_dimensions}")
+
+                # Resize window to accommodate full content (add padding for safety)
+                driver.set_window_size(
+                    content_dimensions["width"] + 100, content_dimensions["height"] + 350
+                )
+
+                # Re-scroll into view after resizing
+                driver.execute_script("arguments[0].scrollIntoView(true);", comment_element)
+
+                # Allow time for layout to stabilize after resize
+                time.sleep(0.5)
+                line_count = 0
+                # Capture screenshot of the entire element
+                comment_element.screenshot(output_png)
             else:
-                # Wait for shreddit-comment elements to load
-                WebDriverWait(driver, 10).until(
-                    lambda d: len(comment_element.find_elements(By.XPATH, ".//shreddit-comment")) >= 1
+                element = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.TAG_NAME, "shreddit-post"))
                 )
 
-            # Scroll the element into view to ensure it's rendered
-            driver.execute_script("arguments[0].scrollIntoView(true);", comment_element)
+                body_dimensions = driver.execute_script("""
+                    const shredditPost = document.querySelector('shreddit-post');
+                    if (shredditPost) {
+                        return {
+                            width: shredditPost.offsetWidth,
+                            height: shredditPost.offsetHeight
+                        };
+                    } else {
+                        return {
+                            width: 0,
+                            height: 0
+                        };
+                    }
+                """)
 
-            # Calculate FULL content dimensions including overflow
-            content_dimensions = driver.execute_script("""
-                const comment = arguments[0];
-                return {
-                    width: comment.scrollWidth,
-                    height: comment.scrollHeight
-                };
-            """, comment_element)
+                # Get the number of lines using JavaScript
+                line_count = driver.execute_script(
+                    """
+                    const h2 = arguments[0];
+                    const lineHeight = parseInt(getComputedStyle(h2).lineHeight);
+                    const height = h2.offsetHeight;
+                    return Math.ceil(height / lineHeight);
+                """,
+                    element,
+                )
+                LOGGER.debug(f"Line count: {line_count}")
+                width = body_dimensions["width"]
+                height = body_dimensions["height"]
+                LOGGER.debug(f"Body dimensions: {width}x{height}")
+                driver.save_screenshot(output_png)
+            
+            
+            self.driver.quit()
+            LOGGER.debug(f"HTML rendered to {output_png} successfully.")
+            return line_count
+        except Exception:
+            print(f"Error rendering HTML to PNG: {traceback.format_exc()}")
+    def close(self):
+        pass
 
-            LOGGER.debug(f"Full content dimensions: {content_dimensions}")
-
-            # Resize window to accommodate full content (add padding for safety)
-            driver.set_window_size(
-                content_dimensions['width'] + 100,
-                content_dimensions['height'] + 350
-            )
-
-            # Re-scroll into view after resizing
-            driver.execute_script("arguments[0].scrollIntoView(true);", comment_element)
-
-            # Allow time for layout to stabilize after resize
-            time.sleep(0.5)
-            line_count = 0
-            # Capture screenshot of the entire element
-            comment_element.screenshot(output_png)
-        else:
-            element = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.TAG_NAME, "shreddit-post"))
-            )
-
-            body_dimensions = driver.execute_script("""
-                const shredditPost = document.querySelector('shreddit-post');
-                if (shredditPost) {
-                    return {
-                        width: shredditPost.offsetWidth,
-                        height: shredditPost.offsetHeight
-                    };
-                } else {
-                    return {
-                        width: 0,
-                        height: 0
-                    };
-                }
-            """)
-
-
-
-            # Get the number of lines using JavaScript
-            line_count = driver.execute_script("""
-                const h2 = arguments[0];
-                const lineHeight = parseInt(getComputedStyle(h2).lineHeight);
-                const height = h2.offsetHeight;
-                return Math.ceil(height / lineHeight);
-            """, element)
-            LOGGER.debug(f"Line count: {line_count}")
-            width = body_dimensions['width']
-            height = body_dimensions['height']
-            LOGGER.debug(f"Body dimensions: {width}x{height}")
-            driver.save_screenshot(output_png)
-        # Close the browser
-        driver.quit()
-
-        LOGGER.debug(f"HTML rendered to {output_png} successfully.")
-        return line_count
-    except Exception as e:
-        print(f"Error rendering HTML to PNG: {traceback.format_exc()}")
-        
-def render_html_to_png_comment(post_id:str, chunk_id:str, comment_json:dict={}, reply:bool=False, output_png_fold:str="./tmp/caps_img",html_file:str="clip_creator/utils/real_reddit_com.html", html_file_reply:str="clip_creator/utils/real_reddit_comrpl.html")->str|None:
+def render_html_to_png_comment(
+    post_id: str,
+    chunk_id: str,
+    chunk: dict,
+    comt_above:int,
+    comment_json: dict | None = None,
+    reply: bool = False,
+    output_png_fold: str = "./tmp/caps_img",
+    html_file: str = "clip_creator/utils/real_reddit_com.html",
+    html_file_reply: str = "clip_creator/utils/real_reddit_comrpl.html",
+) -> list:
     """
     Renders an HTML file with potential replacements to a PNG image.
 
@@ -901,7 +1062,7 @@ def render_html_to_png_comment(post_id:str, chunk_id:str, comment_json:dict={}, 
         html_file (str): Path to the input HTML file.
         output_png (str): Path to the output PNG file.
         replacements (dict, optional): Dictionary of replacements (key: old_string, value: new_string).
-        
+
         _comrpl:
         *AUTHOR_NAME1*
         *AUTHOR_NAME2*
@@ -921,68 +1082,414 @@ def render_html_to_png_comment(post_id:str, chunk_id:str, comment_json:dict={}, 
         *TIME_AGO1*
         *SCORE1*
     """
-    #dirty_remove_cuss()
+    def remove_special_chars(s: str) -> str:
+        return re.sub(r'[^A-Za-z0-9 ]+', '', s)
+    def contains_numbers(word: str) -> bool:
+        return any(char.isdigit() for char in word)
+    def is_alphanumeric(char: str) -> bool:
+        """
+        Returns True if the character is a letter or a number.
+        """
+        return char.isalnum()
+    # dirty_remove_cuss()
+    idx = 0
+    chars = None
+    all_words = reddit_remove_bad_words(
+                                comment_json.get("content","") + (
+                                   (" " + comment_json.get("best_reply",{}).get("content", "")) if comment_json.get("best_reply",{}).get("upvotes", 0) > comt_above else ""
+                                )
+                                ).split()
+    LOGGER.debug(f"Words: {all_words}")
+    debug_pairs = []
+    for i, script_step in enumerate(chunk.get("ascript", [])):
+        
+        if chars:
+            LOGGER.debug(f"rem {chars} chars for {script_step.get('text')}")
+            chars -= 1
+            if chars <= 0:
+                chars = None
+            else:
+                continue
+        if i == 0:
+            LOGGER.debug(f"Skipping 0: {script_step.get('text')}")
+            # skip 0 because it is the number of the item
+            continue
+        if idx >= len(all_words):
+            LOGGER.debug(f"Index out of bounds: {idx} >= {len(all_words)}")
+            break
+        word = all_words[idx]
+        
+        LOGGER.debug(f"Word: {word} and Script step: {script_step.get('text')}")
+        if script_step.get("text") != remove_special_chars(word.upper()):
+            LOGGER.debug(f'{reddit_acronym(word).upper()} ?? {script_step.get("text")}')
+            
+            if reddit_acronym(word).upper() == script_step.get("text"):
+                LOGGER.debug(f"Acronym match: {word} == {script_step.get('text')}")
+                if i+len(remove_special_chars(word.upper())) <= len(chunk["ascript"])-1:
+                    chunk["ascript"][i]["chars"] = len(remove_special_chars(word.upper())) # Number of chars to highlight
+                else:
+                    chunk["ascript"][i]["chars"] = len(chunk["ascript"]) - i
+                debug_str = ""
+                for j in range(chunk["ascript"][i]["chars"]):
+                    debug_str += chunk["ascript"][i+j]["text"] + " "
+                debug_pairs.append((word, debug_str))
+                idx += 1
+                chars = chunk["ascript"][i].get("chars", None)
+                continue
+            if contains_numbers(word) or word.isdigit():
+                LOGGER.debug(f"has numbers: {word}")
+                if "s" in word.lower():
+                    idx += 1
+                    chars = chunk["ascript"][i].get("chars", None)
+                    continue
+                else:
+                    if i+len(remove_special_chars(word.upper())) <= len(chunk["ascript"])-1:
+                        chunk["ascript"][i]["chars"] = len(remove_special_chars(word.upper())) # Number of chars to highlight
+                    else:
+                        chunk["ascript"][i]["chars"] = len(chunk["ascript"]) - i
+                    debug_str = ""
+                    for j in range(chunk["ascript"][i]["chars"]):
+                        debug_str += chunk["ascript"][i+j]["text"] + " "
+                    debug_pairs.append((word, debug_str))
+                    idx += 1
+                    chars = chunk["ascript"][i].get("chars", None)
+                    continue
+            LOGGER.debug(f"Word mismatch: {word} != {script_step.get('text')}")
+        else:
+            debug_pairs.append((word, script_step.get("text")))
+            idx += 1
+            chars = chunk["ascript"][i].get("chars", None)
+            continue
+    LOGGER.debug(f"Debug pairs: {debug_pairs}")
+    chars = None
+    current_idx = 0
+    abs_images = []
+    # Setup Random Avatars
+    avatars = os.listdir("clip_creator/utils/imgs/users")
+    ava1name = random.choice(avatars)
+    avatars.remove(ava1name)
+
+    ava1 = os.path.abspath(
+        os.path.join("clip_creator/utils/imgs/users", ava1name)
+    )
+    ava2 = os.path.abspath(
+        os.path.join("clip_creator/utils/imgs/users", random.choice(avatars))
+    )
+    color = "red"
+    sel_renderer = SelRenderer(width=600, height=600)
+    for i, script_step in enumerate(chunk.get("ascript", [])):
+            
+        chars = script_step.get("chars", chars)
+        
+        ran_check = randint(1, 10)
+        if ran_check < 3 and not chars:
+            color = choice(list(COLOR_PAIRS["white"]))
+        elif not chars:
+            color = "red"    
+        LOGGER.debug(f"Highlighting {script_step.get('chars')} chars for {script_step.get('text')}")
+        if i == 0:
+            continue # skip 0 because it is the number of the item
+        if comment_json is None:
+            comment_json = {}
+        try:
+            html_file_abs = os.path.abspath(html_file if not reply else html_file_reply)
+            LOGGER.debug(f"HTML file: {html_file_abs}")
+            output_png: str = f"{output_png_fold}/{post_id}_{chunk_id}_{i}post.png"
+            output_png_abs = os.path.abspath(output_png)
+
+            with open(html_file_abs, encoding="utf-8") as f:
+                html_content = f.read()
+            total_content = comment_json.get("content", "")
+            html_content = html_content.replace(
+                "*AUTHOR_NAME1*", dirty_remove_cuss(comment_json.get("author", ""))
+            )
+            html_content = html_content.replace(
+                "*TIME_AGO1*", comment_json.get("posted_at", "")
+            )
+            if current_idx < len(reddit_remove_bad_words(comment_json.get("content", ""))):
+                text_one = reddit_remove_bad_words(comment_json.get("content", ""))
+                LOGGER.info(f"Text one: {text_one}")
+                LOGGER.info(f"Current index: {current_idx}")
+                current_word = text_one.split()[current_idx]
+                if chars:
+                    LOGGER.debug(f"CHARSZ: {chars}")
+                    total_chars = len(remove_special_chars(current_word))
+                    LOGGER.debug(f"CHARSZ total: {total_chars}")
+                    current_widx = total_chars - chars
+                    LOGGER.debug(f"CHARSZ idx: {current_widx}")
+                    chars_found = 0
+                    cw_idx = 0
+                    for k, ch in enumerate(current_word):
+                        if is_alphanumeric(ch):
+                            chars_found += 1
+                            if chars_found == current_widx + 1:
+                                cw_idx = k
+                                break
+                    current_word = current_word[:cw_idx] + f"<span style='color:{color}'>" + current_word[cw_idx] + "</span>" + current_word[cw_idx+1:]        
+                    chars -= 1
+                    LOGGER.debug(f"CHARSZ end: {chars}")
+                    if chars <= 0:
+                        chars = None
+                    text_one_tmp = text_one.split()[:current_idx] + [current_word] + text_one.split()[current_idx+1:]
+                else:
+                    text_one_tmp = text_one.split()[:current_idx] + [f"<span style='color:{color}'>{current_word}</span>"] + text_one.split()[current_idx+1:]
+                text_one = " ".join(text_one_tmp)
+                html_content = html_content.replace(
+                    "*TEXT1*", text_one
+                )
+            else:
+                html_content = html_content.replace(
+                    "*TEXT1*", reddit_remove_bad_words(comment_json.get("content", ""))
+                )
+            html_content = html_content.replace(
+                "*SCORE1*", str(comment_json.get("upvotes", ""))
+            )
+            if reply:
+                total_content += " " + comment_json.get("best_reply", {}).get("content", "")
+                html_content = html_content.replace(
+                    "*AUTHOR2*",
+                    dirty_remove_cuss(comment_json.get("best_reply", {}).get("author", "")),
+                )
+                html_content = html_content.replace(
+                    "*TIME_AGO2*", comment_json.get("best_reply", {}).get("posted_at", "")
+                )
+                if current_idx < len(reddit_remove_bad_words(comment_json.get("content", ""))):
+                    html_content = html_content.replace(
+                        "*TEXT2*",
+                        reddit_remove_bad_words(
+                            comment_json.get("best_reply", {}).get("content", "")
+                        ),
+                    )
+                
+                else:
+                    text_two = reddit_remove_bad_words(comment_json.get("best_reply", {}).get("content", ""))
+                    current_word = text_two.split()[current_idx]
+                    if chars:
+                        total_chars = len(remove_special_chars(current_word)) - 1
+                        current_widx = total_chars - chars
+                        chars_found = 0
+                        cw_idx = 0
+                        for k, ch in enumerate(current_word):
+                            if is_alphanumeric(ch):
+                                chars_found += 1
+                                if chars_found == current_widx:
+                                    cw_idx = k
+                                    break
+                        current_word = current_word[:cw_idx] + f"<span style='color:{color}'>" + current_word[cw_idx] + "</span>" + current_word[cw_idx+1:]        
+                        chars -= 1
+                        LOGGER.debug(f"CHARSZ: {chars}")
+                        if chars <= 0:
+                            chars = None
+                        text_two_tmp = text_one.split()[:current_idx] + [current_word] + text_one.split()[current_idx+1:]
+                    else:
+                        text_two_tmp = text_two.split()[:current_idx] + [f"<span class='biggerj' style='color:{color}'>{current_word}</span>"] + text_two.split()[current_idx+1:]
+                    text_two = " ".join(text_two_tmp)
+                    html_content = html_content.replace(
+                        "*TEXT2*", text_two
+                    )
+                html_content = html_content.replace(
+                    "*SCORE2*", str(comment_json.get("best_reply", {}).get("upvotes", ""))
+                )
+                
+                html_content = html_content.replace("*ABS_IMAGE1*", ava1)
+                html_content = html_content.replace("*ABS_IMAGE2*", ava2)
+            else:
+                
+                html_content = html_content.replace("*ABS_IMAGE*", ava1)
+            with open("./tmp/real_reddit_com.html", "w", encoding="utf-8") as f:
+                f.write(html_content)
+
+            LOGGER.debug(f"Rendering HTML to PNG: {html_file_abs} -> {output_png_abs}")
+            if len(total_content) > 99:
+                lines = int(len(total_content) / 99)
+            else:
+                lines = 0
+            height = 255 + 30 * lines
+            LOGGER.debug(f"Height: {height}")
+            if height > 800:
+                height = 255
+            # Render HTML to PNG
+            
+            line_count = sel_renderer.render_html_to_png_selenium(
+                os.path.abspath("./tmp/real_reddit_com.html"),
+                output_png_abs,
+                width=600,
+                height=height,
+                comment=True,
+                reply=reply,
+            )
+            if not os.path.exists(output_png_abs):
+                raise Exception("Image not found")
+            try:
+                with Image.open(output_png_abs) as img:
+                    img = img.convert("RGBA")
+                    width, height = img.size
+
+                    # Create a mask for rounded corners
+                    radius = int(
+                        min(width, height) * 0.1
+                    )  # radius is 10% of the minimum dimension
+                    mask = Image.new("L", (width, height), 0)
+                    draw = ImageDraw.Draw(mask)
+                    draw.rounded_rectangle((0, 0, width, height), radius=radius, fill=255)
+
+                    # Apply the mask to create transparency on the corners
+                    img.putalpha(mask)
+                    img.save(output_png_abs)
+                if not os.path.exists(output_png_abs):
+                    raise Exception("Image not found after save")
+                abs_images.append(output_png_abs)
+                if not chars:
+                    current_idx += 1
+            except Exception as e:
+                LOGGER.error(f"Error cropping image: {e}")
+                if not os.path.exists(output_png_abs):
+                    raise e
+            LOGGER.info(f"HTML rendered to {output_png} successfully.")
+
+        except Exception as e:
+            LOGGER.info(f"Error rendering HTML to PNG: {traceback.format_exc()}")
+            if not os.path.exists(output_png_abs):
+                raise e
+    sel_renderer.close()
+    return abs_images
+def render_html_to_png_comment_backup(
+    post_id: str,
+    chunk_id: str,
+    chunk: dict,
+    comment_json: dict | None = None,
+    reply: bool = False,
+    output_png_fold: str = "./tmp/caps_img",
+    html_file: str = "clip_creator/utils/real_reddit_com.html",
+    html_file_reply: str = "clip_creator/utils/real_reddit_comrpl.html",
+) -> str | None:
+    """
+    Renders an HTML file with potential replacements to a PNG image.
+
+    Args:
+        html_file (str): Path to the input HTML file.
+        output_png (str): Path to the output PNG file.
+        replacements (dict, optional): Dictionary of replacements (key: old_string, value: new_string).
+
+        _comrpl:
+        *AUTHOR_NAME1*
+        *AUTHOR_NAME2*
+        *TEXT1*
+        *TEXT2*
+        *TIME_AGO1*
+        *TIME_AGO2* # 2025-02-18T19:30:59.979000+0000
+        *SCORE1*
+        *SCORE2*
+        *ABS_IMAGE1*
+        *ABS_IMAGE2*
+
+        _com:
+        *ABS_IMAGE* # Path to profile image (probably reddit.jpg)
+        *AUTHOR_NAME1*
+        *TEXT1*
+        *TIME_AGO1*
+        *SCORE1*
+    """
     
+    if comment_json is None:
+        comment_json = {}
     try:
         html_file_abs = os.path.abspath(html_file if not reply else html_file_reply)
         LOGGER.debug(f"HTML file: {html_file_abs}")
-        output_png:str=f"{output_png_fold}/{post_id}_{chunk_id}_post.png"
+        output_png: str = f"{output_png_fold}/{post_id}_{chunk_id}_post.png"
         output_png_abs = os.path.abspath(output_png)
-        
-        with open(html_file_abs, 'r', encoding='utf-8') as f:
+
+        with open(html_file_abs, encoding="utf-8") as f:
             html_content = f.read()
         total_content = comment_json.get("content", "")
-        html_content= html_content.replace("*AUTHOR_NAME1*", dirty_remove_cuss(comment_json.get("author", "")))
-        html_content= html_content.replace("*TIME_AGO1*", comment_json.get("posted_at", ""))
-        html_content= html_content.replace("*TEXT1*", reddit_remove_bad_words(comment_json.get("content", "")))
-        html_content= html_content.replace("*SCORE1*", str(comment_json.get("upvotes", "")))
+        html_content = html_content.replace(
+            "*AUTHOR_NAME1*", dirty_remove_cuss(comment_json.get("author", ""))
+        )
+        html_content = html_content.replace(
+            "*TIME_AGO1*", comment_json.get("posted_at", "")
+        )
+        
+        html_content = html_content.replace(
+            "*TEXT1*", reddit_remove_bad_words(comment_json.get("content", ""))
+        )
+        html_content = html_content.replace(
+            "*SCORE1*", str(comment_json.get("upvotes", ""))
+        )
         if reply:
-            total_content += " " + comment_json.get('best_reply',{}).get("content", "")
-            html_content= html_content.replace("*AUTHOR2*", dirty_remove_cuss(comment_json.get('best_reply',{}).get("author", "")))
-            html_content= html_content.replace("*TIME_AGO2*", comment_json.get('best_reply',{}).get("posted_at", ""))
-            html_content= html_content.replace("*TEXT2*", reddit_remove_bad_words(comment_json.get('best_reply',{}).get("content", "")))
-            html_content= html_content.replace("*SCORE2*", str(comment_json.get('best_reply',{}).get("upvotes", "")))
+            total_content += " " + comment_json.get("best_reply", {}).get("content", "")
+            html_content = html_content.replace(
+                "*AUTHOR2*",
+                dirty_remove_cuss(comment_json.get("best_reply", {}).get("author", "")),
+            )
+            html_content = html_content.replace(
+                "*TIME_AGO2*", comment_json.get("best_reply", {}).get("posted_at", "")
+            )
+            html_content = html_content.replace(
+                "*TEXT2*",
+                reddit_remove_bad_words(
+                    comment_json.get("best_reply", {}).get("content", "")
+                ),
+            )
+            html_content = html_content.replace(
+                "*SCORE2*", str(comment_json.get("best_reply", {}).get("upvotes", ""))
+            )
             # Setup Random Avatars
             avatars = os.listdir("clip_creator/utils/imgs/users")
-            ava1name=random.choice(avatars)
+            ava1name = random.choice(avatars)
             avatars.remove(ava1name)
-            
-            ava1 = os.path.abspath(os.path.join("clip_creator/utils/imgs/users", ava1name))
-            ava2 = os.path.abspath(os.path.join("clip_creator/utils/imgs/users", random.choice(avatars)))
-            html_content= html_content.replace("*ABS_IMAGE1*", ava1)
-            html_content= html_content.replace("*ABS_IMAGE2*", ava2)
+
+            ava1 = os.path.abspath(
+                os.path.join("clip_creator/utils/imgs/users", ava1name)
+            )
+            ava2 = os.path.abspath(
+                os.path.join("clip_creator/utils/imgs/users", random.choice(avatars))
+            )
+            html_content = html_content.replace("*ABS_IMAGE1*", ava1)
+            html_content = html_content.replace("*ABS_IMAGE2*", ava2)
         else:
             avatars = os.listdir("clip_creator/utils/imgs/users")
-            ava1 = os.path.abspath(os.path.join("clip_creator/utils/imgs/users", random.choice(avatars)))
-            html_content= html_content.replace("*ABS_IMAGE*", ava1)
-        with open("./tmp/real_reddit_com.html", 'w', encoding='utf-8') as f:
+            ava1 = os.path.abspath(
+                os.path.join("clip_creator/utils/imgs/users", random.choice(avatars))
+            )
+            html_content = html_content.replace("*ABS_IMAGE*", ava1)
+        with open("./tmp/real_reddit_com.html", "w", encoding="utf-8") as f:
             f.write(html_content)
-            
 
         LOGGER.debug(f"Rendering HTML to PNG: {html_file_abs} -> {output_png_abs}")
         if len(total_content) > 99:
-            lines = int(len(total_content)/99)
+            lines = int(len(total_content) / 99)
         else:
             lines = 0
-        height = 255 + 30*lines
+        height = 255 + 30 * lines
         LOGGER.debug(f"Height: {height}")
         if height > 800:
             height = 255
         # Render HTML to PNG
-        line_count = render_html_to_png_selenium(os.path.abspath("./tmp/real_reddit_com.html"), output_png_abs, width=600, height=height, comment=True, reply=reply)
+        sel_renderer = SelRenderer(width=600, height=600)
+        line_count = sel_renderer.render_html_to_png_selenium(
+            os.path.abspath("./tmp/real_reddit_com.html"),
+            output_png_abs,
+            width=600,
+            height=height,
+            comment=True,
+            reply=reply,
+        )
+        sel_renderer.close()
         if not os.path.exists(output_png_abs):
             raise Exception("Image not found")
         try:
             with Image.open(output_png_abs) as img:
                 img = img.convert("RGBA")
                 width, height = img.size
-                
+
                 # Create a mask for rounded corners
-                radius = int(min(width, height) * 0.1)  # radius is 10% of the minimum dimension
+                radius = int(
+                    min(width, height) * 0.1
+                )  # radius is 10% of the minimum dimension
                 mask = Image.new("L", (width, height), 0)
                 draw = ImageDraw.Draw(mask)
                 draw.rounded_rectangle((0, 0, width, height), radius=radius, fill=255)
-                
+
                 # Apply the mask to create transparency on the corners
                 img.putalpha(mask)
                 img.save(output_png_abs)
@@ -1001,36 +1508,30 @@ def render_html_to_png_comment(post_id:str, chunk_id:str, comment_json:dict={}, 
             raise e
     return None
 
+
 if __name__ == "__main__":
-    render_html_to_png(
-        "test", 
-        "test title, I need this to be verry long to test the multiple lines issue. iff i continue to misspell words it will be longer. I also beleive that the moon landing was real. HA, u didn't think I would take that approach did you????", 
-        "test", 
-        "test", 
-        "test", 
-        "test", 
-        datetime.now(timezone.utc) - timedelta(hours=3), 
-        100, 
-        100, 
-        "en"
-    )
+    # render_html_to_png(
+    #     "test",
+    #     "test title, I need this to be verry long to test the multiple lines issue. iff"
+    #     " i continue to misspell words it will be longer. I also beleive that the moon"
+    #     " landing was real. HA, u didn't think I would take that approach did you????",
+    #     "test",
+    #     "test",
+    #     "test",
+    #     "test",
+    #     datetime.now(UTC) - timedelta(hours=3),
+    #     100,
+    #     100,
+    #     "en",
+    # )
+    LOGGER.setLevel(logging.DEBUG)
     render_html_to_png_comment(
-        "test", 
+        "test",
         "uuid",
-        comment_json={
-            "author": "test",
-            "posted_at": (datetime.now(timezone.utc) - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S.%f%z"),
-            "content": "test this is test with a lot of text I want to see how this will work. no new lines just stright vibbiing it",
-            "upvotes": 100,
-            "best_reply": {
-                "author": "test",
-                "posted_at": (datetime.now(timezone.utc) - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S.%f%z"),
-                "content": "test this is also a test comment that I will continue to write nonsense with and to try to fake out the bounding box to mess up. this will continue untill I get borded, what is funny is this text is not AI, I am just rambling/",
-                "upvotes": 100,
-            },
-        },
-        reply=True, 
-        
+        comt_above=99999999,
+        chunk={"ascript": [{"text": "ONE"}, {"text":"TWEENTY"}, {"text":"FOUR"}, {"text":"SEVEN"}, {"text": "SAME"}, {"text": "SEVENTY"}, {"text":"SIX"}, {"text": "REASON"}, {"text": "MORNING", "start": 1.625, "end": 1.885, "duration": 0.26}, {"text": "PEOPLE", "start": 1.905, "end": 2.166, "duration": 0.2609999999999999}, {"text": "ARE", "start": 2.206, "end": 2.326, "duration": 0.1200000000000001}, {"text": "GOOD", "start": 2.367, "end": 2.607, "duration": 0.2400000000000002}, {"text": "MORAL", "start": 2.768, "end": 3.028, "duration": 0.26000000000000023}, {"text": "PEOPLE", "start": 3.068, "end": 3.369, "duration": 0.30100000000000016}, {"text": "AND", "start": 3.409, "end": 3.51, "duration": 0.10099999999999998}, {"text": "NIGHT", "start": 3.55, "end": 3.73, "duration": 0.18000000000000016}, {"text": "OWLS", "start": 3.871, "end": 4.091, "duration": 0.2200000000000002}, {"text": "ARE", "start": 4.131, "end": 4.232, "duration": 0.10099999999999998}, {"text": "LAZY", "start": 4.272, "end": 4.593, "duration": 0.32099999999999973}, {"text": "LAYABOUTS", "start": 4.633, "end": 5.074, "duration": 0.44099999999999984}, {"text": "MOST", "start": 5.515, "end": 5.696, "duration": 0.18100000000000005}, {"text": "VOCAL", "start": 5.756, "end": 6.017, "duration": 0.2610000000000001}, {"text": "GROUP", "start": 6.057, "end": 6.277, "duration": 0.21999999999999975}, {"text": "WINS", "start": 6.317, "end": 6.598, "duration": 0.2809999999999997}]},
+        comment_json={"author": "hexagon_heist", "upvotes": 1487, "content": "24/7 Same 76 reason morning people are good, moral people and night owls are lazy layabouts. Most vocal group wins.", "parent_id": "t3_1jhpqwp", "posted_at": "2025-03-23T03:07:13.000000+0000", "best_reply": {}, "reply": {}, "comments_above_rpl": 99999999},
+        reply=False,
     )
     # caption_list = [
     #     {"text": "on", "start": 40.298, "end": 40.439, "duration": 0.14099999999999824},
@@ -1066,4 +1567,3 @@ if __name__ == "__main__":
     # output_directory = r"tmp\caps_img"
     # prefix = "test_"
     # create_caption_images(prefix, caption_list, max_width, output_directory)
-

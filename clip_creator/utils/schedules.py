@@ -1,5 +1,6 @@
-from clip_creator.conf import LOGGER, WK_SCHED
 from datetime import datetime
+
+from clip_creator.conf import LOGGER, WK_SCHED
 
 
 def round_to_nearest_5(minutes: float) -> int:
@@ -21,7 +22,9 @@ def get_timestamps(sections: int) -> list:
     start_minutes = sh * 60  # 5:00 AM in minutes (300)
     end_minutes = (23 * 60) + 59  # Midnight in minutes (1439)
     total = end_minutes - start_minutes  # Total minutes in the interval
-    LOGGER.info("sched: %s, %s, %s, %s, %s, %s", dtnh, dtnm, sh, start_minutes, total, sections)
+    LOGGER.info(
+        "sched: %s, %s, %s, %s, %s, %s", dtnh, dtnm, sh, start_minutes, total, sections
+    )
     step = total / sections  # Duration of each section in minutes
 
     timestamps = []
@@ -41,7 +44,8 @@ def get_timestamps(sections: int) -> list:
 
     return timestamps
 
-def none_old_timestamps()->list:
+
+def none_old_timestamps() -> list:
     today_index = datetime.today().weekday()  # Monday is 0, Sunday is 6
     schedule = WK_SCHED[today_index]
     now = datetime.now()
@@ -57,7 +61,9 @@ def none_old_timestamps()->list:
         scheduled_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         updated.append(None if scheduled_dt < now else t)
     return updated
-def none_old_timestamps_com()->list:
+
+
+def none_old_timestamps_com() -> list:
     today_index = datetime.today().weekday()  # Monday is 0, Sunday is 6
     schedule = WK_SCHED[today_index]
     now = datetime.now()
@@ -73,6 +79,8 @@ def none_old_timestamps_com()->list:
         scheduled_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         updated.append(None if scheduled_dt < now else t)
     return updated
+
+
 # Example usage:
 if __name__ == "__main__":
     # Divide the interval into 5 sections (you will get 6 timestamps including start and end)
