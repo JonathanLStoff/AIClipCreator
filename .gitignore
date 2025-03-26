@@ -16,3 +16,7 @@ ui.xml
 window_dump.xml
 dump.xml
 storage.json
+.pytest_cache
+.mypy_cache
+.lprof
+config

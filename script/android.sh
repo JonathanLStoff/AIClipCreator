@@ -1,5 +1,3 @@
-MACOS:
-/Users/jonathanstoff/Library/Android/sdk/emulator/emulator -avd Medium_Phone_API_34
 
 WINDOWS:
 

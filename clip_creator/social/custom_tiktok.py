@@ -687,7 +687,6 @@ def scheduled_run(lang: str = "en"):
 
 
 if __name__ == "__main__":
-    # MACOS upload_video("/Users/jonathanstoff/Downloads/B0RXp2A_Wv0.mp4", datetime(2025, 2, 23, 12, 0), "Check out this cool video!")
     # scheduled_run(lang="en")
     upload_video_tt(
         "D:/tmp/clips/reddit1j8hml5.mp4",
