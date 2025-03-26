@@ -7,7 +7,9 @@ TODO: Add setup instructions
 
 # Usage
 
-Enable cron jobs for 
+Enable cron jobs for autorun.bat and sch_run.bat
+autorun.bat takes a few hours depending on your compute power
+sch_run.bat auto scrolls through tiktok then posts a vid
 
 ## Useful Links:
 
@@ -20,6 +22,7 @@ Tables:
 
 - `videos`
 - `clips`
+- TODO: Add more tables
 
 ### `videos` Table
 
