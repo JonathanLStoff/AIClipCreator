@@ -1,4 +1,13 @@
 # AIClipCreator
+NEED ADB CONNECTED PHONE TO WORK WITH AUTO POSTING
+
+# Setup
+
+TODO: Add setup instructions
+
+# Usage
+
+Enable cron jobs for 
 
 ## Useful Links:
 

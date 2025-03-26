@@ -7,9 +7,9 @@ from os.path import join
 import toml
 
 API_KEY = [
-    os.environ.get("YOUTUBE_API_KEY_1", "AIzaSyAkgL1ASemVitT3Rtv_Teo8Uw8kFiwloR0"),
-    os.environ.get("YOUTUBE_API_KEY_2", "AIzaSyDfWHIwbwlO5GXal7_vfb4CEdfcCVHX7V8"),
-    os.environ.get("YOUTUBE_API_KEY_3", "AIzaSyCEhkfwsn6hCX3l4_HnYZm4bjOjctzTb8k"),
+    os.environ.get("YOUTUBE_API_KEY_1", ""),
+    os.environ.get("YOUTUBE_API_KEY_2", ""),
+    os.environ.get("YOUTUBE_API_KEY_3", ""),
 ]
 
 
