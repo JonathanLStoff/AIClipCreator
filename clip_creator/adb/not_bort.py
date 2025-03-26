@@ -74,13 +74,19 @@ class ADBScroll:
                 self.click_with_random_offset(
                     self.d(resourceId="com.zhiliaoapp.musically:id/knl").child(index=0)
                 )
+            
             tm.sleep(2)
             if not self.d(text=profname).exists(timeout=5):
-                self.click_with_random_offset(
-                    self.d(resourceId="com.zhiliaoapp.musically:id/kn4")
-                )
-                self.d(text=username).wait()
-                self.click_with_random_offset(self.d(text=username))
+                if self.d(resourceId="com.zhiliaoapp.musically:id/kn4").exists(timeout=5):
+                    self.click_with_random_offset(
+                        self.d(resourceId="com.zhiliaoapp.musically:id/kn4")
+                    )
+                elif self.d(textContains="reddit").exists(timeout=5):
+                    self.click_with_random_offset(self.d(textContains="reddit"))
+                else:
+                    self.touch(0.5, 0.09)     
+                self.d(textContains=username).wait()
+                self.click_with_random_offset(self.d(descriptionContains=username))
             tm.sleep(2)
             self.d(text="Profile").wait()
             if self.d(text="Profile").info["selected"] is False:
@@ -159,14 +165,21 @@ class ADBScroll:
                 if random_sh < 80:
                     LOGGER.info("Sharing video...")
                     # Click share button
-                    self.d(
-                        resourceId="com.zhiliaoapp.musically:id/dw4",
-                        descriptionContains="Share video",
-                    ).wait()
-                    self.d(
-                        resourceId="com.zhiliaoapp.musically:id/dw4",
-                        descriptionContains="Share video",
-                    ).click()
+                    if self.d(
+                            resourceId="com.zhiliaoapp.musically:id/dw4",
+                            descriptionContains="Share video",
+                        ).exists(timeout=5):
+                        self.d(
+                            resourceId="com.zhiliaoapp.musically:id/dw4",
+                            descriptionContains="Share video",
+                        ).wait()
+                        self.d(
+                            resourceId="com.zhiliaoapp.musically:id/dw4",
+                            descriptionContains="Share video",
+                        ).click()
+                    elif self.d(text="Share").exists(timeout=5):
+                        self.d(text="Share").wait()
+                        self.d(text="Share").click()
                     tm.sleep(random.randint(0, 3) + (random.randint(1, 100) / 100))
                     # Click copy link
                     self.d(description="Copy link").wait()

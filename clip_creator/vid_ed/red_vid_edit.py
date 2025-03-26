@@ -193,12 +193,14 @@ def create_reddit_video(
                     codec="libx264",
                     audio_codec="libmp3lame",
                     ffmpeg_params=[
-                        "-crf",
-                        "23",
+                        #"-crf",
+                        #"23",
                         "-vf",
                         "format=yuv420p",  # Force video format conversion
                         "-profile:v",
                         "baseline",  # Set the H.264 profile to baseline
+                        "-loglevel", 
+                        "quiet"
                     ],
                 )
 
@@ -227,11 +229,24 @@ def create_postimg_clip_com(chunks: dict, tw=1080):
     full_transcript = []
     for cid, chunk in chunks.items():
         if chunk["idx"] != 0:
-            if chunk["idx"] == 1:
-                for i, script_p in enumerate(chunk["ascript"]):
-                    script_p["start"] += chunk["start"]
-                    script_p["end"] += chunk["start"]
-                    full_transcript.append(script_p)
+            skip_next = False
+            for i, script_p in enumerate(chunk["ascript"]):
+                if skip_next:
+                    skip_next = False
+                    continue
+                if i == 0:
+                    
+                    if chunk['idx'] > 10 and not chunk["idx"] % 10 == 0 and not len(chunk["ascript"]) <= 1:
+                        LOGGER.info("script length: %s", len(chunk["ascript"]))
+                        script_p["real_text"] = str(chunk["idx"])+"."
+                        script_p["end"] = chunk["ascript"][i+1]["end"]
+                        script_p["duration"] += chunk["ascript"][i+1]["duration"]
+                        skip_next = True
+                    else:
+                        script_p["real_text"] = str(chunk["idx"])+"."
+                script_p["start"] += chunk["start"]
+                script_p["end"] += chunk["start"]
+                full_transcript.append(script_p)
             
             # num_img = create_caption_images_reddit_com(cid, chunk["idx"], int(tw * 0.9))
             # num_img_clip = (
@@ -283,7 +298,6 @@ def create_postimg_clip_com(chunks: dict, tw=1080):
             #         )
             #     )
         else:
-            full_transcript.extend(chunk["ascript"])
             if not chunk["img"]:
                 LOGGER.error("No image found for chunk %s", chunk.keys())
                 raise Exception(f"No image found for chunk {cid}")
@@ -358,20 +372,25 @@ def create_reddit_video_com(
                 codec="libx264",
                 audio_codec="libmp3lame",
                 ffmpeg_params=[
-                    "-crf",
-                    "23",
+                    #"-crf",
+                    #"23",
                     "-vf",
                     "format=yuv420p",  # Force video format conversion
                     "-profile:v",
                     "baseline",  # Set the H.264 profile to baseline
+                    "-loglevel", 
+                    "quiet"
                 ],
             )
 
             os.remove(f"tmp/audios/{pid}_aud.mp3")
-            for path in paths_to_remove:
-                os.remove(path)
-            for path in paths_to_remove_au:
-                os.remove(path)
+            try:
+                for path in paths_to_remove:
+                    os.remove(path)
+                for path in paths_to_remove_au:
+                    os.remove(path)
+            except:
+                pass
         except Exception as e:
             if "divisible by 2" in str(e):
                 LOGGER.error("Error: %s", e)
@@ -436,7 +455,9 @@ def create_captions(
                 file_name = file
                 files_to_remove.append(file)
                 break
-
+        if file_name == "":
+            LOGGER.error("file_name not found: %s", f"word{i}-{part}.png")
+            continue
         if i + 1 >= len(transcript):
             duration = section["duration"] + 0.5
         else:

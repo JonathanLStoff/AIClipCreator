@@ -834,8 +834,37 @@ def get_rows_where_tiktok_not_null_or_empty(db_name="aiclipcreator.db"):
     finally:
         if conn:
             conn.close()
+def get_rows_where_tiktok_not_null_or_empty_com(db_name="aiclipcreator.db"):
+    """
+    Retrieves a list of rows (as dictionaries) where tiktok_posted is NOT NULL and not empty.
+    """
+    try:
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
 
+        cursor.execute("""
+            SELECT *
+            FROM reddit_coms_clips
+            WHERE tiktok_posted IS NOT NULL AND tiktok_posted <> '';
+        """)
 
+        rows = cursor.fetchall()
+        column_names = [description[0] for description in cursor.description]
+
+        result = []
+        for row in rows:
+            row_dict = dict(zip(column_names, row))
+            result.append(row_dict)
+
+        return result
+
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+        return []
+
+    finally:
+        if conn:
+            conn.close()
 def add_reddit_post_clip(
     post_id,
     title,

@@ -203,9 +203,13 @@ def create_caption_images(prefix: str, captions, max_width, output_dir="."):
 
 
 def create_caption_images_reddit(
-    prefix: str, captions, max_width, output_dir=".", part=0
+    prefix: str,
+    captions,
+    max_width,
+    output_dir=".",
+    part=0
 ):
-    """Creates one image *per line* of wrapped text, highlighting current word.
+    """Creates one image *per word* of wrapped text, highlighting current word.
 
     caption: List of dictionaries with "start" and "text" keys.
     """
@@ -229,9 +233,11 @@ def create_caption_images_reddit(
 
     # Find each line of text
     for i, caption in tqdm(
-        enumerate(captions), total=len(captions), desc="Find each line of text"
+        enumerate(captions),
+        total=len(captions),
+        desc="Find each line of text"
     ):
-        lines_text[lines_index].append({"text": caption.get("text", ""), "index": i})
+        lines_text[lines_index].append({"text": caption.get("real_text", caption.get("text", "")), "index": i})
         temp_x = h_padding
 
         # Create a dummy image and draw context for calculations
@@ -241,36 +247,36 @@ def create_caption_images_reddit(
         # Build up the current line using dummy context
         for word in lines_text[lines_index]:
             bbox = dummy_draw.textbbox(
-                (0, padding), word.get("text", ""), font=font, align="center"
+                (0, padding),
+                word.get("text", ""),
+                font=font,
+                align="center"
             )
             word_width = bbox[2] - bbox[0]
             temp_x += word_width + word_spacing
 
-        if temp_x > max_width - h_padding and len(lines_text[lines_index]) > 0:
-            lines_text[lines_index].pop(-1)
-            lines_index += 1
-            lines_text.append([{"text": caption.get("text", ""), "index": i}])
-        if (
-            "." in caption.get("text", "")
-            or "!" in caption.get("text", "")
-            or "?" in caption.get("text", "")
-        ):
-            lines_index += 1
-            lines_text.append([])
+
+        lines_index += 1
+        lines_text.append([])
 
     # Process each line
     for j, line in tqdm(
-        enumerate(lines_text), total=len(lines_text), desc="Create Images"
+        enumerate(lines_text),
+        total=len(lines_text),
+        desc="Create Images"
     ):
-        img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
         line = remove_curse_words(line)
         # Calculate line heights
         max_ascent = 0
         max_descent = 0
         for word in line:
-            bbox = draw.textbbox(
-                (0, padding), word.get("text"), font=font, align="center"
+            dummy_img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
+            dummy_draw = ImageDraw.Draw(dummy_img)
+            bbox = dummy_draw.textbbox(
+                (0, padding),
+                word.get("text"),
+                font=font,
+                align="center"
             )
             ascent = padding - bbox[1]
             descent = bbox[3] - padding
@@ -278,18 +284,17 @@ def create_caption_images_reddit(
             max_descent = max(max_descent, descent)
         total_height = max_ascent + max_descent
 
-        # Create final image
-        new_width = max_width
-        new_height = total_height + 2 * padding
-        final_img = Image.new("RGBA", (new_width, new_height), color=(0, 0, 0, 0))
-        final_draw = ImageDraw.Draw(final_img)
-
         # Calculate word widths and total line width
         word_widths = []
         total_line_width = 0
         for word in line:
-            bbox = final_draw.textbbox(
-                (0, padding), word.get("text"), font=font, align="center"
+            dummy_img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
+            dummy_draw = ImageDraw.Draw(dummy_img)
+            bbox = dummy_draw.textbbox(
+                (0, padding),
+                word.get("text"),
+                font=font,
+                align="center"
             )
             w = bbox[2] - bbox[0]
             word_widths.append(w)
@@ -297,28 +302,35 @@ def create_caption_images_reddit(
 
         if len(line) > 1:
             total_line_width += word_spacing * (len(line) - 1)
-        ran_check = randint(1, 10)
-        word_to_change = None
-        word_to_change_color = None
-        if ran_check < 2 and len(line) > 1:
-            word_to_change = randint(0, len(line) - 1)
-            word_to_change_color = choice(list(COLOR_PAIRS["white"]))
-            bg_choiced_color = "white"
-            paired = "red"
-        if ran_check < 3:
-            bg_choiced_color = choice(list(COLOR_PAIRS.keys()))
-            paired = choice(COLOR_PAIRS[bg_choiced_color])
-        elif ran_check < 5:
-            bg_choiced_color = "white"
-            paired = choice(COLOR_PAIRS[bg_choiced_color])
-        else:
-            bg_choiced_color = "white"
-            paired = "red"
+
         # Generate an image for each word in the line
         for i, caption_ult in enumerate(line):
+            new_width = max_width
+            new_height = total_height + 2 * padding
+            final_img = Image.new("RGBA", (new_width, new_height), color=(0, 0, 0, 0))
+            final_draw = ImageDraw.Draw(final_img)
+
             word_index = caption_ult.get("index", "")
             x = (new_width - total_line_width) // 2
             current_y = padding
+
+            ran_check = randint(1, 10)
+            word_to_change = None
+            word_to_change_color = None
+            if ran_check < 2 and len(line) > 1:
+                word_to_change = randint(0, len(line) - 1)
+                word_to_change_color = choice(list(COLOR_PAIRS["white"]))
+                bg_choiced_color = "white"
+                paired = "red"
+            if ran_check < 3:
+                bg_choiced_color = choice(list(COLOR_PAIRS.keys()))
+                paired = choice(COLOR_PAIRS[bg_choiced_color])
+            elif ran_check < 5:
+                bg_choiced_color = "white"
+                paired = choice(COLOR_PAIRS[bg_choiced_color])
+            else:
+                bg_choiced_color = "white"
+                paired = "red"
 
             # Draw each word in the line
             for k, caption in enumerate(line):

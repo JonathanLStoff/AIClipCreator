@@ -39,7 +39,7 @@ TIKTOK_PASSWORD = os.environ.get("TIKTOK_PASSWORD")
 
 TIMESTAMP_REGEX = r"^(?:[0-9]|1[0-2]):[0-5][0-9](?::[0-5][0-9])?\b(?:\s.*)?$"
 RM_TIMESTAMP_REGEX = r"(?:[0-9]|1[0-2]):[0-5][0-9](?::[0-5][0-9])?"
-
+DB_PATH = "aiclipcreator.db"
 NUM_CORES = os.cpu_count() or 1
 LOGGER.info("Available CPU cores/threads: %d", NUM_CORES)
 BLUESTACKS_INSTANCE = "clipsphone"
@@ -70,7 +70,7 @@ if sys.platform.startswith("win"):
     CHROME_USER_PATH = (
         f"C:/Users/{USER_ACCOUNT_FOLDER}/AppData/Local/Google/Chrome/User Data"
     )
-
+    BACKUP_FOLDER = "D:/tmp/backup"
     LOGGER.info("Running on Windows")
 elif sys.platform.startswith("darwin"):
     # FFMPEG_PARAMS = ["-c:v", "h264_videotoolbox"]
@@ -97,6 +97,7 @@ elif sys.platform.startswith("darwin"):
     CHROME_USER_PATH = (
         f"/Users/{os.environ.get('USER')}/Library/Application Support/Google/Chrome"
     )
+    BACKUP_FOLDER = "/Volumes/externalSSD/tmp/backup"
     LOGGER.info("Running on macOS")
 else:
     DOWNLOAD_FOLDER = os.path.expanduser("~/Downloads")
@@ -234,6 +235,9 @@ BAD_WORD_SUB = "[\u00a0__\u00a0]"
 REDDIT_DOMAIN = (
     "https://www.reddit.com/svc/shreddit/community-more-posts/hot/?t=DAY&name="
 )
+TOP_REDDIT_DOMAIN = (
+    "https://www.reddit.com/svc/shreddit/community-more-posts/top/?t=all&name="
+)
 REDDIT_POST_DOMAIN = (  # + /[0]r/[1]stories/[2]comments/[3]1izveyu/sounds_too_cheesy_to_be_real_but_it_is/
     "https://www.reddit.com"
 )
@@ -273,7 +277,10 @@ WK_SCHED_COM = [
 RED_COM_DELAY = 0.2
 # Find and replace all text.
 REPLACE_CURSE_WORDS_DIRT = {
+    "%": " percent",
+    "/": " ",
     "fuck": "frick",
+    "murder": "unalive",
     "sex": "seggs",
     "asshole": "a hole",
     "died": "unalived",

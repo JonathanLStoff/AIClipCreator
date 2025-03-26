@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 from clip_creator.conf import (
     LOGGER,
+    TOP_REDDIT_DOMAIN,
     REDDIT_DOMAIN,
     REDDIT_POST_DOMAIN,
     SUB_REDDITS,
@@ -376,9 +377,7 @@ def reddit_posts_orch(
                     json_data, try_again = reddit_json_all(response_jboi)
                 if json_data.get("score", 0) < 150:
                     continue
-                og_links, content_text = reg_get_og(
-                    json_data.get("content", ""), json_data.get("title", "")
-                )
+                og_links, content_text = None, json_data.get("content", "")
 
                 # Get author from json
                 if not content_text:
@@ -531,20 +530,18 @@ def find_top_sub_reddit_posts(used_posts: list[str], min_posts: int = 10) -> lis
     href_list: list[str] = []
     number_runs = 0
     rand_order_subs = SUB_REDDITS.copy()
-    suffix = "/top/?t=all"
     rand.shuffle(rand_order_subs)
     while len(href_list) < min_posts:
         for suby in tqdm(rand_order_subs, desc="Subreddit, finding posts"):
             try:
                 if number_runs == 0:
-                    response = requests.get(REDDIT_DOMAIN + suby + suffix)
+                    response = requests.get(TOP_REDDIT_DOMAIN + suby)
                     soup = BeautifulSoup(response.content, "html.parser")
                     next_view[suby] = next_page_finder(soup, prefix)
                 else:
                     response = requests.get(
                         REDDIT_DOMAIN
                         + suby
-                        + suffix
                         + "&after="
                         + next_view[suby]
                         + "%3D%3D"
@@ -594,20 +591,23 @@ def find_top_sub_reddit_coms(used_posts: list[str], min_posts: int = 10) -> list
     href_list: list[str] = []
     number_runs = 0
     rand_order_subs = SUB_REDDITS_COM.copy()
-    suffix = "/top/?t=all"
+    
     rand.shuffle(rand_order_subs)
     while len(href_list) < min_posts:
         for suby in tqdm(rand_order_subs, desc="Subreddit, finding posts"):
             try:
+                LOGGER.debug(f"suby: {suby}")
                 if number_runs == 0:
-                    response = requests.get(REDDIT_DOMAIN + suby + suffix)
+                    LOGGER.debug("Questing site: %s", TOP_REDDIT_DOMAIN + suby)
+                    response = requests.get(TOP_REDDIT_DOMAIN + suby)
+                    LOGGER.debug(f"response: {response.status_code}")
                     soup = BeautifulSoup(response.content, "html.parser")
                     next_view[suby] = next_page_finder(soup, prefix)
+                    LOGGER.debug(f"next_view: {next_view[suby]}")
                 else:
                     response = requests.get(
-                        REDDIT_DOMAIN
+                        TOP_REDDIT_DOMAIN
                         + suby
-                        + suffix
                         + "&after="
                         + next_view[suby]
                         + "%3D%3D"
@@ -616,7 +616,8 @@ def find_top_sub_reddit_coms(used_posts: list[str], min_posts: int = 10) -> list
                     next_view[suby] = next_page_finder(soup, prefix)
 
                 # Find all article elements containing posts
-                for article in soup.find_all("article", class_="w-full"):
+                for i, article in enumerate(soup.find_all("article", class_="w-full")):
+                    LOGGER.debug(f"article: {i}")
                     # Extract the shreddit-post element
                     post = article.find("shreddit-post")
 

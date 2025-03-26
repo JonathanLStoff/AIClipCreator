@@ -316,14 +316,16 @@ class ADBUploader:
                     )
                 sleep(2)
                 if not self.d(text=profname).exists(timeout=5):
-                    sleep(1)
-                    self.click_with_random_offset(
-                        self.d(resourceId="com.zhiliaoapp.musically:id/kn4")
-                    )
-                    sleep(1)
-                    self.d(text=username).wait()
-                    sleep(1)
-                    self.click_with_random_offset(self.d(text=username))
+                    if self.d(resourceId="com.zhiliaoapp.musically:id/kn4").exists(timeout=5):
+                        self.click_with_random_offset(
+                            self.d(resourceId="com.zhiliaoapp.musically:id/kn4")
+                        )
+                    elif self.d(textContains="reddit").exists(timeout=5):
+                        self.click_with_random_offset(self.d(textContains="reddit"))
+                    else:
+                        self.touch(0.5, 0.09)
+                    self.d(textContains=username).wait()
+                    self.click_with_random_offset(self.d(descriptionContains=username))
                 sleep(2)
                 self.d(text="Profile").wait()
                 if self.d(text="Profile").info["selected"] is False:

@@ -6744,6 +6744,34 @@ files = [
 ]
 
 [[package]]
+name = "uritools"
+version = "4.0.3"
+description = "URI parsing, classification and composition"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "uritools-4.0.3-py3-none-any.whl", hash = "sha256:bae297d090e69a0451130ffba6f2f1c9477244aa0a5543d66aed2d9f77d0dd9c"},
+    {file = "uritools-4.0.3.tar.gz", hash = "sha256:ee06a182a9c849464ce9d5fa917539aacc8edd2a4924d1b7aabeeecabcae3bc2"},
+]
+
+[[package]]
+name = "urlextract"
+version = "1.9.0"
+description = "Collects and extracts URLs from given text."
+optional = false
+python-versions = "*"
+files = [
+    {file = "urlextract-1.9.0-py3-none-any.whl", hash = "sha256:f88963532488b1c7c405e21bd162ae97871754ea04b60e18d33ee075b19b82fd"},
+    {file = "urlextract-1.9.0.tar.gz", hash = "sha256:70508e02ba9df372e25cf0642db367cece273e8712cd0ce78178fc5dd7ea00db"},
+]
+
+[package.dependencies]
+filelock = "*"
+idna = "*"
+platformdirs = "*"
+uritools = "*"
+
+[[package]]
 name = "urllib3"
 version = "2.3.0"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
@@ -7256,4 +7284,4 @@ test = ["pytest (>=8.1,<9.0)", "pytest-rerunfailures (>=14.0,<15.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.12,<3.13"
-content-hash = "7fa3984873b8f4a7da45e9a29fb84f5f23ed328ee94905dc8e5907c847be17a8"
+content-hash = "b13ec14a48cd6334f8de00c86ce1ed62243b488c817e65bc089b406f5cee174b"

@@ -8,6 +8,7 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from random import choice, randint
 
+from urlextract import URLExtract
 import torch
 from num2words import num2words
 from tqdm import tqdm
@@ -92,6 +93,11 @@ def main_reddit_coms_orch():
         action="store_true",
         help="overrides noretrieve for updating if set",
     )
+    parser.add_argument(
+        "--fetchonly",
+        action="store_true",
+        help="exits after fetching new data if set",
+    )
     args = parser.parse_args()
     LOGGER.info("Arguments: %s", args)
     #####################################
@@ -116,12 +122,16 @@ def main_reddit_coms_orch():
     LOGGER.info("Database created")
     if not args.noretrieve:
         found_posts = get_all_post_ids_red_com()
+        
         LOGGER.info("Found posts: %s", len(found_posts))
-
+        
+        top_list = find_top_sub_reddit_coms(found_posts, min_posts=5)
+        LOGGER.info("Found top hrefs: %s", len(top_list))
+        
         href_list = find_sub_reddit_coms(found_posts, min_posts=10)
         LOGGER.info("Found hrefs: %s", len(href_list))
-
-        href_list.extend(find_top_sub_reddit_coms(found_posts, min_posts=1))
+        
+        href_list.extend(top_list)
 
         netw_redd_posts = reddit_coms_orch(
             href_list, found_posts, min_post=10, max_post=20
@@ -175,8 +185,21 @@ def main_reddit_coms_orch():
                         LOGGER.info("Post %s has banned word %s", post["post_id"], word)
                         banned_q = True
                         break
+                if "reddit" in post['title'].lower():
+                    banned_q = True
                 if not banned_q:
                     posts_to_use[post["post_id"]] = post
+    #####################################
+    # remove urls from content
+    #####################################
+    url_finder = URLExtract()
+    if not args.usevids:
+        for pid, post in posts_to_use.items():
+            if url_finder.has_urls(post.get("content", "")):
+                found_urls:list[str] = url_finder.find_urls(post["content"])
+                for url in found_urls:
+                    post["content"] = post.get("content", "").replace(url, "")
+                    # detect if its an image
     #####################################
     # possibly update database
     #####################################
@@ -212,6 +235,12 @@ def main_reddit_coms_orch():
                         updated_at=datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000"),
                     )
     #####################################
+    # Exit if fetch only
+    #####################################
+    if args.fetchonly:
+        LOGGER.info("Fetch only, exiting")
+        return
+    #####################################
     # Compile script
     #####################################
     posts_to_rm = []
@@ -246,7 +275,7 @@ def main_reddit_coms_orch():
                 banned_words = f.read().split(",")
                 banned_q = False
                 for word in banned_words:
-                    if word in comment["content"] or comment["best_reply"].get(
+                    if word in comment["content"] or word in comment["best_reply"].get(
                         "content", ""
                     ):
                         LOGGER.info(
@@ -256,6 +285,7 @@ def main_reddit_coms_orch():
                         break
                 if banned_q:
                     continue
+            # TODO: Modify to save the og comment to map to the captions like numbers
             tt_text = remove_non_letters(
                 swap_words_numbers(
                     reddit_acronym(
@@ -275,6 +305,10 @@ def main_reddit_coms_orch():
                     )
                 )
             )
+            if url_finder.has_urls(tt_text):
+                found_urls:list[str] = url_finder.find_urls(tt_text)
+                for url in found_urls:
+                    tt_text = tt_text.replace(url, "")
             total_words += len(tt_text.split())
             posts_to_use[pid]["chunks"][str(uuid.uuid4())] = {
                 "idx": idx + 1,
@@ -635,7 +669,6 @@ def main_reddit_coms_orch():
         for uid, chunk in post["chunks"].items():
             os.remove(chunk["auFile"])
 
-            os.remove(chunk["img"])
         for lang in POSSIBLE_TRANSLATE_LANGS:
             shutil.copyfile(
                 post[f"vfile_{lang}"], f"{CLIPS_FOLDER}/reddit{lang}_{pid}.mp4"
@@ -643,7 +676,7 @@ def main_reddit_coms_orch():
             os.remove(post[f"vfile_{lang}"])
             for uid, chunk in post[f"chunks_{lang}"].items():
                 os.remove(chunk["auFile"])
-                os.remove(chunk["img"])
+
 
     LOGGER.info("Reddit posts done")
 

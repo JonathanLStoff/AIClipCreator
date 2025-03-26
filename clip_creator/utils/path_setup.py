@@ -1,7 +1,8 @@
 import os
+import shutil
 import time
-
-
+from datetime import datetime
+from clip_creator.conf import BACKUP_FOLDER, LOGGER, DB_PATH
 def check_and_create_dirs(base_dir="tmp"):
     """
     Checks for the existence of directories: tmp, tmp/clips, and tmp/raw.
@@ -22,13 +23,13 @@ def check_and_create_dirs(base_dir="tmp"):
     for path in required_paths:
         if not os.path.exists(path):
             os.makedirs(path, exist_ok=True)
-            print(f"Created directory: {path}")
+            LOGGER.info(f"Created directory: {path}")
         else:
-            print(f"Directory already exists: {path}")
+            LOGGER.info(f"Directory already exists: {path}")
     logs_dir = os.path.join(base_dir, "logs")
     if not os.path.exists(logs_dir):
         os.makedirs(logs_dir, exist_ok=True)
-        print(f"Created directory: {logs_dir}")
+        LOGGER.info(f"Created directory: {logs_dir}")
 
     one_week_seconds = 7 * 24 * 60 * 60
     current_time = time.time()
@@ -38,7 +39,19 @@ def check_and_create_dirs(base_dir="tmp"):
         if os.path.isfile(file_path):
             if current_time - os.path.getmtime(file_path) > one_week_seconds:
                 os.remove(file_path)
-                print(f"Deleted log file (older than a week): {file_path}")
+                LOGGER.info(f"Deleted log file (older than a week): {file_path}")
+    dt_db = datetime.now().strftime("%Y%m%d%H%M")
+    new_db_file = os.path.join(BACKUP_FOLDER, f"{dt_db}{DB_PATH}")
+    if not os.path.exists(new_db_file):
+        shutil.copy2(DB_PATH, new_db_file)
+        LOGGER.info(f"coppied: {new_db_file}")
+        
+    for file in os.listdir(BACKUP_FOLDER):
+        file_path = os.path.join(BACKUP_FOLDER, file)
+        if os.path.isfile(file_path):
+            if current_time - os.path.getmtime(file_path) > one_week_seconds:
+                os.remove(file_path)
+                LOGGER.info(f"Deleted log file (older than a week): {file_path}")
     # for file in os.listdir(os.path.join(base_dir, "audios")):
     #     os.remove(os.path.join(os.path.join(base_dir, "audios"), file))
 

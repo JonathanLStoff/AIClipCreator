@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from random import choice, randint
 
 import torch
-
+from urlextract import URLExtract
 from clip_creator.adb.not_bort import ADBScroll
 from clip_creator.conf import (
     CLIPS_FOLDER,
@@ -222,6 +222,44 @@ def main_reddit_posts_orch():
                                 "%Y-%m-%dT%H:%M:%S.%f+0000"
                             ),
                         )
+        #####################################
+        # Remove urls/Fetch updates
+        #####################################
+        url_finder = URLExtract()
+        if not args.usevids:
+            for pid, post in posts_to_use.items():
+                if url_finder.has_urls(post.get("content", "")):
+                    found_urls:list[str] = url_finder.find_urls(post["content"])
+                    for url in found_urls:
+                        post["content"] = post.get("content", "").replace(url, "")
+                        if "reddit" in str(url):
+                            found_pid = False
+                            for pid in posts_to_use.keys():
+                                if pid in url:
+                                    found_pid = True
+                                    break
+                            if not found_pid:
+                                posty = straight_update_reddit(url)
+                                if posty.get("title"):
+                                    LOGGER.info("Updating Post %s", posty["url"])
+                                    add_reddit_post_clip(
+                                        post_id=post_id,
+                                        title=post["title"],
+                                        posted_at=post["posted_at"],
+                                        content=post["content"],
+                                        url=post["url"],
+                                        upvotes=post["upvotes"],
+                                        comments=post["comments"],
+                                        nsfw=post["nsfw"],
+                                        parent_id=pid,
+                                        author=post["author"],
+                                        updated_at=datetime.now().strftime(
+                                            "%Y-%m-%dT%H:%M:%S.%f+0000"
+                                        ),
+                                    )
+                    if "update" in post.get("title", "").lower() and (found_urls == [] or not found_urls):
+                        #TODO: Do something to collect the updates from user account
+                        pass
         ########################################
         # Calc time to post
         ########################################

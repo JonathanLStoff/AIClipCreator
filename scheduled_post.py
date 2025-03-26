@@ -13,6 +13,7 @@ from clip_creator.conf import (
 from clip_creator.db.db import (
     get_rows_where_tiktok_not_null_or_empty,
     update_reddit_post_clip_sc,
+    get_rows_where_tiktok_not_null_or_empty_com
 )
 from clip_creator.lang.translate import translate_en_to
 from clip_creator.utils.scan_text import (
@@ -60,8 +61,11 @@ def sched_run(skipscroll=False):
     LOGGER.addHandler(file_handler)
     LOGGER.info("Running scheduled task...")
     all_posts_to_post = get_rows_where_tiktok_not_null_or_empty()
+    more_posts = get_rows_where_tiktok_not_null_or_empty_com()
+    LOGGER.info("more_posts: %s", len(more_posts))
+    combined_dict = {**all_posts_to_post, **more_posts}
     posts_to_use = {}
-    for post in all_posts_to_post:
+    for post in combined_dict:
         if (
             post.get("tiktok_posted")
             and post.get("tiktok_posted") != "None"

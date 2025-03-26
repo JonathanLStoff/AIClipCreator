@@ -47,6 +47,7 @@ googletrans = "^4.0.2"
 uiautomator = "^1.0.2"
 uiautomator2 = "^3.2.8"
 orjson = "^3.10.16"
+urlextract = "^1.9.0"
 
 
 [tool.poetry.group.dev.dependencies]
