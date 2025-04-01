@@ -3,7 +3,7 @@ import os
 import random
 import subprocess
 from time import sleep
-
+from tqdm import tqdm
 import uiautomator2 as u2
 from uiautomator2.exceptions import SessionBrokenError
 
@@ -159,45 +159,84 @@ class ADBUploader:
         self.d(text="Subscriptions").wait()
         (xi, yi) = self.d(text="Subscriptions").center()
         ad_yi = yi / self.d.info.get("displayHeight", 1)
+        # Just touch the upload
         self.touch(0.5, ad_yi)
+        sleep(2)  # Give it a moment to load the upload screen
+        # Check if start over
+        if self.d(textContains="Start").exists(timeout=5):
+            
+            self.click_with_random_offset(
+                self.d(textContains="Start")
+            )
+            LOGGER.info("Clicked on Start to start over")
+        
         self.d(text="Add").wait()
+        addx, addy = self.d(text="Add").center()  # Find the add button, this is where we will start the upload from
         self.d(text="Add").click()
-        self.d(text="Create").wait()
-        ad_x = (self.d.info.get("displayWidth", 1) / 3) / 2
-        (xi, yi) = self.d(description="Create").center()
-        ad_y = yi * 2
-        self.touch(
-            ad_x / self.d.info.get("displayWidth", 1),
-            ad_y / self.d.info.get("displayHeight", 1),
-        )
+        # Touch the video
+        if self.d(text="Create").exists(timeout=5):
+            self.d(text="Create").wait()
+            ad_x = (self.d.info.get("displayWidth", 1) / 3) / 2
+            (xi, yi) = self.d(descriptionContains="Create").center()
+            ad_y = yi * 2
+            self.touch(
+                ad_x / self.d.info.get("displayWidth", 1),
+                ad_y / self.d.info.get("displayHeight", 1),
+            )
+        elif self.d(text="Gallery").exists(timeout=5):
+            self.d(text="Gallery").wait()
+            ad_x = (self.d.info.get("displayWidth", 1) / 3) / 2
+            (xi, yi) = self.d(description="Gallery").center()
+            ad_y = yi * 4
+            self.touch(
+                ad_x / self.d.info.get("displayWidth", 1),
+                ad_y / self.d.info.get("displayHeight", 1),
+            )
         self.d(text="Next").wait()
         self.d(text="Next").click()
         self.d(text="Done").wait()
         self.d(text="Done").click()
+        for i in tqdm(range(5), desc="Waiting for upload to process", unit="s"):
+            sleep(10)  # wait for the upload to process, this can take a while on slow connections
+        
+        if self.d(text="Add").exists(timeout=60):
+            (xi, yi) = self.d(text="Add").center()
+            ad_x = self.d.info.get("displayWidth", 1) - xi
+            self.touch(
+                ad_x / self.d.info.get("displayWidth", 1),
+                yi / self.d.info.get("displayHeight", 1),
+            )
+            LOGGER.info("Found add")
+        elif self.d(descriptionContains="Add Sound").exists(timeout=5):
+            #self.click_with_random_offset(self.d(descriptionContains="Add Sound"))
+            self.touch((self.d.info.get("displayWidth", 1)-(addx/2))/self.d.info.get("displayWidth", 1), addy/ self.d.info.get("displayHeight", 1))  # Click in the middle of the screen to avoid issues with the keyboard
+        
+        
 
-        self.d(text="Add").wait(timeout=60)
-        LOGGER.info("Found add")
-
-        (xi, yi) = self.d(text="Add").center()
-        ad_x = self.d.info.get("displayWidth", 1) - xi
-        self.touch(
-            ad_x / self.d.info.get("displayWidth", 1),
-            yi / self.d.info.get("displayHeight", 1),
-        )
+        
         self.d(text="Next").wait()
         self.d(text="Next").click()
+        sleep(2)  # Give it a moment to process the upload before we set the title/description
+        dsc_parx, dsc_pary = self.d(text="Caption your Short").center()  # Find the parent of the caption text box, will need this later
+        if self.d(descriptionContains="#").exists(timeout=5):
+             correct_vis_y = (dsc_pary * 3.8) / self.d.info.get("displayHeight", 1)  # Get the y coordinate of the caption box, this is where we will click to enter the description
+        else:
+            correct_vis_y = (dsc_pary * 3) / self.d.info.get("displayHeight", 1)  # Get the y coordinate of the caption box, this is where we will click to enter the description
+        pub_vis_y  = (dsc_pary * 2) / self.d.info.get("displayHeight", 1) 
         if description:
-            self.d(text="Caption your Short").set_text(description)
+            
+            self.d(text="Caption your Short").set_text(self.format_yt_desc(description))
             self.d.press("back")
-        # THIS DOESN'T WORK ************************************
+        
+        
         if only_me:
+            
             if self.d(text="Private").exists(timeout=3):
                 self.d.press("back")
             else:
-                self.d(text="Public").wait()
-                self.d(text="Public").click()
-                self.d(text="Private").wait()
-                self.d(text="Private").click()
+                LOGGER.info("Setting privacy to Private")
+                self.touch(dsc_parx/self.d.info.get("displayWidth") ,correct_vis_y)
+                self.touch(dsc_parx/self.d.info.get("displayWidth") ,correct_vis_y)
                 self.d.press("back")
             sleep(2)
         elif self.d(text="Private").exists(timeout=3):
@@ -205,6 +244,11 @@ class ADBUploader:
             self.d(text="Private").click()
             self.d(text="Public").wait()
             self.d(text="Public").click()
+            self.d.press("back")
+            sleep(2)
+        else:
+            self.touch(dsc_parx/self.d.info.get("displayWidth") , correct_vis_y)
+            self.touch(dsc_parx/self.d.info.get("displayWidth") , pub_vis_y)
             self.d.press("back")
             sleep(2)
         if draft:
@@ -217,6 +261,7 @@ class ADBUploader:
             self.d(text="Upload Short").click()
         sleep(2)
         self.d(text="Uploaded to Your Videos").wait(timeout=60)
+        
         self.d.app_stop(YT_APP)
 
     def upload_instagram(
@@ -241,41 +286,64 @@ class ADBUploader:
         if self.d(text="Start new video").exists(timeout=3):
             self.d(text="Start new video").click()
         sleep(2)
-        self.d(text="Templates").wait()
-        LOGGER.info("Found templates")
-        _, templatey = self.d(text="Templates").center()
-        self.touch(0.5, (templatey * 2) / self.d.info.get("displayHeight", 1))
+        if self.d(text="Recents").exists(timeout=5):
+            # Click on recents to select the video from the gallery
+            LOGGER.info("Selecting from recents")
+            rex, rey = self.d(text="Recents").center()
+            rey_n = rey * 1.1
+            self.touch(rex/self.d.info.get("displayWidth",1), rey_n/self.d.info.get("displayHeight", 1))  # Click on recents, slightly above to avoid the keyboard if it pops up
+        elif self.d(text="Templates").exists(timeout=5):
+            LOGGER.info("Found templates")
+            _, templatey = self.d(text="Templates").center()
+            self.touch(0.5, (templatey * 2) / self.d.info.get("displayHeight", 1))
         # self.d(resourceId='com.instagram.android:id/gallery_grid_item_bottom_container', instance=0).wait()
         # self.d(resourceId='com.instagram.android:id/gallery_grid_item_bottom_container', instance=0).click()
-
+        sleep(2)  # Give it a moment to load the video
         self.d(text="Next").wait()
-        self.d(text="Next").click()
+        self.click_with_random_offset(self.d(text="Next"))
+        if self.d(text="Next").exists(timeout=5):
+            self.click_with_random_offset(self.d(text="Next"))
         LOGGER.info("Clicked on next")
         if description:
             self.d(
                 resourceId="com.instagram.android:id/caption_input_text_view"
             ).set_text(description)
             self.d.press("back")
-        if only_me:
+        # not working on current account
+        if only_me and photo_mode:
             self.d(text="Audience").wait()
-            self.d(text="Audience").click()
+            self.click_with_random_offset(self.d(text="Audience"))
             self.d(text="Close Friends").wait()
-            self.d(text="Close Friends").click()
+            self.click_with_random_offset(self.d(text="Close Friends"))
             self.d.press("back")
         sleep(2)
         if draft:
             self.d(text="Save draft").wait()
-            self.d(text="Save draft").click()
+            self.click_with_random_offset(self.d(text="Save draft"))
         else:
             self.d(text="Share").wait()
-            self.d(text="Share").click()
+            self.click_with_random_offset(self.d(text="Share"))
+            
         timeout_time = datetime.datetime.now() + datetime.timedelta(minutes=5)
+        
         LOGGER.info("Waiting for upload to finish")
-        while self.d(text="Sharing to Reels…").exists(timeout=3):
-            sleep(1)
-            if datetime.datetime.now() > timeout_time:
-                LOGGER.info("Breaking, timeout")
-                break
+        if self.d(text="Sharing to Reels…").exists(timeout=3):
+            while self.d(text="Sharing to Reels…").exists(timeout=3):
+                sleep(1)
+                if datetime.datetime.now() > timeout_time:
+                    LOGGER.info("Breaking, timeout")
+                    break
+        elif self.d(resourceId="com.instagram.android:id/row_pending_container").exists(timeout=3):
+            # For pending uploads, wait until it disappears
+            while self.d(resourceId="com.instagram.android:id/row_pending_container").exists(timeout=3):
+                LOGGER.info("Waiting for pending upload to finish")
+                sleep(1)
+                if datetime.datetime.now() > timeout_time:
+                    LOGGER.info("Breaking, timeout")
+                    break
+        else:
+            LOGGER.info("Cannot find upload status, assuming upload will take 4 mins")
+            sleep(240)  # Sleep for 4 minutes to allow the upload to finish, this is a fallback in case the status is not found
 
         LOGGER.info("Done uploading, stopping app")
         sleep(2)
@@ -320,10 +388,10 @@ class ADBUploader:
                         self.click_with_random_offset(
                             self.d(resourceId="com.zhiliaoapp.musically:id/kn4")
                         )
-                    elif self.d(textContains="reddit").exists(timeout=5):
-                        self.click_with_random_offset(self.d(textContains="reddit"))
+                    elif self.d(textStartsWith="reddit").exists(timeout=5):
+                        self.click_with_random_offset(self.d(textStartsWith="reddit"))
                     else:
-                        self.touch(0.5, 0.09)
+                        self.touch(0.5, 0.075)
                     self.d(textContains=username).wait()
                     self.click_with_random_offset(self.d(descriptionContains=username))
                 sleep(2)
@@ -344,7 +412,31 @@ class ADBUploader:
                 if curr_tries == max_tries:
                     LOGGER.info("Could not switch profile")
                     raise SessionBrokenError(e)
-
+    def format_yt_desc(self, text:str)->str:
+        """
+        Youtube's max description length is 100 characters, this will format the description to fit within that limit
+        """
+        fixed_text = ""
+        idxs = 0
+        split_text = text.split()
+        for i, word in enumerate(split_text):
+            if "#" in word:
+                idxs = i
+                break
+        split_text = split_text[idxs:]
+        
+        for i, word in enumerate(split_text):
+            if len(fixed_text) + len(word) + 1 <= 100:
+                if i == 0:
+                    fixed_text += word
+                else:
+                    fixed_text += " " + word
+            else:
+                # If adding the next word would exceed the limit, stop adding
+                break
+        return fixed_text
+        
+        
     def check_if_posted_tt(self, description="", dumpdo=False, lang="en"):
         """
         Returns True if the post is found
@@ -388,6 +480,12 @@ class ADBUploader:
                 # Check if keyboard is open
                 if self.d(description="GIF Keyboard").exists(timeout=5):
                     self.d.press("back")
+                elif self.d(text="More insights").exists(timeout=5):
+                    # Click on more insights to get the description
+                    
+                    self.click_with_random_offset(
+                        self.d(descriptionContains="Read or add comments.")
+                    )
                 sleep(2)
                 if dumpdo:
                     dump()
@@ -415,6 +513,7 @@ class ADBUploader:
                 elif self.d(textStartsWith=part_desc).exists(timeout=5):
                     return True
                 else:
+                    
                     text_decs = (
                         self.d(resourceId="com.zhiliaoapp.musically:id/dsy", index=0)
                         .child(index=0)

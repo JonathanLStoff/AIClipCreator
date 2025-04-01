@@ -10,15 +10,17 @@ def upload_phsyphone(
     only_me: bool = False,
     lang: str = "en",
 ):
+    
     uploader_class = ADBUploader()
+    
+    
+    
     # upload video
     succed = uploader_class.add_video(video_path)
     if not succed:
         LOGGER.error("Error uploading video")
         return False
-    # upload yt
-    # uploader_class.upload_yt(description=description, draft=draft, photo_mode=photo_mode, only_me=only_me)
-    # exit()
+    
     # Upload to TikTok
     succed = uploader_class.upload_tiktok(
         description=description,
@@ -40,6 +42,13 @@ def upload_phsyphone(
         )
     except Exception as e:
         LOGGER.error("Error uploading video to Instagram")
+        LOGGER.error(e)
+    try:
+        #upload yt
+        uploader_class.upload_yt(description=description, draft=draft, photo_mode=photo_mode, only_me=only_me)
+    except Exception as e:
+        
+        LOGGER.error("Error uploading video to YouTube")
         LOGGER.error(e)
 
     return True

@@ -377,7 +377,7 @@ def reddit_posts_orch(
                     json_data, try_again = reddit_json_all(response_jboi)
                 if json_data.get("score", 0) < 150:
                     continue
-                og_links, content_text = None, json_data.get("content", "")
+                content_text = json_data.get("content", "")
 
                 # Get author from json
                 if not content_text:
@@ -395,7 +395,7 @@ def reddit_posts_orch(
                     "url": json_data.get("url", url),
                     "post_id": json_data.get("post_id", ""),
                     "author": json_data.get("author", ""),  # the username not the id
-                    "parent_href": None if og_links == [] else og_links[-1],
+                    #"parent_href": None if og_links == [] else og_links[-1],
                 }
                 posts.append(post)
                 LOGGER.debug(f"Processed post: {post}")
@@ -403,9 +403,9 @@ def reddit_posts_orch(
                 LOGGER.error(f"Error processing post {href}: {traceback.format_exc()}")
                 time.sleep(15)
             time.sleep(5)
-            if not og_links or og_links == [href] or og_links == []:
-                break
-            queue.extend(og_links)
+            # if not og_links or og_links == [href] or og_links == []:
+            #     break
+            # queue.extend(og_links)
 
         # if i >= max_post:
         #     break

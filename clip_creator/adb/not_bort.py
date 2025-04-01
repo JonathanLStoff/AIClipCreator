@@ -4,6 +4,7 @@ import subprocess
 import threading
 import time as tm
 from datetime import datetime, timedelta
+from uiautomator2.exceptions import SessionBrokenError
 
 import uiautomator2 as u2
 
@@ -68,36 +69,50 @@ class ADBScroll:
         max_tries = 5
         curr_tries = 0
         while curr_tries < max_tries:
-            LOGGER.info("Switching profile")
-            tm.sleep(5)
-            if self.d(resourceId="com.zhiliaoapp.musically:id/knl").exists(timeout=5):
-                self.click_with_random_offset(
-                    self.d(resourceId="com.zhiliaoapp.musically:id/knl").child(index=0)
-                )
-            
-            tm.sleep(2)
-            if not self.d(text=profname).exists(timeout=5):
-                if self.d(resourceId="com.zhiliaoapp.musically:id/kn4").exists(timeout=5):
+            try:
+                LOGGER.info("Switching profile")
+                tm.sleep(5)
+                if self.d(resourceId="com.zhiliaoapp.musically:id/knl").exists(
+                    timeout=5
+                ):
                     self.click_with_random_offset(
-                        self.d(resourceId="com.zhiliaoapp.musically:id/kn4")
+                        self.d(resourceId="com.zhiliaoapp.musically:id/knl").child(
+                            index=0
+                        )
                     )
-                elif self.d(textContains="reddit").exists(timeout=5):
-                    self.click_with_random_offset(self.d(textContains="reddit"))
-                else:
-                    self.touch(0.5, 0.09)     
-                self.d(textContains=username).wait()
-                self.click_with_random_offset(self.d(descriptionContains=username))
-            tm.sleep(2)
-            self.d(text="Profile").wait()
-            if self.d(text="Profile").info["selected"] is False:
-                self.click_with_random_offset(self.d(text="Profile"))
-            LOGGER.info("Does profile exist? %s", self.d(text=profname).exists)
-            if self.d(text=profname).exists(timeout=5):
-                break
-            curr_tries += 1
-            if curr_tries == max_tries:
-                LOGGER.info("Could not switch profile")
-                break
+                tm.sleep(2)
+                if not self.d(text=profname).exists(timeout=5):
+                    if self.d(resourceId="com.zhiliaoapp.musically:id/kn4").exists(timeout=5):
+                        self.click_with_random_offset(
+                            self.d(resourceId="com.zhiliaoapp.musically:id/kn4")
+                        )
+                    elif self.d(textStartsWith="reddit").exists(timeout=5):
+                        self.click_with_random_offset(self.d(textStartsWith="reddit"))
+                    else:
+                        self.touch(0.5, 0.075)
+                    self.d(textContains=username).wait()
+                    self.click_with_random_offset(self.d(descriptionContains=username))
+                tm.sleep(2)
+                self.d(text="Profile").wait()
+                if self.d(text="Profile").info["selected"] is False:
+                    LOGGER.info("profile not selected")
+                    self.click_with_random_offset(self.d(text="Profile"))
+                LOGGER.info("Does profile exist? %s", self.d(text=profname).exists)
+                if self.d(text=profname).exists(timeout=5):
+                    break
+                curr_tries += 1
+                if curr_tries == max_tries:
+                    LOGGER.info("Could not switch profile")
+                    break
+            except Exception as e:
+                if self.d(text="Profile").exists(timeout=5):
+                    self.d(text="Profile").click()
+                    self.d(text="Following").wait()
+                LOGGER.error(e)
+                curr_tries += 1
+                if curr_tries == max_tries:
+                    LOGGER.info("Could not switch profile")
+                    raise SessionBrokenError(e)
 
     def scroll_tiktok(self, lang="en", max_time_hour=2, max_time_min=0):
         if max_time_min > 0:
@@ -166,15 +181,12 @@ class ADBScroll:
                     LOGGER.info("Sharing video...")
                     # Click share button
                     if self.d(
-                            resourceId="com.zhiliaoapp.musically:id/dw4",
                             descriptionContains="Share video",
                         ).exists(timeout=5):
                         self.d(
-                            resourceId="com.zhiliaoapp.musically:id/dw4",
                             descriptionContains="Share video",
                         ).wait()
                         self.d(
-                            resourceId="com.zhiliaoapp.musically:id/dw4",
                             descriptionContains="Share video",
                         ).click()
                     elif self.d(text="Share").exists(timeout=5):

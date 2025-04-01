@@ -1,5 +1,6 @@
 import os
 import traceback
+import time
 
 from moviepy import (
     AudioFileClip,
@@ -133,7 +134,7 @@ def create_reddit_video(
                     LOGGER.info("rsize: %s", rezivid.new_size)
 
                     # Create the caption clips
-                    output_dir, cap_clips, _ = create_captions(
+                    output_dir, cap_clips, _, _ = create_captions(
                         pid,
                         paragraph=paragraph,
                         transcript=transcript[start_section_idx:end_idx],
@@ -177,7 +178,7 @@ def create_reddit_video(
                 )
                 LOGGER.info("Pvideo: %s", video.size)
 
-                output_dir, cap_clips, _ = create_captions(
+                output_dir, cap_clips, _, _ = create_captions(
                     pid,
                     paragraph=paragraph,
                     transcript=transcript,
@@ -340,7 +341,7 @@ def create_reddit_video_com(
         try:
             clip_pt_imgs, paths_to_remove, transcript, end_image_time = create_postimg_clip_com(chunks, tw)
             
-            _, cap_clips, more_paths = create_captions(
+            _, cap_clips, more_paths, ending_caps = create_captions(
                     pid,
                     paragraph="paragraph",
                     transcript=transcript,
@@ -362,9 +363,10 @@ def create_reddit_video_com(
             )
             LOGGER.info("Pvideo: %s", video.size)
 
-            # output_dir, cap_clips = create_captions(pid, paragraph=paragraph, transcript=transcript, target_size=(tw, th), end_image_time=end_image_time)
             LOGGER.info("Pvideo: %s", video.size)
             final_clip = CompositeVideoClip([video, *clip_pt_imgs, *cap_clips])
+            if ending_caps < video.duration:
+                final_clip = final_clip.subclipped(0, ending_caps)
             LOGGER.info("Pfinal_clip: %s", final_clip.size)
             final_clip.write_videofile(
                 output_path,
@@ -382,9 +384,10 @@ def create_reddit_video_com(
                     "quiet"
                 ],
             )
-
-            os.remove(f"tmp/audios/{pid}_aud.mp3")
+            time.sleep(1)
+            
             try:
+                os.remove(f"tmp/audios/{pid}_aud.mp3")
                 for path in paths_to_remove:
                     os.remove(path)
                 for path in paths_to_remove_au:
@@ -448,6 +451,7 @@ def create_captions(
 
     clip_list = []
     files_to_remove = []
+    ending = 0
     for i, section in enumerate(transcript):
         file_name = ""
         for file in os.listdir(output_dir):
@@ -479,6 +483,8 @@ def create_captions(
             .with_position(("center", pos_y))
             .with_layer_index(1)
         )
+        if (section["start"] - parts_offset) + duration > ending:
+            ending = section["start"] + duration
         if caption_clip.w > target_size[0]:
             widthy = target_size[0] * 0.95
             widthy = int(widthy)
@@ -498,7 +504,7 @@ def create_captions(
         # Composite the caption image onto the video.
         clip_list.append(caption_clip)
 
-    return output_dir, clip_list, files_to_remove
+    return output_dir, clip_list, files_to_remove, ending
 
 
 def fix_img_size(image_path, width, height):

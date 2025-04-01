@@ -57,7 +57,8 @@ from clip_creator.utils.scan_text import (
     sort_and_loop_by_max_int_key_coms,
     str_to_datetime,
     swap_words_numbers,
-    get_correct_chunk_end
+    get_correct_chunk_end,
+    remove_markdown_links_images
 )
 from clip_creator.utils.schedules import none_old_timestamps_com
 from clip_creator.vid_ed.red_vid_edit import (
@@ -246,14 +247,14 @@ def main_reddit_coms_orch():
     posts_to_rm = []
     for pid, post in posts_to_use.items():
         # Get Number of words
-        total_words = len(post["title"].split()) + len(post["content"].split())
+        total_words = len(post["title"].split()) + (len(post["content"].split()) if "?" not in post["title"] else 0)
 
         posts_to_use[pid]["comments_json"] = json.loads(post["comments_json"])
         if not posts_to_use[pid]["comments_json"]:
             posts_to_rm.append(pid)
             continue
         ht_text = remove_non_letters(
-            swap_words_numbers(reddit_acronym(reddit_remove_bad_words(post["title"])))
+            swap_words_numbers(reddit_acronym(reddit_remove_bad_words(post["title"]+ ("\n" + post["content"] if "?" not in post["title"] else ""))))
         )
         posts_to_use[pid]["chunks"] = {str(uuid.uuid4()): {"idx": 0, "text": ht_text}}
         posts_to_use[pid]["comments_json"] = sort_and_loop_by_max_int_key_coms(
@@ -279,36 +280,41 @@ def main_reddit_coms_orch():
                         "content", ""
                     ):
                         LOGGER.info(
-                            "Comment %s has banned word %s", comment["content"], word
+                            "Comment %s has banned word %s", str(comment["content"]).encode("ASCII", "ignore").decode("ASCII"), word
                         )
                         banned_q = True
                         break
                 if banned_q:
                     continue
             # TODO: Modify to save the og comment to map to the captions like numbers
+            tt_text = ("\n"
+                            + num2words(idx + 1)
+                            + ".\n\n\n"
+                            + comment["content"]
+                            + ".\n"
+                            + (
+                                (comment["best_reply"].get("content", "") + ".")
+                                if comment["best_reply"].get("upvotes", 0)
+                                > comments_above_rpl
+                                else ""
+                            )
+                            )
+            if url_finder.has_urls(tt_text):
+                found_urls:list[str] = url_finder.find_urls(tt_text)
+                for url in found_urls:
+                    tt_text = tt_text.replace(url, "")
             tt_text = remove_non_letters(
                 swap_words_numbers(
                     reddit_acronym(
                         reddit_remove_bad_words(
-                            "\n"
-                            + num2words(idx + 1)
-                            + "\n\n"
-                            + comment["content"]
-                            + "\n"
-                            + (
-                                comment["best_reply"].get("content", "")
-                                if comment["best_reply"].get("upvotes", 0)
-                                > comments_above_rpl
-                                else ""
+                            remove_markdown_links_images(
+                            tt_text
                             )
                         )
                     )
                 )
             )
-            if url_finder.has_urls(tt_text):
-                found_urls:list[str] = url_finder.find_urls(tt_text)
-                for url in found_urls:
-                    tt_text = tt_text.replace(url, "")
+            
             total_words += len(tt_text.split())
             posts_to_use[pid]["chunks"][str(uuid.uuid4())] = {
                 "idx": idx + 1,
@@ -422,11 +428,7 @@ def main_reddit_coms_orch():
                     get_audio_duration(posts_to_use[pid]["chunks"][uid]["auFile"])
                     + RED_COM_DELAY
                 )
-            update_reddit_post_clip_tt_com(
-                post_id=pid,
-                tiktok_posted=post["sched"],
-                length=posts_to_use[pid]["audio_length"],
-            )
+            
         # Create Audio for other languages
 
         for lang in POSSIBLE_TRANSLATE_LANGS:
@@ -573,6 +575,14 @@ def main_reddit_coms_orch():
                 tw=1080,
                 th=1920,
                 chunks=posts_to_use[pid]["chunks"],
+            )
+            if not os.path.exists(posts_to_use[pid]["vfile"]):
+                LOGGER.error("Video not created %s", posts_to_use[pid]["vfile"])
+                continue
+            update_reddit_post_clip_tt_com(
+                post_id=pid,
+                tiktok_posted=post["sched"],
+                length=posts_to_use[pid]["audio_length"],
             )
             for lang in POSSIBLE_TRANSLATE_LANGS:
                 for uid, chunk in post[f"chunks_{lang}"].items():

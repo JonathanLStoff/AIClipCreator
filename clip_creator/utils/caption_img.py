@@ -335,7 +335,8 @@ def create_caption_images_reddit(
             # Draw each word in the line
             for k, caption in enumerate(line):
                 wordt: str = caption.get("text", "")
-                color = COLORS[paired] if k == i else COLORS[bg_choiced_color]
+                # We only have one word a line so we can use any color, will give us a higher chance of white while still being random
+                color = choice([COLORS[paired], COLORS[bg_choiced_color], "white"])
                 if word_to_change == k:
                     color = COLORS[word_to_change_color]
                 # Draw outline
@@ -1522,29 +1523,29 @@ def render_html_to_png_comment_backup(
 
 
 if __name__ == "__main__":
-    # render_html_to_png(
-    #     "test",
-    #     "test title, I need this to be verry long to test the multiple lines issue. iff"
-    #     " i continue to misspell words it will be longer. I also beleive that the moon"
-    #     " landing was real. HA, u didn't think I would take that approach did you????",
-    #     "test",
-    #     "test",
-    #     "test",
-    #     "test",
-    #     datetime.now(UTC) - timedelta(hours=3),
-    #     100,
-    #     100,
-    #     "en",
-    # )
-    LOGGER.setLevel(logging.DEBUG)
-    render_html_to_png_comment(
+    render_html_to_png(
         "test",
-        "uuid",
-        comt_above=99999999,
-        chunk={"ascript": [{"text": "ONE"}, {"text":"TWEENTY"}, {"text":"FOUR"}, {"text":"SEVEN"}, {"text": "SAME"}, {"text": "SEVENTY"}, {"text":"SIX"}, {"text": "REASON"}, {"text": "MORNING", "start": 1.625, "end": 1.885, "duration": 0.26}, {"text": "PEOPLE", "start": 1.905, "end": 2.166, "duration": 0.2609999999999999}, {"text": "ARE", "start": 2.206, "end": 2.326, "duration": 0.1200000000000001}, {"text": "GOOD", "start": 2.367, "end": 2.607, "duration": 0.2400000000000002}, {"text": "MORAL", "start": 2.768, "end": 3.028, "duration": 0.26000000000000023}, {"text": "PEOPLE", "start": 3.068, "end": 3.369, "duration": 0.30100000000000016}, {"text": "AND", "start": 3.409, "end": 3.51, "duration": 0.10099999999999998}, {"text": "NIGHT", "start": 3.55, "end": 3.73, "duration": 0.18000000000000016}, {"text": "OWLS", "start": 3.871, "end": 4.091, "duration": 0.2200000000000002}, {"text": "ARE", "start": 4.131, "end": 4.232, "duration": 0.10099999999999998}, {"text": "LAZY", "start": 4.272, "end": 4.593, "duration": 0.32099999999999973}, {"text": "LAYABOUTS", "start": 4.633, "end": 5.074, "duration": 0.44099999999999984}, {"text": "MOST", "start": 5.515, "end": 5.696, "duration": 0.18100000000000005}, {"text": "VOCAL", "start": 5.756, "end": 6.017, "duration": 0.2610000000000001}, {"text": "GROUP", "start": 6.057, "end": 6.277, "duration": 0.21999999999999975}, {"text": "WINS", "start": 6.317, "end": 6.598, "duration": 0.2809999999999997}]},
-        comment_json={"author": "hexagon_heist", "upvotes": 1487, "content": "24/7 Same 76 reason morning people are good, moral people and night owls are lazy layabouts. Most vocal group wins.", "parent_id": "t3_1jhpqwp", "posted_at": "2025-03-23T03:07:13.000000+0000", "best_reply": {}, "reply": {}, "comments_above_rpl": 99999999},
-        reply=False,
+        "test title, I need this to be verry long to test the multiple lines issue. iff"
+        " i continue to misspell words it will be longer. I also beleive that the moon"
+        " landing was real. HA, u didn't think I would take that approach did you????",
+        "test",
+        "test",
+        "test",
+        "test",
+        datetime.now(UTC) - timedelta(hours=3),
+        100,
+        100,
+        "en",
     )
+    # LOGGER.setLevel(logging.DEBUG)
+    # render_html_to_png_comment(
+    #     "test",
+    #     "uuid",
+    #     comt_above=99999999,
+    #     chunk={"ascript": [{"text": "ONE"}, {"text":"TWEENTY"}, {"text":"FOUR"}, {"text":"SEVEN"}, {"text": "SAME"}, {"text": "SEVENTY"}, {"text":"SIX"}, {"text": "REASON"}, {"text": "MORNING", "start": 1.625, "end": 1.885, "duration": 0.26}, {"text": "PEOPLE", "start": 1.905, "end": 2.166, "duration": 0.2609999999999999}, {"text": "ARE", "start": 2.206, "end": 2.326, "duration": 0.1200000000000001}, {"text": "GOOD", "start": 2.367, "end": 2.607, "duration": 0.2400000000000002}, {"text": "MORAL", "start": 2.768, "end": 3.028, "duration": 0.26000000000000023}, {"text": "PEOPLE", "start": 3.068, "end": 3.369, "duration": 0.30100000000000016}, {"text": "AND", "start": 3.409, "end": 3.51, "duration": 0.10099999999999998}, {"text": "NIGHT", "start": 3.55, "end": 3.73, "duration": 0.18000000000000016}, {"text": "OWLS", "start": 3.871, "end": 4.091, "duration": 0.2200000000000002}, {"text": "ARE", "start": 4.131, "end": 4.232, "duration": 0.10099999999999998}, {"text": "LAZY", "start": 4.272, "end": 4.593, "duration": 0.32099999999999973}, {"text": "LAYABOUTS", "start": 4.633, "end": 5.074, "duration": 0.44099999999999984}, {"text": "MOST", "start": 5.515, "end": 5.696, "duration": 0.18100000000000005}, {"text": "VOCAL", "start": 5.756, "end": 6.017, "duration": 0.2610000000000001}, {"text": "GROUP", "start": 6.057, "end": 6.277, "duration": 0.21999999999999975}, {"text": "WINS", "start": 6.317, "end": 6.598, "duration": 0.2809999999999997}]},
+    #     comment_json={"author": "hexagon_heist", "upvotes": 1487, "content": "24/7 Same 76 reason morning people are good, moral people and night owls are lazy layabouts. Most vocal group wins.", "parent_id": "t3_1jhpqwp", "posted_at": "2025-03-23T03:07:13.000000+0000", "best_reply": {}, "reply": {}, "comments_above_rpl": 99999999},
+    #     reply=False,
+    # )
     # caption_list = [
     #     {"text": "on", "start": 40.298, "end": 40.439, "duration": 0.14099999999999824},
     #     {

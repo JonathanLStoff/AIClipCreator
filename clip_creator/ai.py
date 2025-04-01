@@ -6,6 +6,15 @@ import numpy as np
 import torch
 from ollama import ChatResponse, chat
 from transformers import VideoLlavaForConditionalGeneration, VideoLlavaProcessor
+from datasets import Dataset
+import torch
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    pipeline,
+)
+from peft import LoraConfig, PeftModel
+from trl import SFTTrainer
 
 from clip_creator.conf import LOGGER, MODELS_FOLDER, WIS_DEVICE
 
@@ -318,6 +327,74 @@ def ask_if_comment_in_transcript(transcript: str, comment: str) -> str | None:
             true_response = response.message.content
             break
     return None if not true_response else true_response
+
+
+def train_reddit_com_mod(plain_transcripts:list):
+    """
+    Generate new reddit comments based on plain transcripts.
+    """
+    
+    formatted_data = [
+    {"text": f"Create a new Reddit reply thread transcripts: {item}"}  # Add a prompt/instruction
+    for item in plain_transcripts
+    ]
+
+    # Convert to Hugging Face Dataset
+    dataset = Dataset.from_dict({"text": text_list})
+
+    # Save to disk
+    dataset.save_to_disk("my_custom_dataset")
+    
+    model_name = "meta-llama/Llama-3-7b-chat-hf"
+    new_model = "reddit-com-llama"
+    #device_map = {"": 0}
+
+    base_model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        low_cpu_mem_usage=False,
+        return_dict=True,
+        torch_dtype=torch.float16,
+        #device_map=device_map,
+    )
+    model = PeftModel.from_pretrained(base_model, new_model)
+    model = model.merge_and_unload()
+
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "right"
+
+    prompt = "You create a new Reddit reply thread transcripts. They are safe for work and engaging. Respond with a new transcript."
+
+    pipe = pipeline(task="text-generation", model=base_model, tokenizer=tokenizer, max_length=200)
+    result = pipe(f"<s>[INST] {prompt} [/INST]")
+    print(result[0]['generated_text'])
+
+    pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer, max_length=200)
+    result = pipe(f"<s>[INST] {prompt} [/INST]")
+    print(result[0]['generated_text'])
+        
+    
+    responses: list[ChatResponse] = []
+    messages = []
+    for script in plain_transcripts:
+        messages.append({
+            "role": "system",
+            "content": f"""**"Generate a new Reddit comment based on the following plain transcript. The comment should be engaging and relevant to the topic of the video. Respond with the new Reddit comment."**""",
+        })
+        messages.append({
+            "role": "system",
+            "content": script,
+        })
+    
+    
+    response = chat(
+        model="llama3.2",
+        messages=messages
+        )
+    
+
+
+    return response.message.content
 
 
 if __name__ == "__main__":

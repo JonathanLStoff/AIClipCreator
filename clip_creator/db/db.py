@@ -7,10 +7,10 @@ import pandas as pd
 from clip_creator.conf import LOGGER
 
 
-def create_database(db_name="aiclipcreator.db"):
+def create_database(db_path="aiclipcreator.db"):
     """Creates or updates the aiclipcreator database with videos, clips, clip_info, and error_log tables."""
 
-    conn = sqlite3.connect(db_name)
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     try:
@@ -220,7 +220,7 @@ def create_database(db_name="aiclipcreator.db"):
                     )
 
         conn.commit()
-        LOGGER.info(f"Database '{db_name}' created or updated successfully.")
+        LOGGER.info(f"Database '{db_path}' created or updated successfully.")
         cursor.execute("PRAGMA table_info(reddit_posts_clips)")
         existing_columns = {col[1]: col[2] for col in cursor.fetchall()}
         if "parent_post_id" not in existing_columns:
@@ -247,16 +247,16 @@ def create_database(db_name="aiclipcreator.db"):
         conn.close()
 
 
-def add_error_log(vid, error_type, error, db_name="aiclipcreator.db"):
+def add_error_log(vid, error_type, error, db_path="aiclipcreator.db"):
     """
     Adds a new row to the error_log table.
 
     Args:
-        db_name (str): The name of the database file.
+        db_path (str): The name of the database file.
         video_id (str): The ID of the video associated with the error.
         log_data (dict or str): The error log data (can be a dictionary or a string).
     """
-    conn = sqlite3.connect(db_name)
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     try:
@@ -289,7 +289,7 @@ def add_error_log(vid, error_type, error, db_name="aiclipcreator.db"):
         conn.close()
 
 
-def add_clip_info(info_data, db_name="aiclipcreator.db"):
+def add_clip_info(info_data, db_path="aiclipcreator.db"):
     """
     Inserts a new row into the clip_info table.
 
@@ -300,13 +300,13 @@ def add_clip_info(info_data, db_name="aiclipcreator.db"):
             - description: (str) description of the clip.
             - true_transcript: (str) the verified transcript.
             - title: (str) title of the clip.
-        db_name: Name of the SQLite database file.
+        db_path: Name of the SQLite database file.
 
     Returns:
         The ID of the newly inserted row if successful, or None otherwise.
     """
     try:
-        conn = sqlite3.connect(db_name)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         required_keys = [
@@ -376,18 +376,18 @@ def add_clip_info(info_data, db_name="aiclipcreator.db"):
             conn.close()
 
 
-def get_all_video_ids(db_name="aiclipcreator.db"):
+def get_all_video_ids(db_path="aiclipcreator.db"):
     """
     Retrieves all video IDs from the videos table.
 
     Args:
-        db_name: Name of the SQLite database file.
+        db_path: Name of the SQLite database file.
 
     Returns:
         A list of video IDs.
     """
     try:
-        conn = sqlite3.connect(db_name)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT video_id FROM clips")
         rows = cursor.fetchall()
@@ -400,18 +400,18 @@ def get_all_video_ids(db_name="aiclipcreator.db"):
             conn.close()
 
 
-def get_all_videos_df(db_name="aiclipcreator.db"):
+def get_all_videos_df(db_path="aiclipcreator.db"):
     """
     Retrieves all rows from the videos table into a pandas DataFrame.
 
     Args:
-        db_name: Name of the SQLite database file.
+        db_path: Name of the SQLite database file.
 
     Returns:
         A pandas DataFrame containing all rows from the videos table.
     """
     try:
-        conn = sqlite3.connect(db_name)
+        conn = sqlite3.connect(db_path)
         df = pd.read_sql_query("SELECT * FROM videos", conn)
         return df
     except Exception as e:
@@ -422,11 +422,11 @@ def get_all_videos_df(db_name="aiclipcreator.db"):
             conn.close()
 
 
-def add_video_entry(video_data, db_name="aiclipcreator.db"):
+def add_video_entry(video_data, db_path="aiclipcreator.db"):
     """Adds a new video entry to the database.
 
     Args:
-        db_name: The name of the database file.
+        db_path: The name of the database file.
         video_data: A dictionary containing the video data:
             {
                 "id": (str, primary key),  # MUST be unique
@@ -451,7 +451,7 @@ def add_video_entry(video_data, db_name="aiclipcreator.db"):
     """
 
     try:
-        conn = sqlite3.connect(db_name)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         # Get current datetime in ISO 8601 format
@@ -707,18 +707,18 @@ def find_clip(video_id, start_time, db_path="aiclipcreator.db"):
         return None
 
 
-def get_all_clips_df(db_name="aiclipcreator.db"):
+def get_all_clips_df(db_path="aiclipcreator.db"):
     """
     Retrieves all rows from the clips table into a pandas DataFrame.
 
     Args:
-        db_name: Name of the SQLite database file.
+        db_path: Name of the SQLite database file.
 
     Returns:
         A pandas DataFrame containing all rows from the clips table.
     """
     try:
-        conn = sqlite3.connect(db_name)
+        conn = sqlite3.connect(db_path)
         df = pd.read_sql_query("SELECT * FROM clips", conn)
         return df
     except Exception as e:
@@ -768,12 +768,12 @@ def update_post_status(video_id, platform, status, db_path="aiclipcreator.db"):
             conn.close()
 
 
-def get_rows_where_tiktok_null_or_empty(db_name="aiclipcreator.db"):
+def get_rows_where_tiktok_null_or_empty(db_path="aiclipcreator.db"):
     """
     Retrieves a list of rows (as dictionaries) where tiktok_posted is NULL, empty, or not set.
     """
     try:
-        conn = sqlite3.connect(db_name)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -803,12 +803,12 @@ def get_rows_where_tiktok_null_or_empty(db_name="aiclipcreator.db"):
             conn.close()
 
 
-def get_rows_where_tiktok_not_null_or_empty(db_name="aiclipcreator.db"):
+def get_rows_where_tiktok_not_null_or_empty(db_path="aiclipcreator.db"):
     """
     Retrieves a list of rows (as dictionaries) where tiktok_posted is NOT NULL and not empty.
     """
     try:
-        conn = sqlite3.connect(db_name)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -834,12 +834,12 @@ def get_rows_where_tiktok_not_null_or_empty(db_name="aiclipcreator.db"):
     finally:
         if conn:
             conn.close()
-def get_rows_where_tiktok_not_null_or_empty_com(db_name="aiclipcreator.db"):
+def get_rows_where_tiktok_not_null_or_empty_com(db_path="aiclipcreator.db"):
     """
     Retrieves a list of rows (as dictionaries) where tiktok_posted is NOT NULL and not empty.
     """
     try:
-        conn = sqlite3.connect(db_name)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1006,9 +1006,9 @@ def update_reddit_post_clip_old(
             conn.close()
 
 
-def get_reddit_post_clip_by_id(post_id, db_name="aiclipcreator.db"):
+def get_reddit_post_clip_by_id(post_id, db_path="aiclipcreator.db"):
     try:
-        conn = sqlite3.connect(db_name)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM reddit_posts_clips WHERE post_id = ?", (post_id,))
         row = cursor.fetchone()
@@ -1024,9 +1024,9 @@ def get_reddit_post_clip_by_id(post_id, db_name="aiclipcreator.db"):
             conn.close()
 
 
-def get_reddit_post_clip_by_id_com(post_id, db_name="aiclipcreator.db"):
+def get_reddit_post_clip_by_id_com(post_id, db_path="aiclipcreator.db"):
     try:
-        conn = sqlite3.connect(db_name)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM reddit_coms_clips WHERE post_id = ?", (post_id,))
         row = cursor.fetchone()
@@ -1228,7 +1228,30 @@ def update_reddit_post_clip_sc(post_id, uploaded: bool, db_path="aiclipcreator.d
     finally:
         if conn:
             conn.close()
+def update_reddit_post_clip_sc_com(post_id, uploaded: bool, db_path="aiclipcreator.db"):
+    """Updates a Reddit post clip in the database."""
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        LOGGER.info(f"Updating post clip with post_id: {post_id}")
 
+        update_query = (
+            "UPDATE reddit_coms_clips SET tiktok_uploaded = ? WHERE post_id = ?"
+        )
+        cursor.execute(update_query, (uploaded, post_id))
+        LOGGER.info(f"Cursor executed: {update_query}")
+        conn.commit()
+        if cursor.rowcount > 0:
+            LOGGER.info(f"Post clip with post_id '{post_id}' updated successfully.")
+        else:
+            LOGGER.error(f"Post clip with post_id '{post_id}' not found.")
+
+    except sqlite3.Error as e:
+        LOGGER.error(f"An error occurred: {e}")
+
+    finally:
+        if conn:
+            conn.close()
 
 def get_all_post_ids_red(db_path="aiclipcreator.db"):
     """Retrieves a list of all post_ids from the reddit_posts_clips table."""
@@ -1253,12 +1276,12 @@ def get_all_post_ids_red(db_path="aiclipcreator.db"):
     return post_ids
 
 
-def get_rows_where_tiktok_null_or_empty_com(db_name="aiclipcreator.db"):
+def get_rows_where_tiktok_null_or_empty_com(db_path="aiclipcreator.db"):
     """
     Retrieves a list of rows (as dictionaries) where tiktok_posted is NULL, empty, or not set.
     """
     try:
-        conn = sqlite3.connect(db_name)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         cursor.execute("""

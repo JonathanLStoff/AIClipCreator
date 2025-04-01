@@ -13,6 +13,7 @@ from clip_creator.conf import (
 from clip_creator.db.db import (
     get_rows_where_tiktok_not_null_or_empty,
     update_reddit_post_clip_sc,
+    update_reddit_post_clip_sc_com,
     get_rows_where_tiktok_not_null_or_empty_com
 )
 from clip_creator.lang.translate import translate_en_to
@@ -60,12 +61,19 @@ def sched_run(skipscroll=False):
     )
     LOGGER.addHandler(file_handler)
     LOGGER.info("Running scheduled task...")
-    all_posts_to_post = get_rows_where_tiktok_not_null_or_empty()
-    more_posts = get_rows_where_tiktok_not_null_or_empty_com()
+    all_posts_to_post = [post for post in get_rows_where_tiktok_not_null_or_empty() if post.get("tiktok_posted") and post.get("tiktok_uploaded") != "None" and not post.get("tiktok_uploaded")]
+    more_posts = [post for post in get_rows_where_tiktok_not_null_or_empty_com() if post.get("tiktok_posted") and post.get("tiktok_uploaded") != "None" and not post.get("tiktok_uploaded")]
     LOGGER.info("more_posts: %s", len(more_posts))
-    combined_dict = {**all_posts_to_post, **more_posts}
+    
     posts_to_use = {}
-    for post in combined_dict:
+    if more_posts != []:
+        LOGGER.info("more_posts: %s", len(more_posts))
+        rand_order_posts = more_posts.copy()
+    else:
+        rand_order_posts = all_posts_to_post.copy()
+        
+    random.shuffle(rand_order_posts)
+    for post in rand_order_posts:
         if (
             post.get("tiktok_posted")
             and post.get("tiktok_posted") != "None"
@@ -120,8 +128,11 @@ def sched_run(skipscroll=False):
         if not suvvedd:
             LOGGER.error("Error uploading video")
             continue
-
-        update_reddit_post_clip_sc(post["post_id"], True)
+        if more_posts != []:
+            update_reddit_post_clip_sc_com(post["post_id"], True)
+        else:
+            
+            update_reddit_post_clip_sc(post["post_id"], True)
         for lang in POSSIBLE_TRANSLATE_LANGS:
             LOGGER.info(f"Running scheduled task for {lang}...")
             upload_phsyphone(

@@ -265,15 +265,14 @@ WK_SCHED = [
     ["23:50", "23:50", "23:50", "23:50"],  # Sunday
 ]
 WK_SCHED_COM = [
-    ["23:50", "23:50"],  # Monday
-    ["23:50", "23:50"],  # Tuesday
-    ["23:50", "23:50"],  # Wednesday
-    ["23:50", "23:50"],  # Thursday
-    ["23:50", "23:50"],  # Friday
-    ["23:50", "23:50"],  # Saturday
-    ["23:50", "23:50"],  # Sunday
+    ["23:50", "23:50", "23:50", "23:50"],  # Monday
+    ["23:50", "23:50", "23:50", "23:50"],  # Tuesday
+    ["23:50", "23:50", "23:50", "23:50"],  # Wednesday
+    ["23:50", "23:50", "23:50", "23:50"],  # Thursday
+    ["23:50", "23:50", "23:50", "23:50"],  # Friday
+    ["23:50", "23:50", "23:50", "23:50"],  # Saturday
+    ["23:50", "23:50", "23:50", "23:50"],  # Sunday
 ]
-
 RED_COM_DELAY = 0.2
 # Find and replace all text.
 REPLACE_CURSE_WORDS_DIRT = {
@@ -296,10 +295,15 @@ REPLACE_CURSE_WORDS_DIRT = {
     "90s": " nineties",
     "commit suicide": "unalive myself",
     "committed suicide": "unalive themselves",
+    "edibles": "brownies",
+    "an edible": "a brownie",
+    "smoke pot": "blase it",
+    "pussy": "cooch",
     
 }
 # This will only replace if they are the same
 REPLACE_WORDS_CLEAN = {
+    "dead":"unalive",
     "dying":"unalived",
     "rape": "grape",
     "rapist": "grapist",

@@ -71,7 +71,7 @@ class TTSModelKokoro:
             numpy.ndarray: The audio waveform as a NumPy array.
         """
         generator = self.kp(
-            text,
+            text, # pronouce a different way like [Misaki](/misˈɑki/) or [Kokoro](/kəˈkɔroʊ/) to test the TTS model
             voice=self.speaker,  # <= change voice here: af_alloy, af_heart, af_aoede, af_bella, am_echo, am_adam, am_eric
             speed=self.speed,
             split_pattern=r"\n+",

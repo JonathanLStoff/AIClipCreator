@@ -16,7 +16,10 @@ from clip_creator.conf import (
     RM_TIMESTAMP_REGEX,
     TIMESTAMP_REGEX,
 )
-
+def remove_markdown_links_images(text):
+  """Removes markdown links and images from a string."""
+  pattern = r"\[([^\]]+)\]\(([^)]+)\)"
+  return re.sub(pattern, "", text)
 
 def most_common_ngrams(text, n=3):
     """
@@ -73,20 +76,51 @@ def swap_words_numbers(text: str) -> str:
     Swap numbers with words in a text.
     """
     words = text.split()
+    new_text = ""
     for _i, word in enumerate(words):
-        # LOGGER.info("maubbe Replacing %s", remove_non_numbers(word))
-        if remove_non_numbers(word).isdigit() and remove_non_numbers(word) != "":
-            word = re.sub(r"(\d+)([FMfm])\b", r"\1 \2", word)
-            LOGGER.debug(
-                "Replacing %s %s",
-                str(remove_non_numbers(word)),
-                str(num2words(remove_non_numbers(word))),
-            )
-            text = text.replace(
-                str(remove_non_numbers(word)),
-                str(num2words(remove_non_numbers(word))) + " ",
-            ).replace("-", " ")
-    return text
+        
+        if remove_non_numbers(word) != "":
+            LOGGER.debug("maubbe Replacing %s", remove_non_numbers(word))
+            LOGGER.debug(remove_non_numbers(word).isdigit())
+            
+            if remove_non_numbers(word).isdigit() and len(remove_non_numbers(word)) < 10:
+                try:
+                    strings_word = re.sub(r"\d+", " ", word)
+                    LOGGER.debug(
+                        "Replacing %s %s",
+                        str(remove_non_numbers(word)),
+                        str(num2words(remove_non_numbers(word))),
+                    )
+                    if "th" in word or "st" in word or "nd" in word or "rd" in word or "-" in word:
+                        new_word = strings_word.replace(
+                            " ", " " + str(num2words(word)) + "\n\n"
+                        )
+                    
+                        
+                    else:
+                        new_word = strings_word.replace(
+                            " ",
+                            " " + str(num2words(remove_non_numbers(word))) + "\n\n",
+                            )
+                        try:
+                            if len(remove_non_numbers(word)) == 4 and "thousand" in new_word:
+                                if 3000 > int(remove_non_numbers(word)) > 1300:
+                                    new_word = strings_word.replace(
+                                        " ",
+                                        " " + str(num2words(remove_non_numbers(word)[:2])) + " " + str(num2words(remove_non_numbers(word)[2:])) + "\n\n",
+                                        )
+                        except Exception as e:
+                            LOGGER.error("Error year: %s", e)
+                            LOGGER.error("Word: %s", word)
+                    new_text += new_word
+                except Exception as e:
+                    LOGGER.error("Error converting to number: %s", e)
+                    LOGGER.error("Word: %s", word)
+            else:
+                new_text += word + " "
+        else:
+            new_text += word + " "    
+    return new_text
 
 
 def remove_non_numbers(text: str) -> str:
@@ -150,17 +184,36 @@ def reddit_remove_bad_words(text: str) -> str:
     """
     Remove bad words from a text.
     """
+    compiled_test = ""
     for word in text.split():
+        
         for replace_word, keep_word in REPLACE_WORDS_CLEAN.items():
             if word.lower() == replace_word:
                 text = text.replace(word, keep_word)
+    for word in text.split():
         for d_word, d_word_r in REPLACE_CURSE_WORDS_DIRT.items():
             if d_word in word.lower() and "mother" not in word.lower():
                 text = text.replace(d_word, d_word_r)
+    for word in text.split():
+        found_in_word = False
+        found_cword = ""
         for curse_word in CURSE_WORDS:
+            
+            # Check
+            for part_word in word.lower().split("-"):
+                if remove_non_letters(part_word) == curse_word:
+                    found_in_word = True
+                    found_cword = curse_word
             if curse_word == remove_non_letters(word.lower()):
-                text = replace_word_ignoring_punctuation(text, word, "beep")
-    return text
+                found_in_word = True
+                found_cword = curse_word
+            # Replace    
+        if not found_in_word:
+            compiled_test += word + " "
+        else:
+            wordy = word.replace(found_cword, "beep")
+            compiled_test += wordy + " "
+    return compiled_test
 def get_correct_chunk_end(chunks: dict, chunk_idx: int) -> float:
     """
     Get the correct chunk from a dictionary of chunks based on the chunk index.
@@ -187,7 +240,7 @@ def remove_non_letters(text):
     Returns:
         The string with only allowed characters.
     """
-    return re.sub(r"[^a-zA-Z0-9 \?!,.\n]", "", text)
+    return re.sub(r"[^a-zA-Z0-9 \?!,.\n]", " ", text)
 
 
 def reddit_acronym(text: str) -> str:
