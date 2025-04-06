@@ -222,7 +222,7 @@ def create_reddit_video(
         break
 
 
-def create_postimg_clip_com(chunks: dict, tw=1080):
+def create_postimg_clip_com(chunks: dict, tw=1080, th=1920):
     start = 0
     title_img_stop = 0
     clips_list = []
@@ -339,7 +339,7 @@ def create_reddit_video_com(
         rezivid = Resize(height=th) if use_hi else Resize(width=tw)
 
         try:
-            clip_pt_imgs, paths_to_remove, transcript, end_image_time = create_postimg_clip_com(chunks, tw)
+            clip_pt_imgs, paths_to_remove, transcript, end_image_time = create_postimg_clip_com(chunks, tw, th)
             
             _, cap_clips, more_paths, ending_caps = create_captions(
                     pid,
@@ -387,11 +387,12 @@ def create_reddit_video_com(
             time.sleep(1)
             
             try:
-                os.remove(f"tmp/audios/{pid}_aud.mp3")
+                
                 for path in paths_to_remove:
                     os.remove(path)
                 for path in paths_to_remove_au:
                     os.remove(path)
+                os.remove(f"tmp/audios/{pid}_aud.mp3")
             except:
                 pass
         except Exception as e:

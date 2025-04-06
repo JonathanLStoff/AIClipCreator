@@ -1,0 +1,28 @@
+{
+  "Android": [
+    {
+      "nickname": "Dump UI",
+      "command": "poetry run python ./clip_creator/adb/dump.py"
+    }
+  ],
+  "General": [
+    {
+      "nickname": "Create Reddit Post (no scroll)",
+      "command": "poetry run python reddit_post.py --skipscroll"
+    },
+    {
+      "nickname": "Scroll",
+      "command": "poetry run python scheduled_post.py --scrollonly"
+    },
+    {
+      "nickname": "Post Sched",
+      "command": "poetry run python scheduled_post.py --skipscroll"
+    }
+  ],
+  "Install": [
+    {
+      "nickname": "install torch cuda",
+      "command": "poetry run pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118"
+    }
+  ]
+}

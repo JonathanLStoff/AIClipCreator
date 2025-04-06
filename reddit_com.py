@@ -182,6 +182,8 @@ def main_reddit_coms_orch():
             banned_q = False
             if not post["nsfw"]:  # if not nsfw
                 for word in banned_words:
+                    if word.strip() == "" or word.strip() == " ":
+                        continue
                     if word in post["title"] or word in post["content"]:
                         LOGGER.info("Post %s has banned word %s", post["post_id"], word)
                         banned_q = True
@@ -254,7 +256,11 @@ def main_reddit_coms_orch():
             posts_to_rm.append(pid)
             continue
         ht_text = remove_non_letters(
-            swap_words_numbers(reddit_acronym(reddit_remove_bad_words(post["title"]+ ("\n" + post["content"] if "?" not in post["title"] else ""))))
+            swap_words_numbers(
+                reddit_acronym(
+                    reddit_remove_bad_words(post["title"]+ ("\n" + post["content"] if "?" not in post["title"] else ""))
+                    )
+                )
         )
         posts_to_use[pid]["chunks"] = {str(uuid.uuid4()): {"idx": 0, "text": ht_text}}
         posts_to_use[pid]["comments_json"] = sort_and_loop_by_max_int_key_coms(
@@ -276,10 +282,12 @@ def main_reddit_coms_orch():
                 banned_words = f.read().split(",")
                 banned_q = False
                 for word in banned_words:
+                    if word.strip() == "" or word.strip() == " ":
+                        continue
                     if word in comment["content"] or word in comment["best_reply"].get(
                         "content", ""
                     ):
-                        LOGGER.info(
+                        LOGGER.debug(
                             "Comment %s has banned word %s", str(comment["content"]).encode("ASCII", "ignore").decode("ASCII"), word
                         )
                         banned_q = True
@@ -288,8 +296,8 @@ def main_reddit_coms_orch():
                     continue
             # TODO: Modify to save the og comment to map to the captions like numbers
             tt_text = ("\n"
-                            + num2words(idx + 1)
-                            + ".\n\n\n"
+                            + str(num2words(idx + 1)).upper()
+                            + ", "
                             + comment["content"]
                             + ".\n"
                             + (
@@ -407,6 +415,8 @@ def main_reddit_coms_orch():
 
     if not args.usevids:
         tts_model = TTSModelKokoro()
+        LOGGER.info("Creating audio using TTS")
+        LOGGER.info("There are %s posts to use", len(posts_to_use.keys()))
         for pid, post in posts_to_use.items():
             posts_to_use[pid]["audio_length"] = 0
 

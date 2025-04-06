@@ -1,6 +1,6 @@
 from clip_creator.adb.api.uploader import ADBUploader
 from clip_creator.conf import LOGGER
-
+import traceback
 
 def upload_phsyphone(
     video_path: str,
@@ -12,7 +12,6 @@ def upload_phsyphone(
 ):
     
     uploader_class = ADBUploader()
-    
     
     
     # upload video
@@ -42,14 +41,14 @@ def upload_phsyphone(
         )
     except Exception as e:
         LOGGER.error("Error uploading video to Instagram")
-        LOGGER.error(e)
+        LOGGER.error(traceback.format_exc())
     try:
         #upload yt
         uploader_class.upload_yt(description=description, draft=draft, photo_mode=photo_mode, only_me=only_me)
     except Exception as e:
         
         LOGGER.error("Error uploading video to YouTube")
-        LOGGER.error(e)
+        LOGGER.error(traceback.format_exc())
 
     return True
 

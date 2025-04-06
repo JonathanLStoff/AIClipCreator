@@ -1,0 +1,38 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Dump UI",
+            "type": "shell",
+            "command": "npm run build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Tests",
+            "type": "shell",
+            "command": "npm run test",
+            "problemMatcher": []
+        },
+        {
+            "label": "Android: Build APK",
+            "type": "shell",
+            "command": "./gradlew assembleDebug",
+            "group": "android",
+            "problemMatcher": []
+        },
+        {
+            "label": "Android: Install APK",
+            "type": "shell",
+            "command": "adb install -r app/build/outputs/apk/debug/app-debug.apk",
+            "group": "android",
+            "problemMatcher": []
+        },
+        {
+            "label": "Android: Launch App",
+            "type": "shell",
+            "command": "adb shell am start -n com.example.app/.MainActivity",
+            "group": "android",
+            "problemMatcher": []
+        }
+    ]
+}

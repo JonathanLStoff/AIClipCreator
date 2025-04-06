@@ -84,44 +84,88 @@ def swap_words_numbers(text: str) -> str:
             LOGGER.debug(remove_non_numbers(word).isdigit())
             
             if remove_non_numbers(word).isdigit() and len(remove_non_numbers(word)) < 10:
-                try:
-                    strings_word = re.sub(r"\d+", " ", word)
-                    LOGGER.debug(
-                        "Replacing %s %s",
-                        str(remove_non_numbers(word)),
-                        str(num2words(remove_non_numbers(word))),
-                    )
-                    if "th" in word or "st" in word or "nd" in word or "rd" in word or "-" in word:
-                        new_word = strings_word.replace(
-                            " ", " " + str(num2words(word)) + "\n\n"
+                if ":" not in word:
+                    try:
+                        strings_word = re.sub(r"\d+", " ", word)
+                        LOGGER.debug(
+                            "Replacing %s %s",
+                            str(remove_non_numbers(word)),
+                            str(num2words(remove_non_numbers(word))),
                         )
-                    
-                        
-                    else:
+                        if "th" in word or "st" in word or "nd" in word or "rd" in word or "-" in word:
+                            new_word = strings_word.replace(
+                                " ", " " + str(num2words(word)) + ","
+                            )
+                        elif ":" in word:
+                            parts_words = word.split(":")
+                            new_word = ""
+                            for i, part in enumerate(parts_words):
+                                if i < 2:
+                                    new_word += part.replace(
+                                        " ", " " + str(num2words(part)) + " "
+                                    )
+                                elif i == 2:
+                                    new_word += part.replace(
+                                        " ", " , " + str(num2words(part)) + " seconds "
+                                    )
+                                else:
+                                    LOGGER.error("The timestamp is too long: %s", word)
+                            new_word += " O clock "
+                        elif "$" in word:
+                            new_word = strings_word.replace("$", "").replace(
+                                " ", " " + str(num2words(remove_non_numbers(word))) + " dollars "
+                            )
+                            
+                        else:
+                            new_word = strings_word.replace(
+                                " ",
+                                " " + str(num2words(remove_non_numbers(word))) + ",",
+                                )
+                            try:
+                                if len(remove_non_numbers(word)) == 4 and "thousand" in new_word:
+                                    if 3000 > int(remove_non_numbers(word)) > 1300:
+                                        new_word = strings_word.replace(
+                                            " ",
+                                            " " + str(num2words(remove_non_numbers(word)[:2])) + " " + str(num2words(remove_non_numbers(word)[2:])) + ",",
+                                            )
+                            except Exception as e:
+                                LOGGER.error("Error year: %s", e)
+                                LOGGER.error("Word: %s", word)
+                        new_text += new_word
+                    except Exception as e:
+                        LOGGER.error("Error converting to number: %s", e)
+                        LOGGER.error("Word: %s", word)
+                else:
+                    try:
+                        strings_word = re.sub(r"\d+", " ", word)
+                        LOGGER.debug(
+                            "Replacing %s %s",
+                            str(remove_non_numbers(word)),
+                            str(num2words(remove_non_numbers(word))),
+                        )
                         new_word = strings_word.replace(
                             " ",
                             " " + str(num2words(remove_non_numbers(word))) + "\n\n",
-                            )
-                        try:
-                            if len(remove_non_numbers(word)) == 4 and "thousand" in new_word:
-                                if 3000 > int(remove_non_numbers(word)) > 1300:
-                                    new_word = strings_word.replace(
-                                        " ",
-                                        " " + str(num2words(remove_non_numbers(word)[:2])) + " " + str(num2words(remove_non_numbers(word)[2:])) + "\n\n",
-                                        )
-                        except Exception as e:
-                            LOGGER.error("Error year: %s", e)
-                            LOGGER.error("Word: %s", word)
-                    new_text += new_word
-                except Exception as e:
-                    LOGGER.error("Error converting to number: %s", e)
-                    LOGGER.error("Word: %s", word)
+                        )
+                        new_text += new_word
+                    except Exception as e:
+                        LOGGER.error("Error converting to number: %s", e)
+                        LOGGER.error("Word: %s", word)
             else:
                 new_text += word + " "
         else:
             new_text += word + " "    
     return new_text
+def remove_non_letterstwo(text):
+  """Removes all non-letter characters from a string.
 
+  Args:
+    text: The input string.
+
+  Returns:
+    The string with only letters.
+  """
+  return re.sub(r'[^0-9a-zA-Z]+', '', text)
 
 def remove_non_numbers(text: str) -> str:
     """
@@ -240,6 +284,7 @@ def remove_non_letters(text):
     Returns:
         The string with only allowed characters.
     """
+    text = text.replace("'", "")
     return re.sub(r"[^a-zA-Z0-9 \?!,.\n]", " ", text)
 
 
@@ -249,10 +294,25 @@ def reddit_acronym(text: str) -> str:
     """
     for acronym, full in REDDIT_ACCRO_SUB.items():
         for word in text.split(" "):
-            if acronym.upper() in word:
+            if acronym in word:
                 LOGGER.info("replace %s with %s", word, full)
                 text = replace_word_ignoring_punctuation(text, word, full)
-    return text
+    new_text = ""
+    for word in text.split(" "):
+        found_in_word = False
+        word_found = ""
+        for accro, full in REPLACE_WORDS_CLEAN.items():
+        
+            if accro.lower() == word.lower():
+                LOGGER.info("replace %s with %s", word, full)
+                found_in_word = True
+                word_found = full
+        if found_in_word:
+            new_text += word_found + " "
+        else:
+            new_text += word + " "
+            
+    return new_text
 
 
 def get_id_from_vfile(file: str) -> str | None:
@@ -277,6 +337,12 @@ def get_top_posts(posts, n):
     sorted_items = sorted(
         posts.items(), key=lambda item: item[1]["upvotes"], reverse=True
     )
+    post_to_remove = []
+    for post in sorted_items:
+        if post[1]["upvotes"] < post[1]["comments"]:
+            post_to_remove.append(post)
+    for post in post_to_remove:
+        sorted_items.remove(post)
     update_set: set = set()
     for update_check in sorted_items[:n]:
         if "update" in update_check[1]["title"].lower() and (
@@ -319,7 +385,11 @@ def get_top_posts(posts, n):
     return dict(sorted_items[:n])
 
 
-def get_top_posts_coms(posts, n):
+def get_top_posts_coms(posts:dict, n):
+
+    for pid, post in posts.items():
+        if post["upvotes"] < post["comments"]:
+            posts[pid]["upvotes"] = posts[pid]["upvotes"] - post["comments"]
     return [
         key
         for key, _ in sorted(

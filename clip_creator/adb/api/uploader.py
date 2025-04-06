@@ -6,7 +6,7 @@ from time import sleep
 from tqdm import tqdm
 import uiautomator2 as u2
 from uiautomator2.exceptions import SessionBrokenError
-
+from clip_creator.utils.scan_text import remove_non_letterstwo
 from clip_creator.adb.dump import dump
 from clip_creator.conf import (
     ADB_DEVICE,
@@ -155,12 +155,13 @@ class ADBUploader:
 
         self.d.app_start(YT_APP)
         self.d.app_wait(YT_APP, front=True)
-
+        LOGGER.info("Started Youtube")
         self.d(text="Subscriptions").wait()
         (xi, yi) = self.d(text="Subscriptions").center()
         ad_yi = yi / self.d.info.get("displayHeight", 1)
         # Just touch the upload
         self.touch(0.5, ad_yi)
+        LOGGER.info("Clicked on upload")
         sleep(2)  # Give it a moment to load the upload screen
         # Check if start over
         if self.d(textContains="Start").exists(timeout=5):
@@ -173,6 +174,7 @@ class ADBUploader:
         self.d(text="Add").wait()
         addx, addy = self.d(text="Add").center()  # Find the add button, this is where we will start the upload from
         self.d(text="Add").click()
+        LOGGER.info("Clicked on add")
         # Touch the video
         if self.d(text="Create").exists(timeout=5):
             self.d(text="Create").wait()
@@ -183,6 +185,7 @@ class ADBUploader:
                 ad_x / self.d.info.get("displayWidth", 1),
                 ad_y / self.d.info.get("displayHeight", 1),
             )
+            LOGGER.info("Clicked on vid and adjusted for create")
         elif self.d(text="Gallery").exists(timeout=5):
             self.d(text="Gallery").wait()
             ad_x = (self.d.info.get("displayWidth", 1) / 3) / 2
@@ -192,11 +195,15 @@ class ADBUploader:
                 ad_x / self.d.info.get("displayWidth", 1),
                 ad_y / self.d.info.get("displayHeight", 1),
             )
-        self.d(text="Next").wait()
-        self.d(text="Next").click()
-        self.d(text="Done").wait()
-        self.d(text="Done").click()
-        for i in tqdm(range(5), desc="Waiting for upload to process", unit="s"):
+            LOGGER.info("Clicked on vid and adjusted for no create")
+        sleep(2)  # Give it a moment to load the video
+        if self.d(text="Next").exists(timeout=5):
+            self.click_with_random_offset(self.d(text="Next"))
+        LOGGER.info("Clicked on next")
+        sleep(2)  # Give it a moment to load the video
+        if self.d(text="Done").exists(timeout=5):
+            self.click_with_random_offset(self.d(text="Done"))
+        for i in tqdm(range(8), desc="Waiting for upload to process", unit="s"):
             sleep(10)  # wait for the upload to process, this can take a while on slow connections
         
         if self.d(text="Add").exists(timeout=60):
@@ -207,22 +214,29 @@ class ADBUploader:
                 yi / self.d.info.get("displayHeight", 1),
             )
             LOGGER.info("Found add")
-        elif self.d(descriptionContains="Add Sound").exists(timeout=5):
+        elif self.d(descriptionContains="Add Sound").exists(timeout=60):
             #self.click_with_random_offset(self.d(descriptionContains="Add Sound"))
             self.touch((self.d.info.get("displayWidth", 1)-(addx/2))/self.d.info.get("displayWidth", 1), addy/ self.d.info.get("displayHeight", 1))  # Click in the middle of the screen to avoid issues with the keyboard
-        
+        else:
+            LOGGER.info("SOMETHING IS WRONG WE ARE NOT IN THE ADD SCREEN")
         
 
         
-        self.d(text="Next").wait()
-        self.d(text="Next").click()
+        if self.d(text="Next").exists(timeout=10):
+            
+            self.click_with_random_offset(self.d(text="Next"))
+        else:
+            LOGGER.error("Next button not found")
+            xml = self.d.dump_hierarchy()
+            with open("logs/error_dump_yt.xml", "w", encoding="utf-8") as f:
+                f.write(xml)
         sleep(2)  # Give it a moment to process the upload before we set the title/description
         dsc_parx, dsc_pary = self.d(text="Caption your Short").center()  # Find the parent of the caption text box, will need this later
         if self.d(descriptionContains="#").exists(timeout=5):
              correct_vis_y = (dsc_pary * 3.8) / self.d.info.get("displayHeight", 1)  # Get the y coordinate of the caption box, this is where we will click to enter the description
         else:
             correct_vis_y = (dsc_pary * 3) / self.d.info.get("displayHeight", 1)  # Get the y coordinate of the caption box, this is where we will click to enter the description
-        pub_vis_y  = (dsc_pary * 2) / self.d.info.get("displayHeight", 1) 
+        pub_vis_y  = (dsc_pary * 1.6) / self.d.info.get("displayHeight", 1)
         if description:
             
             self.d(text="Caption your Short").set_text(self.format_yt_desc(description))
@@ -236,6 +250,7 @@ class ADBUploader:
             else:
                 LOGGER.info("Setting privacy to Private")
                 self.touch(dsc_parx/self.d.info.get("displayWidth") ,correct_vis_y)
+                sleep(2)
                 self.touch(dsc_parx/self.d.info.get("displayWidth") ,correct_vis_y)
                 self.d.press("back")
             sleep(2)
@@ -248,6 +263,7 @@ class ADBUploader:
             sleep(2)
         else:
             self.touch(dsc_parx/self.d.info.get("displayWidth") , correct_vis_y)
+            sleep(2)
             self.touch(dsc_parx/self.d.info.get("displayWidth") , pub_vis_y)
             self.d.press("back")
             sleep(2)
@@ -283,27 +299,48 @@ class ADBUploader:
         self.d(resourceId="com.instagram.android:id/creation_tab").click()
 
         LOGGER.info("Clicked on upload")
+        sleep(2)
         if self.d(text="Start new video").exists(timeout=3):
             self.d(text="Start new video").click()
+        
+        self.d(text="POST").wait()
+        if self.d(text="POST").info["selected"]:
+            self.click_with_random_offset(self.d(text="REEL"))
+            
         sleep(2)
+        if self.d(text="Start new video").exists(timeout=3):
+            self.d(text="Start new video").click()
         if self.d(text="Recents").exists(timeout=5):
+            
             # Click on recents to select the video from the gallery
             LOGGER.info("Selecting from recents")
             rex, rey = self.d(text="Recents").center()
-            rey_n = rey * 1.1
-            self.touch(rex/self.d.info.get("displayWidth",1), rey_n/self.d.info.get("displayHeight", 1))  # Click on recents, slightly above to avoid the keyboard if it pops up
+            rey_n = rey * 1.2
+            self.touch(rex/self.d.info.get("displayWidth",1), rey_n/self.d.info.get("displayHeight", 1)) 
+            
+        
+        elif self.d(textContains="Recents").exists(timeout=5): # May have a different name so we check for the text
+            # Click on recents to select the video from the gallery
+            LOGGER.info("Selecting from contains recents")
+            rex, rey = self.d(textContains="Recents").center()
+            rey_n = rey * 1.3
+            self.touch(rex/self.d.info.get("displayWidth",1), rey_n/self.d.info.get("displayHeight", 1))
         elif self.d(text="Templates").exists(timeout=5):
             LOGGER.info("Found templates")
             _, templatey = self.d(text="Templates").center()
             self.touch(0.5, (templatey * 2) / self.d.info.get("displayHeight", 1))
         # self.d(resourceId='com.instagram.android:id/gallery_grid_item_bottom_container', instance=0).wait()
         # self.d(resourceId='com.instagram.android:id/gallery_grid_item_bottom_container', instance=0).click()
-        sleep(2)  # Give it a moment to load the video
-        self.d(text="Next").wait()
-        self.click_with_random_offset(self.d(text="Next"))
+        sleep(5)  # Give it a moment to load the video
+        # if self.d(textContains='no').exists(timeout=5):
+        #     self.click_with_random_offset(self.d(textContains='no'))
+        if self.d(text="Next").exists(timeout=5):
+            self.click_with_random_offset(self.d(text="Next"))
         if self.d(text="Next").exists(timeout=5):
             self.click_with_random_offset(self.d(text="Next"))
         LOGGER.info("Clicked on next")
+        if self.d(description="Next").exists(timeout=5):
+            self.click_with_random_offset(self.d(description="Next"))
         if description:
             self.d(
                 resourceId="com.instagram.android:id/caption_input_text_view"
@@ -321,8 +358,22 @@ class ADBUploader:
             self.d(text="Save draft").wait()
             self.click_with_random_offset(self.d(text="Save draft"))
         else:
-            self.d(text="Share").wait()
-            self.click_with_random_offset(self.d(text="Share"))
+            if self.d(description="GIF Keyboard").exists(timeout=5):
+                self.d.press("back")
+            if self.d(text="Share").exists(timeout=5):
+                try:
+                    self.click_with_random_offset(self.d(text="Share"))
+                except Exception as e:
+                    
+                    LOGGER.error("Error clicking on share %s", e)
+            else:
+                xml = self.d.dump_hierarchy()
+                with open("logs/error_dump_insta.xml", "w", encoding="utf-8") as f:
+                    f.write(xml)
+                LOGGER.info("Error finding share")
+                
+                self.d.press("back")
+                self.click_with_random_offset(self.d(text="Share"))
             
         timeout_time = datetime.datetime.now() + datetime.timedelta(minutes=5)
         
@@ -335,15 +386,16 @@ class ADBUploader:
                     break
         elif self.d(resourceId="com.instagram.android:id/row_pending_container").exists(timeout=3):
             # For pending uploads, wait until it disappears
+            LOGGER.info("Waiting for pending upload to finish")
             while self.d(resourceId="com.instagram.android:id/row_pending_container").exists(timeout=3):
-                LOGGER.info("Waiting for pending upload to finish")
+                
                 sleep(1)
                 if datetime.datetime.now() > timeout_time:
                     LOGGER.info("Breaking, timeout")
                     break
         else:
             LOGGER.info("Cannot find upload status, assuming upload will take 4 mins")
-            sleep(240)  # Sleep for 4 minutes to allow the upload to finish, this is a fallback in case the status is not found
+            sleep(60*7)  # Sleep for 7 minutes to allow the upload to finish, this is a fallback in case the status is not found
 
         LOGGER.info("Done uploading, stopping app")
         sleep(2)
@@ -491,41 +543,42 @@ class ADBUploader:
                     dump()
                     sleep(2)
                 # Get text from description and check if it matches
-
-                part_desc = (
-                    " ".join(description.replace("\n", "").split()[:5])
+                num_words = 5 if len(description.replace("\n", "").split()) > 5 else -1
+                LOGGER.info("Checking description with %s words", num_words)
+                part_desc = remove_non_letterstwo((
+                    " ".join(description.replace("\n", "").split()[:num_words])
                     .encode("ascii", "ignore")
                     .decode("ascii")
-                )
+                ))
                 LOGGER.info("Part desc: %s", part_desc)
                 if self.d(
                     resourceId="com.zhiliaoapp.musically:id/desc", instance=0
                 ).exists(timeout=5):
-                    text_decs = (
+                    text_decs = remove_non_letterstwo(
                         self.d(
                             resourceId="com.zhiliaoapp.musically:id/desc", instance=0
                         )
                         .info["text"]
                         .encode("ascii", "ignore")
                         .decode("ascii")
-                    )
+                    ).replace("\n", "")
                     LOGGER.info('resourceId="com.zhiliaoapp.musically:id/desc"')
                 elif self.d(textStartsWith=part_desc).exists(timeout=5):
                     return True
                 else:
                     
-                    text_decs = (
+                    text_decs = remove_non_letterstwo(
                         self.d(resourceId="com.zhiliaoapp.musically:id/dsy", index=0)
                         .child(index=0)
                         .info["text"]
                         .encode("ascii", "ignore")
                         .decode("ascii")
-                    )
+                    ).replace("\n", "")
                     LOGGER.info('resourceId="com.zhiliaoapp.musically:id/dsy"')
                 LOGGER.info("Description: %s", text_decs)
                 returnsz = False
-                if part_desc.lower() not in text_decs.lower():
-                    LOGGER.info("%s not in %s", part_desc, text_decs)
+                if part_desc.lower().replace(" ", "") not in text_decs.lower().replace(" ", ""):
+                    LOGGER.info("%s not in %s", part_desc.lower().replace(" ", ""), text_decs.lower().replace(" ", ""))
                     LOGGER.info("Description not found")
                     if lang != "en":
                         returnsz = True

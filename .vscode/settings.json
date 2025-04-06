@@ -1,0 +1,42 @@
+{
+    "python.pythonPath": "C:\\Users\\legoc\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\clip-creator-Uv9VwtEW-py3.12\\Scripts\\python.exe",
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./clip_creator/tests",
+        "-p",
+        "*test*.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true,
+    "pings.commands": [
+        {
+            "id": "9woG4hbLfNfcKFPk75vg7M",
+            "label": "reddit_post.py",
+            "path": "c:\\Users\\legoc\\Desktop\\AI\\AIClipCreator\\reddit_post.py",
+            "icon": "file",
+            "description": "     Reddit Posting Script",
+            "command": "openFile"
+        },
+        {
+            "id": "9woG4hbLfNdfdsasddf",
+            "label": "Pull Android UI",
+            "path": "adb",
+            "icon": "command",
+            "description": "./window_dump.xml",
+            "command": "runCommand"
+        }
+    ],
+    "favorites.groups": [
+        "Default",
+        "Android"
+    ],
+    "favorites.currentGroup": "Default",
+    "favorites.sortOrder": "ASC",
+    "favorites.resources": [
+        {
+            "filePath": "reddit_post.py",
+            "group": "Default"
+        }
+    ]
+}

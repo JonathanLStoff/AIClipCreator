@@ -32,6 +32,7 @@ class ADBScroll:
             LOGGER.error(e)
 
         self.device_size = (0, 0)
+        LOGGER.info("Connecting to device...")
         self.d = u2.connect(ADB_DEVICE)
         self.d.shell("input keyevent 82")
         try:
