@@ -30,7 +30,7 @@ RELATIVE_PATH_T = f"{ADB_PATH}/Pictures"  # has to be it's own folder
 class ADBUploader:
     def __init__(self):
         try:
-            self.adb_raw(["connect", ADB_DEVICE])
+            self.adb_raw_non_blocking(["connect", ADB_DEVICE])
 
         except Exception as e:
             LOGGER.error(e)
@@ -46,7 +46,14 @@ class ADBUploader:
         proc = subprocess.Popen(command_list, stdout=subprocess.PIPE, shell=ADB_SHELL)
         (out, err) = proc.communicate()
         return out.decode("utf-8")
-
+    def adb_raw_non_blocking(self, command: list):
+        """
+        Runs an ADB command without waiting for its completion and ignores the output.
+        """
+        command_list = [ADB_PATH_EXE, *command]
+        LOGGER.info(f"Running command (non-blocking): {command_list}")
+        subprocess.Popen(command_list, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=ADB_SHELL)
+        # We don't call communicate() or wait(), so the function returns immediately.
     def adb_raw(self, command: list):
         command_list = [ADB_PATH_EXE, *command]
         LOGGER.info(f"Running command: {command_list}")
@@ -402,7 +409,21 @@ class ADBUploader:
         self.d.app_stop(INSTA_APP)
 
     def add_location_insta(self):
-        self.d(resourceId="com.instagram.android:id/location").click()
+        if self.d(text="Location").exists(timeout=5):
+            self.click_with_random_offset(self.d(text="Location"))
+            sleep(2)
+        if self.d(textContains="Search").exists(timeout=5):
+            self.d(textContains="Search").set_text(
+                                "united states"
+                            )
+        if self.d(text="United States").exists(timeout=5):
+            self.click_with_random_offset(self.d(text="United States"))
+            sleep(2)
+        if self.d(description="GIF Keyboard").exists(timeout=5):
+            if self.d(text="USA").exists(timeout=5):
+                self.click_with_random_offset(self.d(text="USA"))
+            elif self.d(text="Orlando").exists(timeout=5):
+                self.click_with_random_offset(self.d(text="Orlando"))
 
     def click_with_random_offset(self, element):
         x = random.randint(1, 100) / 100
@@ -723,6 +744,7 @@ class ADBUploader:
                             self.d.press("back")
                             LOGGER.info("Pressed back")
                             sess(text=description).wait()
+                        self.add_location_insta()
                         if only_me:
                             try:
                                 sess(text="Everyone can view this post").wait()

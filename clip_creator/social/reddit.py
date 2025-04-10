@@ -663,9 +663,7 @@ def straight_update_reddit(href: str) -> dict:
             LOGGER.debug(f"Error getting author from json: {traceback.format_exc()}")
             time.sleep(15)
             response = requests.get(href + ".json").json()
-        LOGGER.debug(f"response: {response}")
         datasx, _ = reddit_json_all(response)
-        LOGGER.info(f"datasx: {datasx}")
         _, content = reg_get_og(datasx.get("content", ""), datasx.get("title", ""))
         post = {
             "title": datasx.get("title", ""),

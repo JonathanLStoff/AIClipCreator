@@ -499,6 +499,10 @@ def main_reddit_coms_orch():
                 posts_to_use[pid][f"chunks_{lang}"][uid]["ascript"] = force_align(
                     device=device, file=chunk["auFile"], yt_ft_transcript=chunk["text"]
                 )
+                try:
+                    LOGGER.info("Lang: %s, first chunk: %s, inputtext: %s", lang, posts_to_use[pid][f"chunks_{lang}"][uid]["ascript"][0], chunk["text"])
+                except Exception as e:
+                    LOGGER.error("Error: %s", e)
     #####################################
     # Math the start
     #####################################
@@ -615,6 +619,8 @@ def main_reddit_coms_orch():
                                 comment_int=post["comments"],
                             )
                         )
+                    else:
+                        break
                     # else:
                     #     posts_to_use[pid][f"chunks_{lang}"][uid]["img"]:list = (
                     #         render_html_to_png_comment(
@@ -637,6 +643,7 @@ def main_reddit_coms_orch():
                     tw=1080,
                     th=1920,
                     chunks=posts_to_use[pid][f"chunks_{lang}"],
+                    lang=lang,
                 )
     else:
         for pid, post in posts_to_use.items():

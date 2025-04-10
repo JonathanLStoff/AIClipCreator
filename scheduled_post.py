@@ -42,7 +42,7 @@ def sched_run(skipscroll=False):
             if args.scrolltime:
                 max_time_min = args.scrolltime
             else:
-                max_time_min = random.randint(10, 35)
+                max_time_min = random.randint(5, 10)
             adb.scroll_tiktok(max_time_min=max_time_min)
             LOGGER.info("Stopping...")
             adb.running = False
@@ -64,16 +64,19 @@ def sched_run(skipscroll=False):
     all_posts_to_post = [post for post in get_rows_where_tiktok_not_null_or_empty() if post.get("tiktok_posted") and post.get("tiktok_uploaded") != "None" and not post.get("tiktok_uploaded")]
     more_posts = [post for post in get_rows_where_tiktok_not_null_or_empty_com() if post.get("tiktok_posted") and post.get("tiktok_uploaded") != "None" and not post.get("tiktok_uploaded")]
     LOGGER.info("more_posts: %s", len(more_posts))
-    
-    posts_to_use = {}
-    if more_posts != []:
-        LOGGER.info("more_posts: %s", len(more_posts))
-        rand_order_posts = more_posts.copy()
-    else:
-        rand_order_posts = all_posts_to_post.copy()
+    all_all_reddit = []
+    for post in more_posts:
+        post["type"] = "coms"
+        all_all_reddit.append(post)
+    for post in all_posts_to_post:
+        post["type"] = "posts"
+        all_all_reddit.append(post)
         
-    random.shuffle(rand_order_posts)
-    for post in rand_order_posts:
+    posts_to_use = {}
+
+        
+    random.shuffle(all_all_reddit)
+    for post in all_all_reddit:
         if (
             post.get("tiktok_posted")
             and post.get("tiktok_posted") != "None"
@@ -92,13 +95,13 @@ def sched_run(skipscroll=False):
                 for i in range(post["parts"]):
                     posts_to_use[post["post_id"]]["desc"].append(
                         f"Part {i+1} |"
-                        f" {reddit_remove_bad_words(post['title'])}\n\n#part{i+1} #reddit"
+                        f" {post['title']}\n\n#part{i+1} #reddit"
                         " #reddittreadings #reddit_tiktok \n #redditstorytime"
                         " #askreddit #fyp"
                     )
             else:
                 posts_to_use[post["post_id"]]["desc"] = (
-                    f"{reddit_remove_bad_words(post['title'])}\n\n#reddit"
+                    f"{post['title']}\n\n#reddit"
                     " #reddittreadings #reddit_tiktok \n #redditstorytime #askreddit"
                     " #fyp"
                 )
@@ -128,7 +131,7 @@ def sched_run(skipscroll=False):
         if not suvvedd:
             LOGGER.error("Error uploading video")
             continue
-        if more_posts != []:
+        if post["type"] == "coms":
             update_reddit_post_clip_sc_com(post["post_id"], True)
         else:
             

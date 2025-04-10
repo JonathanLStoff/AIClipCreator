@@ -15,11 +15,22 @@ from clip_creator.conf import (
     REPLACE_WORDS_CLEAN,
     RM_TIMESTAMP_REGEX,
     TIMESTAMP_REGEX,
+    SUB_MULTIPLY
 )
+
+
 def remove_markdown_links_images(text):
-  """Removes markdown links and images from a string."""
-  pattern = r"\[([^\]]+)\]\(([^)]+)\)"
-  return re.sub(pattern, "", text)
+    """Removes markdown links and images from a string, keeping the link text."""
+    link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
+    image_pattern = r"!\[([^\]]*)\]\(([^)]+)\)"  # Added pattern for images
+
+    # Remove links, keeping the link text (group 1)
+    text_without_links = re.sub(link_pattern, r"\1", text)
+
+    # Remove images (we don't keep any alt text for images in this case)
+    text_without_media = re.sub(image_pattern, "", text_without_links)
+
+    return text_without_media
 
 def most_common_ngrams(text, n=3):
     """
@@ -119,7 +130,7 @@ def swap_words_numbers(text: str) -> str:
                         else:
                             new_word = strings_word.replace(
                                 " ",
-                                " " + str(num2words(remove_non_numbers(word))) + ",",
+                                " " + str(num2words(remove_non_numbers(word))) + ", ",
                                 )
                             try:
                                 if len(remove_non_numbers(word)) == 4 and "thousand" in new_word:
@@ -285,20 +296,38 @@ def remove_non_letters(text):
         The string with only allowed characters.
     """
     text = text.replace("'", "")
-    return re.sub(r"[^a-zA-Z0-9 \?!,.\n]", " ", text)
+    text = text.replace("’", "")
+    text = text.replace("‘", "")
+    text = text.replace("`", "")
+    text = text.replace("´", "")
+    text = text.replace("′", "")
+    text = text.replace("‛", "")
+    text = text.replace("‘", "")
+    text = text.replace("’", "")
+    text = text.replace("“", "")
+    text = text.replace("”", "")
+    return re.sub(r"[^a-zA-Z0-9 \?!,.'‘’‚`´′‛\n]", " ", text)
 
 
 def reddit_acronym(text: str) -> str:
     """
     Replace acronyms in a text.
     """
-    for acronym, full in REDDIT_ACCRO_SUB.items():
-        for word in text.split(" "):
-            if acronym in word:
-                LOGGER.info("replace %s with %s", word, full)
-                text = replace_word_ignoring_punctuation(text, word, full)
-    new_text = ""
+    net_text = ""
     for word in text.split(" "):
+        full_word = ""
+        acro = ""
+        for acronym, full in REDDIT_ACCRO_SUB.items():
+            if acronym in word:
+                acro = acronym
+                full_word = full
+        if acro != "":
+            LOGGER.info("replace %s with %s", word, full)
+            net_text += word.replace(acro, full_word) + " "
+        else:
+            net_text += word + " "
+    new_text = ""
+    for word in net_text.split(" "):
         found_in_word = False
         word_found = ""
         for accro, full in REPLACE_WORDS_CLEAN.items():
@@ -334,8 +363,15 @@ def dirty_remove_cuss(text: str) -> str:
 
 
 def get_top_posts(posts, n):
+    for pid, post in posts.items():
+        for sub, multi in SUB_MULTIPLY.items():
+            if sub.lower() in post["url"].lower():
+                posts[pid]["ad_upvotes"] = posts[pid]["upvotes"] * multi
+        if not posts[pid].get("ad_upvotes"):
+            posts[pid]["ad_upvotes"] = posts[pid]["upvotes"]
+            LOGGER.error("No ad upvotes for %s", post['url'])
     sorted_items = sorted(
-        posts.items(), key=lambda item: item[1]["upvotes"], reverse=True
+        posts.items(), key=lambda item: item[1]["ad_upvotes"], reverse=True
     )
     post_to_remove = []
     for post in sorted_items:
@@ -345,7 +381,7 @@ def get_top_posts(posts, n):
         sorted_items.remove(post)
     update_set: set = set()
     for update_check in sorted_items[:n]:
-        if "update" in update_check[1]["title"].lower() and (
+        if "update" in remove_markdown_links_images(update_check[1]["title"]).lower() and (
             update_check[1].get("parent_post_id", None) is None
             or update_check[1].get("parent_post_id", None) == ""
         ):
@@ -371,17 +407,30 @@ def get_top_posts(posts, n):
         update_list,
         key=lambda x: datetime.fromisoformat(x[1]["posted_at"].replace("Z", "+00:00")),
     )
-
-    if len(update_list_sorted) > 0 and len(update_list_sorted) < n:
-        for post in update_list_sorted:
-            sorted_items.remove(post)
-        return dict(update_list_sorted + sorted_items[: n - len(update_list_sorted)])
-    elif len(update_list_sorted) > n:
-        for post in update_list_sorted:
-            sorted_items.remove(post)
-        return dict(sorted_items[:n])
-    if len(update_list_sorted) == n:
-        return dict(update_list_sorted)
+    if False:
+        if len(update_list_sorted) > 0 and len(update_list_sorted) < n:
+            for post in update_list_sorted:
+                sorted_items.remove(post)
+            return dict(update_list_sorted + sorted_items[: n - len(update_list_sorted)])
+        elif len(update_list_sorted) > n:
+            for post in update_list_sorted:
+                sorted_items.remove(post)
+            return dict(sorted_items[:n])
+        if len(update_list_sorted) == n:
+            return dict(update_list_sorted)
+    else:
+        try:
+            for post in update_list_sorted:
+                sorted_items.remove(post)
+            items_to_remove = []
+            for post in sorted_items:
+                if "update" in post[1]["title"].lower() or "original" in post[1]["title"].lower():
+                    items_to_remove.append(post)
+            for post in items_to_remove:
+                sorted_items.remove(post)
+        except Exception as e:
+            LOGGER.error("Error removing post: %s", e)
+            LOGGER.error("Post: %s", post)
     return dict(sorted_items[:n])
 
 

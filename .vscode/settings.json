@@ -38,5 +38,14 @@
             "filePath": "reddit_post.py",
             "group": "Default"
         }
-    ]
+    ],
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "driver": "SQLite",
+            "name": "clipaidb",
+            "database": "${workspaceFolder:AIClipCreator}/aiclipcreator.db"
+        }
+    ],
+    "sqltools.useNodeRuntime": true
 }

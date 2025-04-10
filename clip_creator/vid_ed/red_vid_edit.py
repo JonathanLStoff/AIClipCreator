@@ -329,7 +329,7 @@ def load_audio_clips(chunks):
 
 
 def create_reddit_video_com(
-    video_path, output_path, start_time, end_time, pid, th, tw, chunks=None
+    video_path, output_path, start_time, end_time, pid, th, tw, chunks=None, lang:str="en"
 ):
     if chunks is None:
         chunks = {}
@@ -342,7 +342,7 @@ def create_reddit_video_com(
             clip_pt_imgs, paths_to_remove, transcript, end_image_time = create_postimg_clip_com(chunks, tw, th)
             
             _, cap_clips, more_paths, ending_caps = create_captions(
-                    pid,
+                    f"{pid}_{lang}_",
                     paragraph="paragraph",
                     transcript=transcript,
                     target_size=(tw, th),

@@ -26,7 +26,7 @@ FB_APP = "com.facebook.appmanager"
 class ADBScroll:
     def __init__(self):
         try:
-            self.adb_raw(["connect", ADB_DEVICE])
+            self.adb_raw_non_blocking(["connect", ADB_DEVICE])
 
         except Exception as e:
             LOGGER.error(e)
@@ -242,7 +242,14 @@ class ADBScroll:
         proc = subprocess.Popen(command_list, stdout=subprocess.PIPE, shell=ADB_SHELL)
         (out, err) = proc.communicate()
         return out.decode("utf-8")
-
+    def adb_raw_non_blocking(self, command: list):
+        """
+        Runs an ADB command without waiting for its completion and ignores the output.
+        """
+        command_list = [ADB_PATH_EXE, *command]
+        LOGGER.info(f"Running command (non-blocking): {command_list}")
+        subprocess.Popen(command_list, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=ADB_SHELL)
+        # We don't call communicate() or wait(), so the function returns immediately.
     def adb_wait(self, command: list):
         command_list = [ADB_PATH_EXE, *command]
         LOGGER.info(f"Running command: {command_list}")

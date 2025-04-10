@@ -51,6 +51,7 @@ from clip_creator.utils.scan_text import (
     split_audio,
     str_to_datetime,
     swap_words_numbers,
+    remove_markdown_links_images
 )
 from clip_creator.utils.schedules import none_old_timestamps
 from clip_creator.vid_ed.red_vid_edit import (
@@ -205,7 +206,7 @@ def main_reddit_posts_orch():
                 LOGGER.debug("Post dt: %s", post_dt)
                 if (datetime.now(UTC) - post_dt) > timedelta(days=7):
                     posty = straight_update_reddit(post.get("url", ""))
-                    LOGGER.debug("Posty: %s", posty)
+                    LOGGER.debug("Posty: %s",  posty.get("title"))
                     if posty.get("title"):
                         LOGGER.debug("Updating Post %s", posty["url"])
                         update_reddit_post_clip_old(
@@ -231,7 +232,7 @@ def main_reddit_posts_orch():
                 if url_finder.has_urls(post.get("content", "")):
                     found_urls:list[str] = url_finder.find_urls(post["content"])
                     for url in found_urls:
-                        post["content"] = post.get("content", "").replace(url, "")
+                        post["content"] = remove_markdown_links_images(post.get("content", "")).replace(url, "")
                         if "reddit" in str(url):
                             found_pid = False
                             for pid in posts_to_use.keys():

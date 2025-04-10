@@ -43,6 +43,7 @@ DB_PATH = "aiclipcreator.db"
 NUM_CORES = os.cpu_count() or 1
 LOGGER.info("Available CPU cores/threads: %d", NUM_CORES)
 BLUESTACKS_INSTANCE = "clipsphone"
+
 if sys.platform.startswith("win"):
     # FFMPEG_PARAMS = ["-cq", "28"]
     CODEC = "h264_nvenc"
@@ -196,12 +197,24 @@ SUB_REDDITS = [
     "tifu",
     "TwoHotTakes",
     "relationship_advice",
+    "BestofRedditorUpdates",
 ]
 SUB_REDDITS_COM = [
     "askreddit",
     "nostupidquestions",
     "AskMen",
 ]
+SUB_MULTIPLY = {
+    "TwoHotTakes": 3.0,
+    "relationship_advice": 1.0,
+    "BestofRedditorUpdates":2.0,
+    "askreddit": 1.0,
+    "amitheasshole":1.0,
+    "confessions":2.2,
+    "stories":2.2,
+    "AITAH":1.0,
+    "tifu":0.9,
+}
 REDDIT_ACCRO_SUB = {
     "AITA": "am I the a hole",
     "AITAH": "am I the a hole",
@@ -278,12 +291,29 @@ RED_COM_DELAY = 0.2
 REPLACE_CURSE_WORDS_DIRT = {
     "&": " and ",
     "*": " star ",
-    "(": " parenthesis\n ",
+    "(": " parenthesis, ",
+    ")": ".",
     "@": " at ",
     "#": " hashtag ",
     "%": " percent",
     "/": " ",
     "fuck": "frick",
+    "he's": "he is",
+    "she's": "she is",
+    "you're": "you are",
+    "they're": "they are",
+    "we're": "we are",
+    "it's": "its",
+    "that's": "thats",
+    "there's": "theres",
+    "what's": "what is",
+    "who's": "whos",
+    "can't": "cant",
+    "won't": "will not",
+    "wouldn't": "wouldnt",
+    "shouldn't": "shouldnt",
+    "couldn't": "couldnt",
+    "didn't": "didnt",
     "murder": "unalive",
     "sex": "seggs",
     "asshole": "a hole",
@@ -303,7 +333,9 @@ REPLACE_CURSE_WORDS_DIRT = {
     "edibles": "brownies",
     "an edible": "a brownie",
     "smoke pot": "blase it",
-    "pussy": "cooch",
+    "pussy": "kitty",
+    "vagina": "kitty",
+    "boobs": "bobs",
     
 }
 # This will only replace if they are the same

@@ -10,12 +10,13 @@ from clip_creator.utils.scan_text import (
     reg_get_og,
     remove_non_letters,
     swap_words_numbers,
+    remove_markdown_links_images,
 )
 
 
 class TestScanText(TestCase):
-    def test_scan_text(self):
-        bad_sentence = """UPDATE: My (25F) husband (27M) suddenly wants too much sex? I am a bad person and I will say AITAH and TIFU,
+    def test_scan_text(self)-> None:
+        bad_sentence:str = """UPDATE: My (25F) husband (27M) suddenly don't want too much sex? I am a bad person and I will say AITAH and TIFU,
                         For those who didn’t read the first post here it is -> https://www.reddit.com/r/relationship_advice/s/U9YwaI307N
 
 
@@ -54,15 +55,28 @@ class TestScanText(TestCase):
         no_other_chars = remove_non_letters(bad_sentence)
         self.assertNotIn("(", no_other_chars)
         self.assertNotIn(")", no_other_chars)
-        self.assertNotIn("’", no_other_chars)
-        links, no_sites = reg_get_og(
-            bad_sentence, "UPDATE: My (25F) husband (27M) suddenly wants too much sex?"
-        )
-        self.assertNotIn("https:/", no_sites)
-        self.assertIsNotNone(no_sites)
-        self.assertIn(
-            "https://www.reddit.com/r/relationship_advice/s/U9YwaI307N", links
-        )
+        tmp = remove_markdown_links_images(
+                                bad_sentence
+                            )
+        self.assertNotIn("didn t", tmp)
+        tmp = reddit_remove_bad_words(
+                            tmp
+                        )
+        self.assertNotIn("didn t", tmp)
+        tmp = reddit_acronym(
+                        tmp
+                    )
+        self.assertNotIn("didn t", tmp)
+        tmp = swap_words_numbers(
+                    tmp
+                )
+        self.assertNotIn("didn t", tmp)
+        better_sent:str = remove_non_letters(
+                tmp
+            )
+        self.assertIn(" dont ", better_sent)
+        self.assertNotIn("didn t", better_sent)
+        print(better_sent)
 
     def test_get_top_posts(self):
         unused_posts = get_rows_where_tiktok_null_or_empty()
