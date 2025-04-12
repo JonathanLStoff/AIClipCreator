@@ -330,12 +330,18 @@ REPLACE_CURSE_WORDS_DIRT = {
     "90s": " nineties",
     "commit suicide": "unalive myself",
     "committed suicide": "unalive themselves",
+    "suicide": "unalive",
+    "suicidal thoughts": "thoughts of unalive",
+    "suicidal": "thoughts of unalive",
     "edibles": "brownies",
     "an edible": "a brownie",
     "smoke pot": "blase it",
     "pussy": "kitty",
     "vagina": "kitty",
     "boobs": "bobs",
+    "fiancée": "fiansay",
+    "fiancé": "fiansay",
+    "ex-": "ex ",
     
 }
 # This will only replace if they are the same

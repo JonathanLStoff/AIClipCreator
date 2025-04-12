@@ -4,6 +4,7 @@ import os
 import shutil
 import threading
 import time
+import traceback
 import uuid
 from datetime import UTC, datetime, timedelta
 from random import choice, randint
@@ -51,7 +52,8 @@ from clip_creator.utils.scan_text import (
     split_audio,
     str_to_datetime,
     swap_words_numbers,
-    remove_markdown_links_images
+    remove_markdown_links_images,
+    fix_update_order
 )
 from clip_creator.utils.schedules import none_old_timestamps
 from clip_creator.vid_ed.red_vid_edit import (
@@ -194,11 +196,14 @@ def main_reddit_posts_orch():
         # Check if Updates are needed
         #####################################
         href_list = []
+        num_updates = 0
         if (
             (args.noretrieve and args.doupdate)
             or (not args.noretrieve and not args.doupdate and False)
         ) and not args.usevids:
             for pid, post in posts_to_use.items():
+                if num_updates > 5:
+                    break
                 if post.get("updated_at") is not None and post.get("updated_at") != "":
                     post_dt = str_to_datetime(post.get("updated_at", ""))
                 else:
@@ -206,9 +211,11 @@ def main_reddit_posts_orch():
                 LOGGER.debug("Post dt: %s", post_dt)
                 if (datetime.now(UTC) - post_dt) > timedelta(days=7):
                     posty = straight_update_reddit(post.get("url", ""))
+                    num_updates += 1
                     LOGGER.debug("Posty: %s",  posty.get("title"))
                     if posty.get("title"):
                         LOGGER.debug("Updating Post %s", posty["url"])
+                        
                         update_reddit_post_clip_old(
                             post_id=pid,
                             title=posty["title"],
@@ -300,6 +307,10 @@ def main_reddit_posts_orch():
         if not args.usevids:
             for pid, post in posts_to_use.items():
                 # run video creator that combines video with audio with transcript
+                try:
+                    post["content"] = fix_update_order(post["content"])
+                except Exception as e:
+                    LOGGER.error("Error: %s", traceback.format_exc()) 
                 posts_to_use[pid]["content"] = remove_non_letters(
                     swap_words_numbers(
                         reddit_acronym(

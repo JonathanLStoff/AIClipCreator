@@ -445,6 +445,8 @@ class ADBUploader:
         curr_tries = 0
         while curr_tries < max_tries:
             try:
+                if self.d(textContains="Sign up").exists(timeout=5):
+                    self.d.press("back")
                 LOGGER.info("Switching profile")
                 sleep(5)
                 if self.d(resourceId="com.zhiliaoapp.musically:id/knl").exists(
@@ -457,6 +459,8 @@ class ADBUploader:
                     )
                 sleep(2)
                 if not self.d(text=profname).exists(timeout=5):
+                    if self.d(textContains="Sign up").exists(timeout=5):
+                        self.d.press("back")
                     if self.d(resourceId="com.zhiliaoapp.musically:id/kn4").exists(timeout=5):
                         self.click_with_random_offset(
                             self.d(resourceId="com.zhiliaoapp.musically:id/kn4")
@@ -465,8 +469,15 @@ class ADBUploader:
                         self.click_with_random_offset(self.d(textStartsWith="reddit"))
                     else:
                         self.touch(0.5, 0.075)
+                    if self.d(textContains="Sign up").exists(timeout=5):
+                        self.d.press("back")
                     self.d(textContains=username).wait()
-                    self.click_with_random_offset(self.d(descriptionContains=username))
+                    if self.d(textContains=username).exists(timeout=5):
+                        self.click_with_random_offset(self.d(textContains=username))
+                    elif self.d(descriptionContains=username).exists(timeout=5):
+                        self.click_with_random_offset(self.d(descriptionContains=username))
+                    if self.d(textContains="Sign up").exists(timeout=5):
+                        self.d.press("back")
                 sleep(2)
                 self.d(text="Profile").wait()
                 if self.d(text="Profile").info["selected"] is False:

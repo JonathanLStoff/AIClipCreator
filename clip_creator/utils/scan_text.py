@@ -105,7 +105,7 @@ def swap_words_numbers(text: str) -> str:
                         )
                         if "th" in word or "st" in word or "nd" in word or "rd" in word or "-" in word:
                             new_word = strings_word.replace(
-                                " ", " " + str(num2words(word)) + ","
+                                " ", " " + str(num2words(word)) + " "
                             )
                         elif ":" in word:
                             parts_words = word.split(":")
@@ -130,14 +130,14 @@ def swap_words_numbers(text: str) -> str:
                         else:
                             new_word = strings_word.replace(
                                 " ",
-                                " " + str(num2words(remove_non_numbers(word))) + ", ",
+                                " " + str(num2words(remove_non_numbers(word))) + " ",
                                 )
                             try:
                                 if len(remove_non_numbers(word)) == 4 and "thousand" in new_word:
                                     if 3000 > int(remove_non_numbers(word)) > 1300:
                                         new_word = strings_word.replace(
                                             " ",
-                                            " " + str(num2words(remove_non_numbers(word)[:2])) + " " + str(num2words(remove_non_numbers(word)[2:])) + ",",
+                                            " " + str(num2words(remove_non_numbers(word)[:2])) + " " + str(num2words(remove_non_numbers(word)[2:])) + " ",
                                             )
                             except Exception as e:
                                 LOGGER.error("Error year: %s", e)
@@ -361,7 +361,34 @@ def dirty_remove_cuss(text: str) -> str:
         text = text.replace(cuss, "beep")
     return text
 
+def contains_number(text):
+    return bool(re.search(r'\d', text))
 
+def get_first_number(text):
+    match = re.search(r'\d+', text)
+    return int(match.group()) if match else None
+
+def fix_update_order(text: str) -> str:
+    '''Reddit updates are weird'''
+    text_split = text.split("\-")
+    re_ordered = text_split.copy()
+    for i, part in enumerate(text_split):
+        if part.lower().strip().startswith("update"):
+            re_ordered.pop(i)
+            re_ordered.append(part)
+    last_no_update = 0
+    new_re_ordered = re_ordered.copy()
+    for i, part in enumerate(re_ordered):
+        if part.lower().strip().startswith("update") and contains_number(part.lower().split("\n")[0].strip()):
+            part_num = get_first_number(part.lower().split("\n")[0].strip())
+            if part_num + last_no_update <= len(new_re_ordered):
+                new_re_ordered.insert(part_num + last_no_update, part)
+            else:
+                new_re_ordered.remove(part)
+                new_re_ordered.append(part)
+        else:
+            last_no_update = i
+    return "\n".join(new_re_ordered)
 def get_top_posts(posts, n):
     for pid, post in posts.items():
         for sub, multi in SUB_MULTIPLY.items():

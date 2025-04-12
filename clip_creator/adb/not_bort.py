@@ -3,6 +3,7 @@ import random
 import subprocess
 import threading
 import time as tm
+from time import sleep
 from datetime import datetime, timedelta
 from uiautomator2.exceptions import SessionBrokenError
 
@@ -71,8 +72,10 @@ class ADBScroll:
         curr_tries = 0
         while curr_tries < max_tries:
             try:
+                if self.d(textContains="Sign up").exists(timeout=5):
+                    self.d.press("back")
                 LOGGER.info("Switching profile")
-                tm.sleep(5)
+                sleep(5)
                 if self.d(resourceId="com.zhiliaoapp.musically:id/knl").exists(
                     timeout=5
                 ):
@@ -81,8 +84,10 @@ class ADBScroll:
                             index=0
                         )
                     )
-                tm.sleep(2)
+                sleep(2)
                 if not self.d(text=profname).exists(timeout=5):
+                    if self.d(textContains="Sign up").exists(timeout=5):
+                        self.d.press("back")
                     if self.d(resourceId="com.zhiliaoapp.musically:id/kn4").exists(timeout=5):
                         self.click_with_random_offset(
                             self.d(resourceId="com.zhiliaoapp.musically:id/kn4")
@@ -91,9 +96,16 @@ class ADBScroll:
                         self.click_with_random_offset(self.d(textStartsWith="reddit"))
                     else:
                         self.touch(0.5, 0.075)
+                    if self.d(textContains="Sign up").exists(timeout=5):
+                        self.d.press("back")
                     self.d(textContains=username).wait()
-                    self.click_with_random_offset(self.d(descriptionContains=username))
-                tm.sleep(2)
+                    if self.d(textContains=username).exists(timeout=5):
+                        self.click_with_random_offset(self.d(textContains=username))
+                    elif self.d(descriptionContains=username).exists(timeout=5):
+                        self.click_with_random_offset(self.d(descriptionContains=username))
+                    if self.d(textContains="Sign up").exists(timeout=5):
+                        self.d.press("back")
+                sleep(2)
                 self.d(text="Profile").wait()
                 if self.d(text="Profile").info["selected"] is False:
                     LOGGER.info("profile not selected")
@@ -106,9 +118,6 @@ class ADBScroll:
                     LOGGER.info("Could not switch profile")
                     break
             except Exception as e:
-                if self.d(text="Profile").exists(timeout=5):
-                    self.d(text="Profile").click()
-                    self.d(text="Following").wait()
                 LOGGER.error(e)
                 curr_tries += 1
                 if curr_tries == max_tries:
