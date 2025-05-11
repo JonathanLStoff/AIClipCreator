@@ -241,8 +241,8 @@ REDDIT_ACCRO_SUB = {
     "24/7": "twenty four seven",
 }
 TTS_VOICES = [
-    ("af_heart", 1.4),
-    ("am_adam", 1.2),
+    ("af_heart", 1.5),
+    ("am_adam", 1.3),
 ]
 BAD_WORD_SUB = "[\u00a0__\u00a0]"
 REDDIT_DOMAIN = (

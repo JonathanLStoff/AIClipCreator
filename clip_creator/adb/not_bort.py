@@ -70,6 +70,9 @@ class ADBScroll:
         )
         max_tries = 5
         curr_tries = 0
+        if self.d(textContains="Not").exists(timeout=5):
+            self.d(textContains="Not").click()
+            sleep(2)
         while curr_tries < max_tries:
             try:
                 if self.d(textContains="Sign up").exists(timeout=5):
@@ -88,12 +91,16 @@ class ADBScroll:
                 if not self.d(text=profname).exists(timeout=5):
                     if self.d(textContains="Sign up").exists(timeout=5):
                         self.d.press("back")
-                    if self.d(resourceId="com.zhiliaoapp.musically:id/kn4").exists(timeout=5):
+                    if self.d(textStartsWith="Reddit").exists(timeout=5):
+                        self.click_with_random_offset(self.d(textStartsWith="Reddit"))
+                    elif self.d(textContains="@").exists(timeout=5):
+                        _, aty = self.d(textContains="@").center()
+                        adat_y = (aty / self.d.info.get("displayHeight", 1)) -0.025
+                        self.touch(0.5, adat_y)
+                    elif self.d(resourceId="com.zhiliaoapp.musically:id/kn4").exists(timeout=5):
                         self.click_with_random_offset(
                             self.d(resourceId="com.zhiliaoapp.musically:id/kn4")
                         )
-                    elif self.d(textStartsWith="reddit").exists(timeout=5):
-                        self.click_with_random_offset(self.d(textStartsWith="reddit"))
                     else:
                         self.touch(0.5, 0.075)
                     if self.d(textContains="Sign up").exists(timeout=5):
@@ -148,6 +155,16 @@ class ADBScroll:
         self.d.app_wait(APP_NAME, front=True)
         tm.sleep(5)
         LOGGER.info("Started TikTok")
+        if not self.d(text="Profile").exists(timeout=5):
+            LOGGER.info("Profile not found")
+            if self.d(text="Skip").exists(timeout=5):
+                self.click_with_random_offset(self.d(text="Skip"))
+                if self.d(text="Skip").exists(timeout=5):
+                    self.click_with_random_offset(self.d(text="Skip"))
+            if self.d(text="Skip").exists(timeout=5):
+                self.click_with_random_offset(self.d(text="Skip"))
+            if self.d(text="Done").exists(timeout=5):
+                self.click_with_random_offset(self.d(text="Done"))
         self.d(text="Profile").wait()
         LOGGER.info("Found profile")
         self.d(text="Profile").click()

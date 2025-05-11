@@ -103,25 +103,37 @@ def swap_words_numbers(text: str) -> str:
                             str(remove_non_numbers(word)),
                             str(num2words(remove_non_numbers(word))),
                         )
-                        if "th" in word or "st" in word or "nd" in word or "rd" in word or "-" in word:
+                        if "-" in word:
+                            splited_word = strings_word.split("-")
+                            # check if each part has numbers
+                            if all(remove_non_numbers(part) for part in splited_word):
+                                # convert each numeric part to words and join with spaces
+                                t_word = ""
+                                for part in splited_word:
+                                    t_word += part.replace(
+                                        " ", " " + str(num2words(remove_non_numbers(part))) + " through "
+                                    )
+                                new_word = t_word 
+                        if "th" in word or "st" in word or "nd" in word or "rd" in word:
                             new_word = strings_word.replace(
                                 " ", " " + str(num2words(word)) + " "
                             )
-                        elif ":" in word:
-                            parts_words = word.split(":")
-                            new_word = ""
-                            for i, part in enumerate(parts_words):
-                                if i < 2:
-                                    new_word += part.replace(
-                                        " ", " " + str(num2words(part)) + " "
-                                    )
-                                elif i == 2:
-                                    new_word += part.replace(
-                                        " ", " , " + str(num2words(part)) + " seconds "
-                                    )
-                                else:
-                                    LOGGER.error("The timestamp is too long: %s", word)
-                            new_word += " O clock "
+                        elif " k" in word:
+                            new_word = strings_word.replace("k", "").replace(
+                                " ", " " + str(num2words(remove_non_numbers(word))) + " thousand "
+                            )
+                        elif " m" in word:
+                            new_word = strings_word.replace("m", "").replace(
+                                " ", " " + str(num2words(remove_non_numbers(word))) + " million "
+                            )
+                        elif " b" in word:
+                            new_word = strings_word.replace("b", "").replace(
+                                " ", " " + str(num2words(remove_non_numbers(word))) + " billion "
+                            )      
+                        elif "km" in word: 
+                            new_word = strings_word.replace("km", "").replace(
+                                " ", " " + str(num2words(remove_non_numbers(word))) + " kilometers "
+                            ) 
                         elif "$" in word:
                             new_word = strings_word.replace("$", "").replace(
                                 " ", " " + str(num2words(remove_non_numbers(word))) + " dollars "
@@ -144,23 +156,38 @@ def swap_words_numbers(text: str) -> str:
                                 LOGGER.error("Word: %s", word)
                         new_text += new_word
                     except Exception as e:
-                        LOGGER.error("Error converting to number: %s", e)
+                        LOGGER.error("Error converting to number1: %s", e)
                         LOGGER.error("Word: %s", word)
+                        new_text += word + " "
                 else:
                     try:
-                        strings_word = re.sub(r"\d+", " ", word)
-                        LOGGER.debug(
-                            "Replacing %s %s",
-                            str(remove_non_numbers(word)),
-                            str(num2words(remove_non_numbers(word))),
-                        )
-                        new_word = strings_word.replace(
-                            " ",
-                            " " + str(num2words(remove_non_numbers(word))) + "\n\n",
-                        )
-                        new_text += new_word
+                        # strings_word = re.sub(r"\d+", " ", word)
+                        # LOGGER.debug(
+                        #     "Replacing %s %s",
+                        #     str(remove_non_numbers(word)),
+                        #     str(num2words(remove_non_numbers(word))),
+                        # )
+                        # new_word = strings_word.replace(
+                        #     " ",
+                        #     " " + str(num2words(remove_non_numbers(word))) + "\n\n",
+                        # )
+                        # new_text += new_word
+                        parts_words = word.split(":")
+                        new_word = ""
+                        for i, part in enumerate(parts_words):
+                            if i < 2:
+                                new_word += part.replace(
+                                    " ", " " + str(num2words(part)) + " "
+                                )
+                            elif i == 2:
+                                new_word += part.replace(
+                                    " ", " , " + str(num2words(part)) + " seconds "
+                                )
+                            else:
+                                LOGGER.error("The timestamp is too long: %s", word)
+                        new_word += " O clock "
                     except Exception as e:
-                        LOGGER.error("Error converting to number: %s", e)
+                        LOGGER.error("Error converting to number2: %s", e)
                         LOGGER.error("Word: %s", word)
             else:
                 new_text += word + " "
@@ -268,6 +295,19 @@ def reddit_remove_bad_words(text: str) -> str:
         else:
             wordy = word.replace(found_cword, "beep")
             compiled_test += wordy + " "
+            
+    # after building compiled_test, clean up starred phrases
+    _pattern = re.compile(r'(\W)\*(.*?)\*(\W)')
+    def _unstar(match):
+        inner = match.group(2)
+        low = inner.lower()
+        # skip if it mentions update, orginal, link or url
+        if any(key in low for key in ('update', 'orginal', 'link', 'url')):
+            return ""
+        # otherwise drop the stars
+        return f"{match.group(1)}{inner}{match.group(3)}"
+
+    compiled_test = _pattern.sub(_unstar, compiled_test)
     return compiled_test
 def get_correct_chunk_end(chunks: dict, chunk_idx: int) -> float:
     """

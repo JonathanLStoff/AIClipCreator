@@ -344,14 +344,27 @@ class ADBUploader:
         if self.d(text="Next").exists(timeout=5):
             self.click_with_random_offset(self.d(text="Next"))
         if self.d(text="Next").exists(timeout=5):
-            self.click_with_random_offset(self.d(text="Next"))
+            try:
+                self.click_with_random_offset(self.d(text="Next"))
+            except Exception as e:
+                LOGGER.error("Error clicking on next %s", e)
         LOGGER.info("Clicked on next")
         if self.d(description="Next").exists(timeout=5):
             self.click_with_random_offset(self.d(description="Next"))
         if description:
-            self.d(
+            sleep(2)  # Give it a moment to process the upload before we set the title/description
+            if self.d(
                 resourceId="com.instagram.android:id/caption_input_text_view"
-            ).set_text(description)
+            ).exists(timeout=5):
+                # Click on the caption box to enter the description
+                
+                self.d(
+                    resourceId="com.instagram.android:id/caption_input_text_view"
+                ).set_text(description)
+            elif self.d(className="android.widget.AutoCompleteTextView").exists(timeout=5):
+                # Click on the caption box to enter the description
+                
+                self.d(className="android.widget.AutoCompleteTextView").set_text(description)
             self.d.press("back")
         # not working on current account
         if only_me and photo_mode:
@@ -367,7 +380,9 @@ class ADBUploader:
         else:
             if self.d(description="GIF Keyboard").exists(timeout=5):
                 self.d.press("back")
-            if self.d(text="Share").exists(timeout=5):
+            if self.d(text="Next").exists(timeout=5):
+                self.click_with_random_offset(self.d(text="Next"))
+            elif self.d(text="Share").exists(timeout=5):
                 try:
                     self.click_with_random_offset(self.d(text="Share"))
                 except Exception as e:
@@ -443,6 +458,9 @@ class ADBUploader:
         )
         max_tries = 5
         curr_tries = 0
+        if self.d(textContains="Not").exists(timeout=5):
+            self.d(textContains="Not").click()
+            sleep(2)
         while curr_tries < max_tries:
             try:
                 if self.d(textContains="Sign up").exists(timeout=5):
@@ -461,12 +479,16 @@ class ADBUploader:
                 if not self.d(text=profname).exists(timeout=5):
                     if self.d(textContains="Sign up").exists(timeout=5):
                         self.d.press("back")
-                    if self.d(resourceId="com.zhiliaoapp.musically:id/kn4").exists(timeout=5):
+                    if self.d(textStartsWith="Reddit").exists(timeout=5):
+                        self.click_with_random_offset(self.d(textStartsWith="Reddit"))
+                    elif self.d(textContains="@").exists(timeout=5):
+                        _, aty = self.d(textContains="@").center()
+                        adat_y = (aty / self.d.info.get("displayHeight", 1)) -0.025
+                        self.touch(0.5, adat_y)
+                    elif self.d(resourceId="com.zhiliaoapp.musically:id/kn4").exists(timeout=5):
                         self.click_with_random_offset(
                             self.d(resourceId="com.zhiliaoapp.musically:id/kn4")
                         )
-                    elif self.d(textStartsWith="reddit").exists(timeout=5):
-                        self.click_with_random_offset(self.d(textStartsWith="reddit"))
                     else:
                         self.touch(0.5, 0.075)
                     if self.d(textContains="Sign up").exists(timeout=5):
@@ -598,15 +620,18 @@ class ADBUploader:
                 elif self.d(textStartsWith=part_desc).exists(timeout=5):
                     return True
                 else:
-                    
-                    text_decs = remove_non_letterstwo(
-                        self.d(resourceId="com.zhiliaoapp.musically:id/dsy", index=0)
-                        .child(index=0)
-                        .info["text"]
-                        .encode("ascii", "ignore")
-                        .decode("ascii")
-                    ).replace("\n", "")
-                    LOGGER.info('resourceId="com.zhiliaoapp.musically:id/dsy"')
+                    try:
+                        text_decs = remove_non_letterstwo(
+                            self.d(resourceId="com.zhiliaoapp.musically:id/dsy", index=0)
+                            .child(index=0)
+                            .info["text"]
+                            .encode("ascii", "ignore")
+                            .decode("ascii")
+                        ).replace("\n", "")
+                        LOGGER.info('resourceId="com.zhiliaoapp.musically:id/dsy"')
+                    except Exception as e:
+                        LOGGER.error(e)
+                        return True
                 LOGGER.info("Description: %s", text_decs)
                 returnsz = False
                 if part_desc.lower().replace(" ", "") not in text_decs.lower().replace(" ", ""):
@@ -668,10 +693,33 @@ class ADBUploader:
                 try:
                     with self.d.session(APP_NAME) as sess:
                         # Click on the upload button
-                        sess(text="Profile").wait()
-                        LOGGER.info("Found profile")
-                        self.click_with_random_offset(sess(text="Profile"))
+                        if sess(text="Skip").exists(timeout=5):
+                            self.click_with_random_offset(sess(text="Skip"))
+                            if sess(text="Skip").exists(timeout=5):
+                                self.click_with_random_offset(sess(text="Skip"))
+                        if sess(text="Skip").exists(timeout=5):
+                            self.click_with_random_offset(sess(text="Skip"))
+                        if sess(text="Done").exists(timeout=5):
+                            self.click_with_random_offset(sess(text="Done"))    
+                            
+                        if sess(text="Profile").exists(timeout=5):
+                        
+                            LOGGER.info("Found profile")
+                            self.click_with_random_offset(sess(text="Profile"))
+                        elif sess(text="Next").exists(timeout=5):
+                            self.d.press("back")
+                            sleep(2)
+                            self.d.press("back")
+                            sleep(2)
+                            self.d.press("back")
+                            sleep(2)
+                            LOGGER.info("Found profile")
+                            self.click_with_random_offset(sess(text="Profile"))
                         sess(text="Following").wait()
+                        if sess(text="Cancel").exists(timeout=5):
+                            sess(text="Cancel").click()
+                            sleep(2)
+                            
                         # Switch account
                         self.switch_profile(lang)
                         if self.check_if_posted_tt(description):
@@ -694,7 +742,17 @@ class ADBUploader:
                         LOGGER.info("Post button y: %s", post_button_y)
                         # Click on the gallery button
                         sess(description="Flash").wait()
-                        self.touch(0.784, 0.76)
+                        if sess(text="TEXT").exists(timeout=5):
+                            _, texty = sess(text="TEXT").center()
+                            tempx, tempy = sess(text="TEMPLATES").center()
+                            ty = texty + ((tempy - texty)/3 )
+                            livex, _ = sess(text="LIVE").center()
+                            tx = ((livex - tempx) / 2) + tempx
+                            typerc = ty / self.d.info.get("displayHeight", 1)
+                            txperc = tx / self.d.info.get("displayWidth", 1)
+                            self.touch(txperc, typerc)
+                        else:
+                            self.touch(0.784, 0.76)
                         sleep(4)
                         LOGGER.info("Clicked on gallery")
                         # Fix multiple
@@ -752,9 +810,14 @@ class ADBUploader:
                             LOGGER.info("Set description")
                             sleep(2)
                             # Press back button
-                            self.d.press("back")
-                            LOGGER.info("Pressed back")
-                            sess(text=description).wait()
+                            if sess(description="GIF Keyboard").exists(timeout=5):
+                                self.d.press("back")
+                                LOGGER.info("Pressed back")
+                                sleep(2)
+                                if sess(text="Next").exists(timeout=5):
+                                    sess(text="Next").click()
+                                    
+                            #sess(text=description).wait()
                         self.add_location_insta()
                         if only_me:
                             try:
