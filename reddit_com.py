@@ -276,6 +276,7 @@ def main_reddit_coms_orch():
         posts_to_use[pid]["comments_json"].sort(
             key=lambda comment: comment.get("upvotes", 0), reverse=True
         )
+        real_idx = 0
         for idx, comment in enumerate(posts_to_use[pid]["comments_json"]):
             
             with open("clip_creator/utils/banned.txt") as f:
@@ -296,17 +297,16 @@ def main_reddit_coms_orch():
                     continue
             # TODO: Modify to save the og comment to map to the captions like numbers
             tt_text = ("\n"
-                            + str(num2words(idx + 1)).upper()
-                            + ", "
+                            + str(num2words(real_idx + 1)).upper()
+                            + ". "
                             + comment["content"]
-                            + ".\n"
                             + (
-                                (comment["best_reply"].get("content", "") + ".")
+                                (".\n" + comment["best_reply"].get("content", "") + ".")
                                 if comment["best_reply"].get("upvotes", 0)
                                 > comments_above_rpl
                                 else ""
                             )
-                            )
+                        )
             if url_finder.has_urls(tt_text):
                 found_urls:list[str] = url_finder.find_urls(tt_text)
                 for url in found_urls:
@@ -322,7 +322,7 @@ def main_reddit_coms_orch():
                     )
                 )
             )
-            
+            real_idx += 1
             total_words += len(tt_text.split())
             posts_to_use[pid]["chunks"][str(uuid.uuid4())] = {
                 "idx": idx + 1,

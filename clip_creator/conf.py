@@ -239,6 +239,28 @@ REDDIT_ACCRO_SUB = {
     "TLDR": "too long didn't read",
     "OC": "original content",
     "24/7": "twenty four seven",
+    "OOP": "poster",
+    "OP": "poster",
+    "NFSW": "not safe for work",
+    "OOP:": "poster",
+    "OP:": "poster",
+    "DNGAF": "don't give a frick",
+    "DND": "do not disturb",
+    "IDGA": "I don't give a frick",
+    "LMAO": "laughing my a off",
+    "ROFL": "rolling on the floor laughing",
+    "IDGAF": "I don't give a frick",
+    "FOMO": "fear of missing out",
+    "YOLO": "you only live once",
+    "TL;DR:": "too long didn't read",
+    "TLDR:": "too long didn't read",
+    "TL;DR?": "too long didn't read",
+    "TLDR?": "too long didn't read",
+    "TL;DR!": "too long didn't read",
+    "TLDR!": "too long didn't read",
+    
+    
+    
 }
 TTS_VOICES = [
     ("af_heart", 1.5),
@@ -290,9 +312,13 @@ RED_COM_DELAY = 0.2
 # Find and replace all text.
 REPLACE_CURSE_WORDS_DIRT = {
     "&": " and ",
-    "*": " star ",
-    "(": " parenthesis, ",
+    "*": "",
+    "(": " , ",
+    'A**H***': "a hole",
+    'a******': "a hole",
+    'ra*****': "graping",
     ")": ".",
+    "&gt;": " ",
     "@": " at ",
     "#": " hashtag ",
     "%": " percent",

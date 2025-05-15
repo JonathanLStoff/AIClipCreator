@@ -2,6 +2,7 @@ import math
 import re
 from collections import Counter
 from datetime import UTC, datetime
+import traceback
 
 from num2words import num2words
 
@@ -86,8 +87,15 @@ def swap_words_numbers(text: str) -> str:
     """
     Swap numbers with words in a text.
     """
-    words = text.split()
+    
     new_text = ""
+    pattern_through = r"[\d,.]+-[\d,.]+"
+    if re.search(pattern_through, text):
+        for matchy in re.finditer(pattern_through, text):
+            fixed_match = matchy.group().replace("-", " through ")
+            text = text.replace(matchy.group(), fixed_match)
+    words = text.split()
+    last_dollar = False
     for _i, word in enumerate(words):
         
         if remove_non_numbers(word) != "":
@@ -97,66 +105,69 @@ def swap_words_numbers(text: str) -> str:
             if remove_non_numbers(word).isdigit() and len(remove_non_numbers(word)) < 10:
                 if ":" not in word:
                     try:
-                        strings_word = re.sub(r"\d+", " ", word)
+                        strings_word = re.sub(r"[\d,]+", " ", word)
+                        pattern = r"[\d,]+\.\d+"
                         LOGGER.debug(
                             "Replacing %s %s",
                             str(remove_non_numbers(word)),
                             str(num2words(remove_non_numbers(word))),
                         )
-                        if "-" in word:
-                            splited_word = strings_word.split("-")
-                            # check if each part has numbers
-                            if all(remove_non_numbers(part) for part in splited_word):
-                                # convert each numeric part to words and join with spaces
-                                t_word = ""
-                                for part in splited_word:
-                                    t_word += part.replace(
-                                        " ", " " + str(num2words(remove_non_numbers(part))) + " through "
-                                    )
-                                new_word = t_word 
+                        if "- " in strings_word:
+                            strings_word = strings_word.replace("-", "negative")
+                            
                         if "th" in word or "st" in word or "nd" in word or "rd" in word:
                             new_word = strings_word.replace(
-                                " ", " " + str(num2words(word)) + " "
+                                " ", str(num2words(word)) + " "
                             )
-                        elif " k" in word:
-                            new_word = strings_word.replace("k", "").replace(
-                                " ", " " + str(num2words(remove_non_numbers(word))) + " thousand "
-                            )
-                        elif " m" in word:
-                            new_word = strings_word.replace("m", "").replace(
-                                " ", " " + str(num2words(remove_non_numbers(word))) + " million "
-                            )
-                        elif " b" in word:
-                            new_word = strings_word.replace("b", "").replace(
-                                " ", " " + str(num2words(remove_non_numbers(word))) + " billion "
-                            )      
-                        elif "km" in word: 
-                            new_word = strings_word.replace("km", "").replace(
-                                " ", " " + str(num2words(remove_non_numbers(word))) + " kilometers "
-                            ) 
-                        elif "$" in word:
-                            new_word = strings_word.replace("$", "").replace(
-                                " ", " " + str(num2words(remove_non_numbers(word))) + " dollars "
-                            )
-                            
-                        else:
-                            new_word = strings_word.replace(
-                                " ",
-                                " " + str(num2words(remove_non_numbers(word))) + " ",
+                            LOGGER.debug("th: %s", new_word)
+                        
+                        elif "$" in word or last_dollar:
+                            if re.search(pattern, word):
+                                dol_split = word.split(".")
+                                LOGGER.debug("Dollar split: %s", dol_split)
+                                new_word = strings_word.replace("$", "").replace(" . ", " ").replace(
+                                    " ", str(num2words(remove_non_numbers(dol_split[0]))) + " dollars and " + str(num2words(remove_non_numbers(dol_split[1]))) + " cents "
                                 )
+                            else:
+                                new_word = strings_word.replace("$", "").replace(
+                                    " ", str(num2words(remove_non_numbers(word))) + " dollars "
+                                )
+                            LOGGER.debug("$: %s", new_word)
+                            last_dollar = not last_dollar
+                        else:
+
+                            if re.search(r"\d+k", word):
+                        
+                                new_word = quick_replace(word, strings_word.replace("k", "thousand "))
+                                
+                                LOGGER.debug("k: %s", new_word)
+                            elif re.search(r"\d+m" , word):
+                                new_word = quick_replace(word, strings_word.replace('m', "million "))
+                                
+                                LOGGER.debug("m: %s", new_word)
+                            elif re.search(r"\d+b" , word):
+                                new_word = quick_replace(word, strings_word.replace('b', "billion "))
+                            
+                                LOGGER.debug("b: %s", new_word)
+                            elif re.search(r"\d+km", word):
+                                new_word = quick_replace(word, strings_word.replace("km", "kilometers "))
+                            else:
+                                new_word = quick_replace(word, strings_word)
+                            LOGGER.debug("km: %s", new_word)
                             try:
                                 if len(remove_non_numbers(word)) == 4 and "thousand" in new_word:
                                     if 3000 > int(remove_non_numbers(word)) > 1300:
                                         new_word = strings_word.replace(
                                             " ",
-                                            " " + str(num2words(remove_non_numbers(word)[:2])) + " " + str(num2words(remove_non_numbers(word)[2:])) + " ",
+                                            str(num2words(remove_non_numbers(word)[:2])) + " " + str(num2words(remove_non_numbers(word)[2:])) + " ",
                                             )
                             except Exception as e:
                                 LOGGER.error("Error year: %s", e)
                                 LOGGER.error("Word: %s", word)
+                        LOGGER.info("New word: %s", new_word)
                         new_text += new_word
                     except Exception as e:
-                        LOGGER.error("Error converting to number1: %s", e)
+                        LOGGER.error("Error converting to number1: %s", traceback.format_exc())
                         LOGGER.error("Word: %s", word)
                         new_text += word + " "
                 else:
@@ -190,10 +201,30 @@ def swap_words_numbers(text: str) -> str:
                         LOGGER.error("Error converting to number2: %s", e)
                         LOGGER.error("Word: %s", word)
             else:
+                if "through" not in word:
+                    last_dollar = False
                 new_text += word + " "
         else:
             new_text += word + " "    
     return new_text
+def quick_replace(word, strings_word: str) -> str:
+    pattern = r"[\d,]+\.\d+"
+    try:
+        if re.search(pattern, word):
+            dol_split = word.split(".")
+            new_word = strings_word.replace(" . ", " ").replace(
+                " ", " " + str(num2words(remove_non_numbers(dol_split[0]))) + " point " + str(num2words(remove_non_numbers(dol_split[1])))
+            ) + " "
+        else:
+            new_word = strings_word.replace(
+                " ",
+                " " + str(num2words(remove_non_numbers(word))) + " ",
+                )+ " "
+    except Exception as e:
+        LOGGER.error("Error converting to number3: %s", e)
+        LOGGER.error("Word: %s", word)
+        new_word = word
+    return new_word
 def remove_non_letterstwo(text):
   """Removes all non-letter characters from a string.
 
@@ -267,15 +298,47 @@ def reddit_remove_bad_words(text: str) -> str:
     Remove bad words from a text.
     """
     compiled_test = ""
+    
+    # after building compiled_test, clean up starred phrases
+    
+    pat_ern = r'[*][*]?[tT][iI][tT][lL][eE][:]?[*][*]?'
+    o_pat_ern = r'[*][*]?[Oo][Rr][Ii][Gg][Ii][Nn][Aa][Ll][:]?[*][*]?\N+\n'
+    oo_pat_ern = r'[*]+I am NOT the Original Poster[\w\W]*[*][*]?[Oo][Rr][Ii][Gg][Ii][Nn][Aa][Ll][:]?[*][*]?.+\n' #r'[*][*]?[Ii]\s[Aa][Mm]\s[Nn][Oo][Tt]\s[Tt][Hh][Ee]\s[Oo][Rr][Ii][Gg][Ii][Nn][Aa][Ll][\n\W\w]+[*][*]?[Oo][Rr][Ii][Gg][Ii][Nn][Aa][Ll][:]?[*][*]?\N+\n'
+    if re.search(pat_ern, text):
+        text = re.split(pat_ern, text)[-1]
+        text = text.replace(":*", "")
+        text = text.replace("*", "")
+        text = text.replace(" ", " ")
+    elif re.search(oo_pat_ern, text):
+        text = re.sub(oo_pat_ern, "", text)
+        text = text.replace(":*", "")
+        text = text.replace("*", "")
+        text = text.replace(" ", " ")
+        
+    _pattern = re.compile(r'(\W)\*(.*?)\*(\W)')
+    def _unstar(match):
+        inner = match.group(2)
+        low = inner.lower()
+        # skip if it mentions update, orginal, link or url
+        if any(key in low for key in ('update', 'orginal', 'link', 'url')):
+            return ""
+        # otherwise drop the stars
+        return f"{match.group(1)}{inner}{match.group(3)}"
+
+    text = _pattern.sub(_unstar, text)
     for word in text.split():
         
         for replace_word, keep_word in REPLACE_WORDS_CLEAN.items():
             if word.lower() == replace_word:
+                
                 text = text.replace(word, keep_word)
     for word in text.split():
         for d_word, d_word_r in REPLACE_CURSE_WORDS_DIRT.items():
             if d_word in word.lower() and "mother" not in word.lower():
-                text = text.replace(d_word, d_word_r)
+                if d_word.lower() in ['(', ')'] and remove_non_numbers(word).isdigit():
+                    text = text.replace(d_word, "")
+                else:
+                    text = text.replace(d_word, d_word_r)
     for word in text.split():
         found_in_word = False
         found_cword = ""
@@ -296,18 +359,8 @@ def reddit_remove_bad_words(text: str) -> str:
             wordy = word.replace(found_cword, "beep")
             compiled_test += wordy + " "
             
-    # after building compiled_test, clean up starred phrases
-    _pattern = re.compile(r'(\W)\*(.*?)\*(\W)')
-    def _unstar(match):
-        inner = match.group(2)
-        low = inner.lower()
-        # skip if it mentions update, orginal, link or url
-        if any(key in low for key in ('update', 'orginal', 'link', 'url')):
-            return ""
-        # otherwise drop the stars
-        return f"{match.group(1)}{inner}{match.group(3)}"
-
-    compiled_test = _pattern.sub(_unstar, compiled_test)
+    
+    
     return compiled_test
 def get_correct_chunk_end(chunks: dict, chunk_idx: int) -> float:
     """
