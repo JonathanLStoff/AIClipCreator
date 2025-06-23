@@ -142,7 +142,7 @@ def swap_words_numbers(text: str) -> str:
                                 
                                 LOGGER.debug("k: %s", new_word)
                             elif re.search(r"\d+m" , word):
-                                new_word = quick_replace(word, strings_word.replace('m', "million "))
+                                new_word = quick_replace(word, strings_word.replace('mil', "million "))
                                 
                                 LOGGER.debug("m: %s", new_word)
                             elif re.search(r"\d+b" , word):
@@ -304,6 +304,7 @@ def reddit_remove_bad_words(text: str) -> str:
     pat_ern = r'[*][*]?[tT][iI][tT][lL][eE][:]?[*][*]?'
     o_pat_ern = r'[*][*]?[Oo][Rr][Ii][Gg][Ii][Nn][Aa][Ll][:]?[*][*]?\N+\n'
     oo_pat_ern = r'[*]+I am NOT the Original Poster[\w\W]*[*][*]?[Oo][Rr][Ii][Gg][Ii][Nn][Aa][Ll][:]?[*][*]?.+\n' #r'[*][*]?[Ii]\s[Aa][Mm]\s[Nn][Oo][Tt]\s[Tt][Hh][Ee]\s[Oo][Rr][Ii][Gg][Ii][Nn][Aa][Ll][\n\W\w]+[*][*]?[Oo][Rr][Ii][Gg][Ii][Nn][Aa][Ll][:]?[*][*]?\N+\n'
+    oop_pat_ern = r'[*]+I am not The OOP[\w\W]*[*][*]?[Oo][Rr][Ii][Gg][Ii][Nn][Aa][Ll][:]?[*][*]?.+\n'#
     if re.search(pat_ern, text):
         text = re.split(pat_ern, text)[-1]
         text = text.replace(":*", "")
@@ -314,7 +315,11 @@ def reddit_remove_bad_words(text: str) -> str:
         text = text.replace(":*", "")
         text = text.replace("*", "")
         text = text.replace(" ", " ")
-        
+    elif re.search(oop_pat_ern, text):
+        text = re.sub(oop_pat_ern, "", text)
+        text = text.replace(":*", "")
+        text = text.replace("*", "")
+        text = text.replace(" ", " ")    
     _pattern = re.compile(r'(\W)\*(.*?)\*(\W)')
     def _unstar(match):
         inner = match.group(2)

@@ -207,6 +207,9 @@ class ADBUploader:
         if self.d(text="Next").exists(timeout=5):
             self.click_with_random_offset(self.d(text="Next"))
         LOGGER.info("Clicked on next")
+        sleep(4)  # Give it a moment to load the video
+        if self.d(text="Done").exists(timeout=5):
+            self.click_with_random_offset(self.d(text="Done"))
         sleep(2)  # Give it a moment to load the video
         if self.d(text="Done").exists(timeout=5):
             self.click_with_random_offset(self.d(text="Done"))
@@ -283,6 +286,8 @@ class ADBUploader:
             self.d(text="Upload Short").wait()
             self.d(text="Upload Short").click()
         sleep(2)
+        for i in tqdm(range(30), desc="Waiting for upload to finish, takes about 4 mins", unit="s"):
+            sleep(8)
         self.d(text="Uploaded to Your Videos").wait(timeout=60)
         
         self.d.app_stop(YT_APP)
@@ -314,6 +319,16 @@ class ADBUploader:
         if self.d(text="POST").info["selected"]:
             self.click_with_random_offset(self.d(text="REEL"))
             
+        if self.d(textContains="STORY").exists(timeout=5):
+            self.click_with_random_offset(self.d(text="REEL"))
+        if self.d(text="REEL").exists(timeout=5):
+            if not self.d(text="REEL").info["selected"]:
+                xml = self.d.dump_hierarchy()
+                with open("logs/error_dump_insta_noreel.xml", "w", encoding="utf-8") as f:
+                    f.write(xml)
+                LOGGER.info("COULD NOT SELECT REEL")
+                self.click_with_random_offset(self.d(text="REEL"))
+                
         sleep(2)
         if self.d(text="Start new video").exists(timeout=3):
             self.d(text="Start new video").click()
@@ -343,14 +358,18 @@ class ADBUploader:
         #     self.click_with_random_offset(self.d(textContains='no'))
         if self.d(text="Next").exists(timeout=5):
             self.click_with_random_offset(self.d(text="Next"))
+            LOGGER.info("Clicked on next")
         if self.d(text="Next").exists(timeout=5):
             try:
                 self.click_with_random_offset(self.d(text="Next"))
             except Exception as e:
                 LOGGER.error("Error clicking on next %s", e)
-        LOGGER.info("Clicked on next")
+            LOGGER.info("Clicked on next")
         if self.d(description="Next").exists(timeout=5):
-            self.click_with_random_offset(self.d(description="Next"))
+            try:
+                self.click_with_random_offset(self.d(description="Next"))
+            except Exception as e:
+                LOGGER.error("Error clicking on next %s", e)
         if description:
             sleep(2)  # Give it a moment to process the upload before we set the title/description
             if self.d(
@@ -424,21 +443,31 @@ class ADBUploader:
         self.d.app_stop(INSTA_APP)
 
     def add_location_insta(self):
-        if self.d(text="Location").exists(timeout=5):
-            self.click_with_random_offset(self.d(text="Location"))
-            sleep(2)
-        if self.d(textContains="Search").exists(timeout=5):
-            self.d(textContains="Search").set_text(
-                                "united states"
-                            )
-        if self.d(text="United States").exists(timeout=5):
-            self.click_with_random_offset(self.d(text="United States"))
-            sleep(2)
-        if self.d(description="GIF Keyboard").exists(timeout=5):
-            if self.d(text="USA").exists(timeout=5):
-                self.click_with_random_offset(self.d(text="USA"))
-            elif self.d(text="Orlando").exists(timeout=5):
-                self.click_with_random_offset(self.d(text="Orlando"))
+        try:
+            if self.d(text="Location").exists(timeout=5):
+                self.d(text="Location").click()
+                sleep(2)
+                
+            if self.d(textContains="Search").exists(timeout=5):
+                self.d(textContains="Search").set_text(
+                                    "united states"
+                                )
+            if self.d(text="United States").exists(timeout=5):
+                self.click_with_random_offset(self.d(text="United States"))
+                sleep(2)
+            if self.d(description="GIF Keyboard").exists(timeout=5):
+                if self.d(text="USA").exists(timeout=5):
+                    self.click_with_random_offset(self.d(text="USA"))
+                elif self.d(text="Orlando").exists(timeout=5):
+                    self.click_with_random_offset(self.d(text="Orlando"))
+        except Exception as e:
+            LOGGER.error("Error adding location: %s", e)
+            xml = self.d.dump_hierarchy()
+            with open("logs/error_dump_tikloc.xml", "w", encoding="utf-8") as f:
+                f.write(xml)
+        if self.d(text="Retry").exists(timeout=5):
+            LOGGER.info("Found retry prompt, bad location")
+            self.d.press("back")
 
     def click_with_random_offset(self, element):
         x = random.randint(1, 100) / 100
@@ -781,6 +810,13 @@ class ADBUploader:
                         self.touch(tx, ty)
 
                         # Press Next
+                        sleep(10)
+                        if sess(textContains="Next").exists(timeout=5) and not sess(
+                            text="Next"
+                        ):
+                            LOGGER.info("Clicking on next")
+                            self.click_with_random_offset(sess(textContains="Next"))
+                    
                         next_button = sess(text="Next").wait()
                         LOGGER.info("Next button")
                         if not next_button:
@@ -799,8 +835,10 @@ class ADBUploader:
 
                         sleep(2)
                         # Press 'Next' button
-                        sess(text="Next").wait()
-                        sess(text="Next").click()
+                        if sess(text="Next").exists(timeout=5):
+                            LOGGER.info("Clicking on next")
+                            self.click_with_random_offset(sess(text="Next"))
+                
                         LOGGER.info("Clicked on next")
                         if description:
                             # Description
@@ -848,11 +886,19 @@ class ADBUploader:
 
                         # Check if we got a prompt
                         try:
-                            sess(text="Post Now").wait()
-                            sess(text="Post Now").click()
+                            if sess(text="Post Now").exists(timeout=5):
+                                LOGGER.info("Found post now prompt")
+                                sess(text="Post Now").click()
+                            elif sess(text="Retry").exists(timeout=5):
+                                LOGGER.info("Found retry prompt")
+                                sess(text="Retry").click()
                         except:
-                            pass
-
+                            LOGGER.info("No post now prompt")
+                            xml = self.d.dump_hierarchy()
+                            with open("logs/error_dump_tik.xml", "w", encoding="utf-8") as f:
+                                f.write(xml)
+                        LOGGER.info("Clicked on post now")
+                        
                         # Wait until the upload is done
                         timout_time = 100
                         cur_time = 0
@@ -884,6 +930,9 @@ class ADBUploader:
         except Exception as e:
             self.d.app_stop(APP_NAME)
             LOGGER.error(e)
+            xml = self.d.dump_hierarchy()
+            with open("logs/error_dump_tikful.xml", "w", encoding="utf-8") as f:
+                f.write(xml)
             return False
 
         return True

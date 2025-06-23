@@ -187,7 +187,7 @@ def main_reddit_posts_orch():
         for post in unused_posts:
             if (
                 len(post.get("content", "").split()) > 160
-                and len(post.get("content", "").split()) < 2000
+                and len(post.get("content", "").split()) < 3000
                 and not post["nsfw"]
             ):  # 160 minium words in a post
                 LOGGER.info("Post to use %s", post["post_id"])

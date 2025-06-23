@@ -198,6 +198,7 @@ SUB_REDDITS = [
     "TwoHotTakes",
     "relationship_advice",
     "BestofRedditorUpdates",
+    "Stories"
 ]
 SUB_REDDITS_COM = [
     "askreddit",
@@ -258,6 +259,13 @@ REDDIT_ACCRO_SUB = {
     "TLDR?": "too long didn't read",
     "TL;DR!": "too long didn't read",
     "TLDR!": "too long didn't read",
+    "arent": "are not",
+    "isnt": "is not",
+    "wasnt": "was not",
+    "werent": "were not",
+    "hasnt": "has not",
+    "wholl": "who will",
+    "whos": "who is",
     
     
     

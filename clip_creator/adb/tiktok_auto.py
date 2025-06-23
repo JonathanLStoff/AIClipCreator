@@ -17,7 +17,7 @@ def upload_phsyphone(
     # upload video
     succed = uploader_class.add_video(video_path)
     if not succed:
-        LOGGER.error("Error uploading video")
+        LOGGER.error("Error uploading video to file system")
         return False
     
     # Upload to TikTok
@@ -30,7 +30,7 @@ def upload_phsyphone(
         lang=lang,
     )
     if not succed:
-        LOGGER.error("Error uploading video")
+        LOGGER.error("Error uploading video, bad tiktok response")
         return False
     if lang != "en":
         return True
@@ -62,5 +62,5 @@ if __name__ == "__main__":
         draft=False,
         photo_mode=False,
         only_me=True,
-        lang="es",
+        lang="en",
     )
