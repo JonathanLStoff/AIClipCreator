@@ -36,6 +36,27 @@ def create_database(db_path="aiclipcreator.db"):
             );
         """)
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS reddit_aiyt_clips (
+                vid_id TEXT PRIMARY KEY,
+                title TEXT,
+                description TEXT,
+                likes INTEGER,
+                views INTEGER,
+                nsfw BOOLEAN,
+                posted_at TEXT,
+                tiktok_posted TEXT,
+                tiktok_uploaded BOOLEAN,
+                insta_posted TEXT,
+                yt_posted TEXT,
+                yttranscript TEXT,
+                mytranscript TEXT,
+                length_local REAL,
+                author TEXT,
+                updated_at TEXT,
+                parts INTEGER
+            );
+        """)
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS reddit_coms_clips (
                 post_id TEXT PRIMARY KEY,
                 title TEXT,
@@ -246,7 +267,46 @@ def create_database(db_path="aiclipcreator.db"):
     finally:
         conn.close()
 
+def get_all_aiyt_clips(db_path="aiclipcreator.db"):
+    """
+    Retrieves all rows from the reddit_aiyt_clips table as a dictionary.
 
+    Args:
+        db_path: Name of the SQLite database file.
+
+    Returns:
+        A dictionary where keys are vid_id and values are dictionaries of clip data.
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    # Get column names to use as dictionary keys
+    cursor.execute("PRAGMA table_info(reddit_aiyt_clips);")
+    columns = [col[1] for col in cursor.fetchall()]
+
+    # Select all data from the table
+    cursor.execute("SELECT * FROM reddit_aiyt_clips;")
+    rows = cursor.fetchall()
+
+    # Initialize the dictionary to store results
+    clips_dict = {}
+
+    # Populate the dictionary
+    for row in rows:
+        vid_id = row[0] # The first item in the row is vid_id
+        clip_data = {}
+        for i, col_name in enumerate(columns):
+            if col_name != 'vid_id': # Exclude vid_id from the nested dictionary
+                clip_data[col_name] = row[i]
+        clips_dict[vid_id] = clip_data
+
+    return clips_dict
+def get_no_uploaded_aiyt_clips(db_path="aiclipcreator.db"):
+    clips_dict = get_all_aiyt_clips(db_path)
+    filtered_dict = {}
+    for vid_id, clip_data in clips_dict.items():
+        if not clip_data.get("tiktok_uploaded"):
+            filtered_dict[vid_id] = clip_data
+    return filtered_dict
 def add_error_log(vid, error_type, error, db_path="aiclipcreator.db"):
     """
     Adds a new row to the error_log table.
@@ -865,6 +925,37 @@ def get_rows_where_tiktok_not_null_or_empty_com(db_path="aiclipcreator.db"):
     finally:
         if conn:
             conn.close()
+def get_rows_where_tiktok_not_null_or_empty_aiyt(db_path="aiclipcreator.db"):
+    """
+    Retrieves a list of rows (as dictionaries) where tiktok_posted is NOT NULL and not empty.
+    """
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT *
+            FROM reddit_aiyt_clips
+            WHERE tiktok_posted IS NOT NULL AND tiktok_posted <> '';
+        """)
+
+        rows = cursor.fetchall()
+        column_names = [description[0] for description in cursor.description]
+
+        result = []
+        for row in rows:
+            row_dict = dict(zip(column_names, row))
+            result.append(row_dict)
+
+        return result
+
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+        return []
+
+    finally:
+        if conn:
+            conn.close()
 def add_reddit_post_clip(
     post_id,
     title,
@@ -1154,6 +1245,33 @@ def update_reddit_post_clip_tt_com(
     finally:
         if conn:
             conn.close()
+def update_reddit_post_clip_tt_aiyt(
+    post_id, tiktok_posted=None, db_path="aiclipcreator.db"
+):
+    """Updates a Reddit post clip in the database."""
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        LOGGER.info(f"Updating post clip with post_id: {post_id}")
+
+        update_query = (
+            "UPDATE reddit_aiyt_clips SET tiktok_posted = ?, WHERE"
+            " post_id = ?"
+        )
+        cursor.execute(update_query, (str(tiktok_posted), post_id))
+        LOGGER.info(f"Cursor executed: {update_query}")
+        conn.commit()
+        if cursor.rowcount > 0:
+            LOGGER.info(f"Post clip with post_id '{post_id}' updated successfully.")
+        else:
+            LOGGER.error(f"Post clip with post_id '{post_id}' not found.")
+
+    except sqlite3.Error as e:
+        LOGGER.error(f"An error occurred: {e}")
+
+    finally:
+        if conn:
+            conn.close()
 
 
 def update_reddit_post_clip_at(post_id, transcript, db_path="aiclipcreator.db"):
@@ -1202,7 +1320,30 @@ def update_reddit_post_clip_at_com(post_id, transcript, db_path="aiclipcreator.d
     finally:
         if conn:
             conn.close()
+def update_reddit_post_clip_aiyt(post_id, transcript, length, parts, db_path="aiclipcreator.db"):
+    """Updates a Reddit post clip in the database."""
+    conn = None  # Initialize conn to None
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        LOGGER.info(f"Updating post clip with post_id: {post_id}")
 
+        # Add length_local to the update query and parameters
+        update_query = "UPDATE reddit_aiyt_clips SET mytranscript = ?, length_local = ?, parts = ? WHERE post_id = ?"
+        cursor.execute(update_query, (transcript, length, parts, post_id))
+        LOGGER.info(f"Cursor executed: {update_query} with parameters: ({transcript}, {length}, {parts}, {post_id})")
+        conn.commit()
+        if cursor.rowcount > 0:
+            LOGGER.info(f"Post clip with post_id '{post_id}' updated successfully.")
+        else:
+            LOGGER.error(f"Post clip with post_id '{post_id}' not found.")
+
+    except sqlite3.Error as e:
+        LOGGER.error(f"An error occurred: {e}")
+
+    finally:
+        if conn:
+            conn.close()
 
 def update_reddit_post_clip_sc(post_id, uploaded: bool, db_path="aiclipcreator.db"):
     """Updates a Reddit post clip in the database."""
@@ -1213,6 +1354,30 @@ def update_reddit_post_clip_sc(post_id, uploaded: bool, db_path="aiclipcreator.d
 
         update_query = (
             "UPDATE reddit_posts_clips SET tiktok_uploaded = ? WHERE post_id = ?"
+        )
+        cursor.execute(update_query, (uploaded, post_id))
+        LOGGER.info(f"Cursor executed: {update_query}")
+        conn.commit()
+        if cursor.rowcount > 0:
+            LOGGER.info(f"Post clip with post_id '{post_id}' updated successfully.")
+        else:
+            LOGGER.error(f"Post clip with post_id '{post_id}' not found.")
+
+    except sqlite3.Error as e:
+        LOGGER.error(f"An error occurred: {e}")
+
+    finally:
+        if conn:
+            conn.close()
+def update_reddit_post_clip_sc_aiyt(post_id, uploaded: bool, db_path="aiclipcreator.db"):
+    """Updates a Reddit post clip in the database."""
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        LOGGER.info(f"Updating post clip with post_id: {post_id}")
+
+        update_query = (
+            "UPDATE reddit_aiyt_clips SET tiktok_uploaded = ? WHERE post_id = ?"
         )
         cursor.execute(update_query, (uploaded, post_id))
         LOGGER.info(f"Cursor executed: {update_query}")
@@ -1360,6 +1525,53 @@ def add_reddit_post_clip_com(
         if conn:
             conn.close()
 
+def add_reddit_post_clip_ai(
+    vid_id: str,
+    title: str,
+    descr: str,
+    likes: int,
+    views: int,
+    nsfw: bool,
+    author: str,
+    posted_at: str,
+    updated_at: str,
+    yttranscript: list | dict,
+    db_path="aiclipcreator.db",
+):
+    """Adds a new Reddit post clip to the database."""
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO reddit_aiyt_clips (vid_id, title, description, likes, views, nsfw, posted_at, yttranscript, author, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                vid_id,
+                title,
+                descr,
+                likes,
+                views,
+                nsfw,
+                posted_at,
+                json.dumps(yttranscript),
+                author,
+                updated_at,
+                
+            ),
+        )
+
+        conn.commit()
+        print(f"Post clip with post_id '{post_id}' added successfully.")
+
+    except sqlite3.Error as e:
+        print(f"An error occurred: {e}")
+
+    finally:
+        if conn:
+            conn.close()
 
 def updatey_reddit_post_clip_com(
     post_id: str,

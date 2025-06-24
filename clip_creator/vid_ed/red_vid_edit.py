@@ -20,6 +20,7 @@ from clip_creator.conf import (
 )
 from clip_creator.utils.caption_img import (
     create_caption_images_reddit,
+    create_caption_images_aiyt,
     create_caption_images_reddit_com,
 )
 from clip_creator.utils.scan_text import remove_non_letters, swap_words_numbers
@@ -208,6 +209,123 @@ def create_reddit_video(
                 for file in os.listdir(output_dir):
                     if pid in file:
                         os.remove(os.path.join(output_dir, file))
+            try:
+                os.remove(post_png_file)
+            except:
+                pass
+        except Exception as e:
+            if "divisible by 2" in str(e):
+                LOGGER.error("Error: %s", e)
+                use_hi = not use_hi
+                continue
+            else:
+                break
+        break
+
+def create_postimg_clip_aiyt(post_png_file, transcript, title, th=1920, tw=1080, adjust=0, first_part=False):
+    start = 0
+    title = swap_words_numbers(remove_non_letters(title.upper()))
+    if first_part:
+        for _i, section in enumerate(transcript):
+            start = section["start"]
+            if section["text"] not in title.upper():
+                LOGGER.info("section text: [%s] not in [%s]", section["text"], title)
+                break
+        if transcript[-1]["start"] == start:
+            start = len(title) * (160 / 60)
+    else:
+        start = 5
+    clip = (
+        ImageClip(post_png_file, duration=start)
+        .with_position("center", "center")
+        .with_layer_index(4)
+        .with_start(0)
+        .with_effects([Resize(width=tw)])
+        .with_effects([Resize(0.90)])
+    )
+    LOGGER.info("POST SIZE: %s", clip.size)
+    return clip, start
+def create_reddit_video_aiyt(
+    video_path,
+    audio_path,
+    output_path,
+    start_time,
+    end_time,
+    pid,
+    transcript,
+    th,
+    tw,
+    part_start=None,
+    part_end=None,
+    adjust=0,
+    first_part=False,
+    post_png_file=None,
+    title="",
+):
+    if part_start is None:
+        part_start = []
+    use_hi = False
+    while True:
+        rezivid = Resize(height=th) if use_hi else Resize(width=tw)
+
+        try:
+            clip_pt_img, end_image_time = create_postimg_clip_aiyt(
+                post_png_file, transcript, title, th, tw, adjust, first_part
+            )
+
+            
+            temp_audio = CompositeAudioClip([
+                # TTS Audio
+                AudioFileClip(audio_path).subclipped(part_start, part_end).with_start(0),
+                # Background Music
+                AudioFileClip(REDDIT_TEMPLATE_MUS)
+                .subclipped(0, (part_end - part_start))
+                .with_start(0),
+            ])
+
+            temp_audio.write_audiofile(
+                f"tmp/audios/{pid}_aud.mp3", codec="libmp3lame"
+            )
+            video = (
+                VideoFileClip(video_path)
+                .subclipped(start_time, end_time)
+                .with_audio(
+                    AudioFileClip(f"tmp/audios/{pid}_aud.mp3").with_start(0)
+                )
+                .with_effects([rezivid])
+            )
+            LOGGER.info("Pvideo: %s", video.size)
+
+            output_dir, cap_clips, _, _ = create_captions_aiyt(
+                pid,
+                transcript=transcript,
+                target_size=(tw, th),
+                end_image_time=end_image_time,
+                adjust=adjust,
+            )
+            LOGGER.info("Pvideo: %s", video.size)
+            final_clip = CompositeVideoClip([video, clip_pt_img, *cap_clips])
+            LOGGER.info("Pfinal_clip: %s", final_clip.size)
+            final_clip.write_videofile(
+                output_path,
+                pixel_format="yuv420p",
+                codec="libx264",
+                audio_codec="libmp3lame",
+                ffmpeg_params=[
+                    #"-crf",
+                    #"23",
+                    "-vf",
+                    "format=yuv420p",  # Force video format conversion
+                    "-profile:v",
+                    "baseline",  # Set the H.264 profile to baseline
+                    "-loglevel", 
+                    "quiet"
+                ],
+            )
+
+            for file in os.listdir(output_dir):
+                if pid in file:
+                    os.remove(os.path.join(output_dir, file))
             try:
                 os.remove(post_png_file)
             except:
@@ -485,6 +603,104 @@ def create_captions(
             .with_layer_index(1)
         )
         if (section["start"] - parts_offset) + duration > ending:
+            ending = section["start"] + duration
+        if caption_clip.w > target_size[0]:
+            widthy = target_size[0] * 0.95
+            widthy = int(widthy)
+            if widthy % 2 != 0:
+                widthy += 1
+            caption_clip = caption_clip.with_effects([
+                Resize(height=caption_clip.h, width=widthy)
+            ])
+        if caption_clip.h % 2 != 0:
+            caption_clip = caption_clip.with_effects([
+                Resize(height=caption_clip.h + 1, width=caption_clip.w)
+            ])
+        if caption_clip.w % 2 != 0:
+            caption_clip = caption_clip.with_effects([
+                Resize(height=caption_clip.h, width=caption_clip.w + 1)
+            ])
+        # Composite the caption image onto the video.
+        clip_list.append(caption_clip)
+
+    return output_dir, clip_list, files_to_remove, ending
+def create_captions_aiyt(
+    prefix: str,
+    transcript: list[dict],
+    target_size: tuple[int, int],
+    output_dir: str = "./tmp/caps_img",
+    part=0,
+    end_image_time=0,
+    adjust=0,
+):
+    """
+    Creates caption image clips from a transcript and overlays them onto a video clip.
+    This function generates caption images for each section in the transcript (by calling
+    an external function 'create_caption_images'), then creates individual image clips for
+    each word in the section. Each image clip is placed at a fixed vertical position on the
+    video (6/7th of the video height, centered horizontally) and is composited over the
+    existing video clip. The duration of each caption clip is evenly divided among the words
+    in the section's text.
+    Args:
+        transcript (list[dict]): A list of dictionaries where each dictionary represents a
+            segment of the transcript. Each dictionary should contain:
+                - 'text' (str): The caption word for the segment.
+                - 'start' (str): The start time of the segment, used for naming image files.
+                - 'duration' (float): The duration of the caption segment.
+        video_obj (VideoFileClip): The video clip (from moviepy) onto which the caption images
+            will be overlaid.
+        output_dir (str, optional): The directory path where the generated caption images are
+            saved. Defaults to "./tmp/caps_img".
+    Returns:
+        VideoFileClip: The modified video clip with the caption image clips composited on top.
+    """
+    file_to_check = f"word{len(transcript)-5}-{part}.png"
+    LOGGER.info("file_to_check and pre: %s %s", file_to_check, prefix)
+    not_found = True
+    for file in os.listdir(output_dir):
+        if file_to_check in file and prefix in file:
+            not_found = False
+            break
+    if not_found:
+        create_caption_images_aiyt(
+            prefix, transcript, int(target_size[0] * 0.9), output_dir, adjust=adjust
+        )
+
+    clip_list = []
+    files_to_remove = []
+    ending = 0
+    for i, section in enumerate(transcript):
+        file_name = ""
+        for file in os.listdir(output_dir):
+            if f"word{i}-{part}.png" in file and prefix in file:
+                file_name = file
+                files_to_remove.append(file)
+                break
+        if file_name == "":
+            LOGGER.error("file_name not found: %s", f"word{i}-{part}.png")
+            continue
+        if i + 1 >= len(transcript):
+            duration = section["duration"] + 0.5
+        else:
+            duration = (transcript[i + 1]["start"]-adjust) - (section["start"]-adjust)
+            if duration > 3:
+                duration = 3
+        pos_y = target_size[1] * 2 / 6
+        file_path = os.path.join(output_dir, file_name)
+        try:
+            fix_img_size(file_path, target_size[0], target_size[1])
+        except Exception as e:
+            LOGGER.error("Error fixing image size: %s", e)
+        # LOGGER.info("file_path: %s", file_path)
+        caption_clip = ImageClip(file_path, duration=duration)
+        if (section["start"]-adjust) < end_image_time:
+            continue
+        caption_clip = (
+            caption_clip.with_start(section["start"] - adjust)
+            .with_position(("center", pos_y))
+            .with_layer_index(1)
+        )
+        if (section["start"] - adjust) + duration > ending:
             ending = section["start"] + duration
         if caption_clip.w > target_size[0]:
             widthy = target_size[0] * 0.95

@@ -365,6 +365,169 @@ def create_caption_images_reddit(
             file_path = os.path.join(output_dir, filename)
 
             final_img.save(file_path, "PNG")
+def create_caption_images_aiyt(
+    prefix: str,
+    captions,
+    max_width,
+    output_dir=".",
+    adjust=0
+):
+    """Creates one image *per word* of wrapped text, highlighting current word.
+
+    caption: List of dictionaries with "start" and "text" keys.
+    """
+    try:
+        font = ImageFont.truetype(FONT_PATH, size=100)
+    except Exception as e:
+        print(f"Error loading font: {e}. Trying default.")
+        try:
+            font = ImageFont.load_default()
+        except Exception as e2:
+            print(f"Error loading default font: {e2}. Please install a font.")
+            return
+
+    h_padding = 20
+    padding = 20
+    max_width = max_width - padding
+    word_spacing = 15
+    outline_width = 5
+    lines_text: list[list[dict]] = [[]]
+    lines_index = 0
+
+    # Find each line of text
+    for i, caption in tqdm(
+        enumerate(captions),
+        total=len(captions),
+        desc="Find each line of text"
+    ):
+        lines_text[lines_index].append({"text": caption.get("real_text", caption.get("text", "")), "index": i})
+        temp_x = h_padding
+
+        # Create a dummy image and draw context for calculations
+        dummy_img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
+        dummy_draw = ImageDraw.Draw(dummy_img)
+
+        # Build up the current line using dummy context
+        for word in lines_text[lines_index]:
+            bbox = dummy_draw.textbbox(
+                (0, padding),
+                word.get("text", ""),
+                font=font,
+                align="center"
+            )
+            word_width = bbox[2] - bbox[0]
+            temp_x += word_width + word_spacing
+
+
+        lines_index += 1
+        lines_text.append([])
+
+    # Process each line
+    for j, line in tqdm(
+        enumerate(lines_text),
+        total=len(lines_text),
+        desc="Create Images"
+    ):
+        line = remove_curse_words(line)
+        # Calculate line heights
+        max_ascent = 0
+        max_descent = 0
+        for word in line:
+            dummy_img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
+            dummy_draw = ImageDraw.Draw(dummy_img)
+            bbox = dummy_draw.textbbox(
+                (0, padding),
+                word.get("text"),
+                font=font,
+                align="center"
+            )
+            ascent = padding - bbox[1]
+            descent = bbox[3] - padding
+            max_ascent = max(max_ascent, ascent)
+            max_descent = max(max_descent, descent)
+        total_height = max_ascent + max_descent
+
+        # Calculate word widths and total line width
+        word_widths = []
+        total_line_width = 0
+        for word in line:
+            dummy_img = Image.new("RGBA", (max_width * 2, max_width), color=(0, 0, 0, 0))
+            dummy_draw = ImageDraw.Draw(dummy_img)
+            bbox = dummy_draw.textbbox(
+                (0, padding),
+                word.get("text"),
+                font=font,
+                align="center"
+            )
+            w = bbox[2] - bbox[0]
+            word_widths.append(w)
+            total_line_width += w
+
+        if len(line) > 1:
+            total_line_width += word_spacing * (len(line) - 1)
+
+        # Generate an image for each word in the line
+        for i, caption_ult in enumerate(line):
+            new_width = max_width
+            new_height = total_height + 2 * padding
+            final_img = Image.new("RGBA", (new_width, new_height), color=(0, 0, 0, 0))
+            final_draw = ImageDraw.Draw(final_img)
+
+            word_index = caption_ult.get("index", "")
+            x = (new_width - total_line_width) // 2
+            current_y = padding
+
+            ran_check = randint(1, 10)
+            word_to_change = None
+            word_to_change_color = None
+            if ran_check < 2 and len(line) > 1:
+                word_to_change = randint(0, len(line) - 1)
+                word_to_change_color = choice(list(COLOR_PAIRS["white"]))
+                bg_choiced_color = "white"
+                paired = "red"
+            if ran_check < 3:
+                bg_choiced_color = choice(list(COLOR_PAIRS.keys()))
+                paired = choice(COLOR_PAIRS[bg_choiced_color])
+            elif ran_check < 5:
+                bg_choiced_color = "white"
+                paired = choice(COLOR_PAIRS[bg_choiced_color])
+            else:
+                bg_choiced_color = "white"
+                paired = "red"
+
+            # Draw each word in the line
+            for k, caption in enumerate(line):
+                wordt: str = caption.get("text", "")
+                # We only have one word a line so we can use any color, will give us a higher chance of white while still being random
+                color = choice([COLORS[paired], COLORS[bg_choiced_color], "white"])
+                if word_to_change == k:
+                    color = COLORS[word_to_change_color]
+                # Draw outline
+                for dx in range(-outline_width, outline_width + 1):
+                    for dy in range(-outline_width, outline_width + 1):
+                        final_draw.text(
+                            (x + dx, current_y + dy),
+                            (str(wordt) + " ") if len(line) > k + 1 else wordt,
+                            font=font,
+                            fill="black",
+                            align="center",
+                        )
+
+                # Draw text
+                final_draw.text(
+                    (x, current_y),
+                    (str(wordt) + " ") if len(line) > k + 1 else wordt,
+                    font=font,
+                    fill=color,
+                    align="center",
+                )
+                # Key fix: Use k instead of i for word_widths index
+                x += word_widths[k] + word_spacing
+
+            filename = f"{prefix}_line{j}_word{word_index}-{part}.png"
+            file_path = os.path.join(output_dir, filename)
+
+            final_img.save(file_path, "PNG")
 
 
 def create_caption_images_reddit_com(

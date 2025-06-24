@@ -11,10 +11,10 @@ from clip_creator.conf import (
     POSSIBLE_TRANSLATE_LANGS,
 )
 from clip_creator.db.db import (
-    get_rows_where_tiktok_not_null_or_empty,
-    update_reddit_post_clip_sc,
+    update_reddit_post_clip_sc_aiyt,
     update_reddit_post_clip_sc_com,
     get_rows_where_tiktok_not_null_or_empty_com,
+    get_rows_where_tiktok_not_null_or_empty_aiyt
 )
 from clip_creator.lang.translate import translate_en_to
 from clip_creator.utils.scan_text import (
@@ -61,7 +61,7 @@ def sched_run(skipscroll=False):
     )
     LOGGER.addHandler(file_handler)
     LOGGER.info("Running scheduled task...")
-    all_posts_to_post = [post for post in get_rows_where_tiktok_not_null_or_empty() if post.get("tiktok_posted") and post.get("tiktok_uploaded") != "None" and not post.get("tiktok_uploaded")]
+    all_posts_to_post = [post for post in get_rows_where_tiktok_not_null_or_empty_aiyt() if post.get("tiktok_posted") and post.get("tiktok_uploaded") != "None" and not post.get("tiktok_uploaded")]
     more_posts = [post for post in get_rows_where_tiktok_not_null_or_empty_com() if post.get("tiktok_posted") and post.get("tiktok_uploaded") != "None" and not post.get("tiktok_uploaded")]
     LOGGER.info("more_posts: %s", len(more_posts))
     all_all_reddit = []
@@ -69,7 +69,7 @@ def sched_run(skipscroll=False):
         post["type"] = "coms"
         all_all_reddit.append(post)
     for post in all_posts_to_post:
-        post["type"] = "posts"
+        post["type"] = "aiyt"
         all_all_reddit.append(post)
         
     posts_to_use = {}
@@ -124,10 +124,46 @@ def sched_run(skipscroll=False):
 
     for pid, post in posts_to_use.items():
         LOGGER.info(f"Running scheduled task for {pid}...")
-        suvvedd = upload_phsyphone(
-            os.path.abspath(posts_to_use[post["post_id"]]["vfile"]),
-            posts_to_use[post["post_id"]]["desc"],
-        )
+        if post.get("parts", 1) > 1:
+            skip_this_post = False
+            for i in range(post["parts"]):
+                if not os.path.exists(os.path.abspath(f"tmp/clips/reddit_{pid}_{i}.mp4")):
+                    LOGGER.error(
+                        "File %s does not exist, skipping post %s",
+                        f"tmp/clips/reddit_{pid}_{i}.mp4",
+                        pid,
+                    )
+                    skip_this_post = True
+                    break
+            if skip_this_post:
+                LOGGER.error("Skipping post %s", pid)
+                continue
+            for i in range(post["parts"]):
+                suvvedd = False
+                max_retries = 5
+                while not suvvedd:
+                    suvvedd = upload_phsyphone(
+                        os.path.abspath(f"tmp/clips/reddit_{pid}_{i}.mp4"),
+                        posts_to_use[pid]["desc"][i],
+                    )
+                    if not suvvedd:
+                        LOGGER.error("Error uploading video")
+                        max_retries -= 1
+                        if max_retries <= 0:
+                            LOGGER.error("Max retries reached, skipping post %s", pid)
+                            skip_this_post = True
+                            break
+                if skip_this_post:
+                    LOGGER.error("Skipping post %s", pid)
+                    break
+            if skip_this_post:
+                LOGGER.error("Skipping post %s", pid)
+                continue
+        else:
+            suvvedd = upload_phsyphone(
+                os.path.abspath(posts_to_use[post["post_id"]]["vfile"]),
+                posts_to_use[post["post_id"]]["desc"],
+            )
         if not suvvedd:
             LOGGER.error("Error uploading video")
             continue
@@ -135,7 +171,7 @@ def sched_run(skipscroll=False):
             update_reddit_post_clip_sc_com(post["post_id"], True)
         else:
             
-            update_reddit_post_clip_sc(post["post_id"], True)
+            update_reddit_post_clip_sc_aiyt(post["post_id"], True)
         for lang in POSSIBLE_TRANSLATE_LANGS:
             LOGGER.info(f"Running scheduled task for {lang}...")
             upload_phsyphone(

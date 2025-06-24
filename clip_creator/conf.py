@@ -3,14 +3,11 @@ import os
 import re
 import sys
 from os.path import join
-
+import json
 import toml
 
-API_KEY = [
-    os.environ.get("YOUTUBE_API_KEY_1", ""),
-    os.environ.get("YOUTUBE_API_KEY_2", ""),
-    os.environ.get("YOUTUBE_API_KEY_3", ""),
-]
+with open("clip_creator/keys.json", "r", encoding="utf-8") as f:
+    API_KEY = json.load(f)
 
 
 SECTIONS_TYPES = ["funny moments"]
@@ -385,4 +382,18 @@ REPLACE_WORDS_CLEAN = {
     "rape": "grape",
     "rapist": "grapist",
     
+}
+
+CHANNELS_AI_REDDIT = {
+    
+    "itstruepompeo": "UCMdD3sj1bvhQVqhKI0WtOLA",
+    "FamilyStoryTimes": "UC96kYpPudmOT2rE3NsXKEcw",
+    "RedditFamilyTales": "UCnMVSY3IbyRtYGSWF867Ycg",
+    "jawerlydiaries": "UCq_H3m4A2eFRSkDfxUiJXwg",
+    "RabbittTALES":"UC1DCcmKmhh5n86hSBBxrfSw",
+    "dailyredditstories-q":"UCBs_XY2v1INXUIy5-9kpm_g",
+    "redditdramatale":"UC0y08ybJR2kBScC-U8YuZhA"
+    
+
+
 }

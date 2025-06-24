@@ -122,7 +122,61 @@ def get_latest_videos(channel_id, used_ids, video_df_info, max_results=10):
             break
 
     return list_videos
-
+def get_latest_videos_v2(channel_id, current_data, max_results=10):
+    """Gets the latest videos from a YouTube channel."""
+    response = None
+    api_inx = 0
+    next_page_token = None
+    list_videos = []
+    while True:
+        yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
+        request = yt.search().list(
+            part="snippet", channelId=channel_id, order="date", maxResults=max_results, pageToken=next_page_token
+        )
+        response = request.execute()
+        if response.get("items"):
+            break
+        else:
+            api_inx += 1
+            if api_inx == len(API_KEY):
+                break
+        
+        LOGGER.info("Response: %s", response)
+        next_page_token = response.get("nextPageToken")
+        for entry in response.get("items", []):
+            time.sleep(0.5)
+            if entry == []:
+                continue
+            if entry.get("id", {}).get("videoId") not in current_data.keys() and entry.get(
+                "id", {}
+            ).get("videoId"):
+                in_db = False
+                for existing_entry in current_data.values():
+                    if entry["snippet"]["title"].lower() in existing_entry["title"].lower():
+                        LOGGER.info(
+                            "Video already exists in the database: %s",
+                            entry["snippet"]["title"],
+                        )
+                        in_db = True
+                        break
+                if not in_db:
+                    
+                    list_videos.append(entry)
+            if len(list_videos) >= max_results:
+                break
+        if len(list_videos) >= max_results:
+            break
+    # For formatting the entry into the current dict
+    for n_vid in list_videos:
+        video_id = n_vid["id"]["videoId"]
+        current_data[video_id] = {
+            "title": n_vid["snippet"]["title"],
+            "posted_at": n_vid["snippet"]["publishedAt"],
+            "author": n_vid["snippet"]["channelTitle"],
+            "description": n_vid["snippet"]["description"],
+            "not_in_db": True,
+        }
+    return current_data
 
 def is_duration_over_minutes(duration_iso8601, length: int = 9):
     """
