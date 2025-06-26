@@ -306,6 +306,7 @@ def get_no_uploaded_aiyt_clips(db_path="aiclipcreator.db"):
     for vid_id, clip_data in clips_dict.items():
         if not clip_data.get("tiktok_uploaded"):
             filtered_dict[vid_id] = clip_data
+            filtered_dict[vid_id]["yttranscript"] = json.loads(clip_data.get("yttranscript", ""))
     return filtered_dict
 def add_error_log(vid, error_type, error, db_path="aiclipcreator.db"):
     """
@@ -1256,7 +1257,7 @@ def update_reddit_post_clip_tt_aiyt(
 
         update_query = (
             "UPDATE reddit_aiyt_clips SET tiktok_posted = ?, WHERE"
-            " post_id = ?"
+            " vid_id = ?"
         )
         cursor.execute(update_query, (str(tiktok_posted), post_id))
         LOGGER.info(f"Cursor executed: {update_query}")
@@ -1329,9 +1330,10 @@ def update_reddit_post_clip_aiyt(post_id, transcript, length, parts, db_path="ai
         LOGGER.info(f"Updating post clip with post_id: {post_id}")
 
         # Add length_local to the update query and parameters
-        update_query = "UPDATE reddit_aiyt_clips SET mytranscript = ?, length_local = ?, parts = ? WHERE post_id = ?"
+        update_query = "UPDATE reddit_aiyt_clips SET mytranscript = ?, length_local = ?, parts = ? WHERE vid_id = ?"
         cursor.execute(update_query, (transcript, length, parts, post_id))
-        LOGGER.info(f"Cursor executed: {update_query} with parameters: ({transcript}, {length}, {parts}, {post_id})")
+        
+        LOGGER.info(f"Cursor executed: {update_query} with parameters: ({transcript[0:50]}, {length}, {parts}, {post_id})")
         conn.commit()
         if cursor.rowcount > 0:
             LOGGER.info(f"Post clip with post_id '{post_id}' updated successfully.")
@@ -1377,7 +1379,7 @@ def update_reddit_post_clip_sc_aiyt(post_id, uploaded: bool, db_path="aiclipcrea
         LOGGER.info(f"Updating post clip with post_id: {post_id}")
 
         update_query = (
-            "UPDATE reddit_aiyt_clips SET tiktok_uploaded = ? WHERE post_id = ?"
+            "UPDATE reddit_aiyt_clips SET tiktok_uploaded = ? WHERE vid_id = ?"
         )
         cursor.execute(update_query, (uploaded, post_id))
         LOGGER.info(f"Cursor executed: {update_query}")
@@ -1546,7 +1548,7 @@ def add_reddit_post_clip_ai(
         cursor.execute(
             """
             INSERT INTO reddit_aiyt_clips (vid_id, title, description, likes, views, nsfw, posted_at, yttranscript, author, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 vid_id,
@@ -1564,7 +1566,7 @@ def add_reddit_post_clip_ai(
         )
 
         conn.commit()
-        print(f"Post clip with post_id '{post_id}' added successfully.")
+        print(f"Post clip with post_id '{vid_id}' added successfully.")
 
     except sqlite3.Error as e:
         print(f"An error occurred: {e}")

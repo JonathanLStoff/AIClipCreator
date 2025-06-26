@@ -217,7 +217,7 @@ def main_reddit_coms_orch():
             else:
                 post_dt = str_to_datetime(post.get("posted_at", ""))
             LOGGER.debug("Post dt: %s", post_dt)
-            if (datetime.now(UTC) - post_dt) > timedelta(days=4):
+            if (datetime.now(UTC) - post_dt) > timedelta(days=7) and str_to_datetime(post.get("posted_at", "")) > datetime.now(UTC) - timedelta(days=14):
                 posty = straight_update_reddit_coms(post.get("url", ""))
                 LOGGER.debug("Posty: %s", posty)
                 if posty.get("title"):

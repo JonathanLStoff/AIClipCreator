@@ -115,7 +115,7 @@ def swap_words_numbers(text: str) -> str:
                         if "- " in strings_word:
                             strings_word = strings_word.replace("-", "negative")
                             
-                        if "th" in word or "st" in word or "nd" in word or "rd" in word:
+                        if " th" in strings_word or " st" in strings_word or " nd" in strings_word or " rd" in strings_word:
                             new_word = strings_word.replace(
                                 " ", str(num2words(word)) + " "
                             )
@@ -164,7 +164,7 @@ def swap_words_numbers(text: str) -> str:
                             except Exception as e:
                                 LOGGER.error("Error year: %s", e)
                                 LOGGER.error("Word: %s", word)
-                        LOGGER.info("New word: %s", new_word)
+                        LOGGER.debug("New word: %s", new_word)
                         new_text += new_word
                     except Exception as e:
                         LOGGER.error("Error converting to number1: %s", traceback.format_exc())
@@ -416,12 +416,14 @@ def reddit_acronym(text: str) -> str:
         full_word = ""
         acro = ""
         for acronym, full in REDDIT_ACCRO_SUB.items():
-            if acronym in word:
+            if acronym == remove_non_letters(word):
+                #LOGGER.info("acronym %s found in %s", acronym, remove_non_letters(word))
+                #LOGGER.info("replace %s with %s", word, full)
                 acro = acronym
                 full_word = full
         if acro != "":
-            LOGGER.info("replace %s with %s", word, full)
-            net_text += word.replace(acro, full_word) + " "
+            #LOGGER.info("replace %s with %s", word, full_word)
+            net_text += word.replace(remove_non_letters(word), full_word) + " "
         else:
             net_text += word + " "
     new_text = ""
@@ -431,7 +433,7 @@ def reddit_acronym(text: str) -> str:
         for accro, full in REPLACE_WORDS_CLEAN.items():
         
             if accro.lower() == word.lower():
-                LOGGER.info("replace %s with %s", word, full)
+                #LOGGER.info("replace %s with %s", word, full)
                 found_in_word = True
                 word_found = full
         if found_in_word:
@@ -571,7 +573,15 @@ def get_top_posts_coms(posts:dict, n):
         )[:n]
     ]
 
+def get_top_posts_aiyt(posts:dict, n):
 
+    
+    return [
+        key
+        for key, _ in sorted(
+            posts.items(), key=lambda item: item[1].get("views", 0), reverse=True
+        )[:n]
+    ]
 def find_bad_words(
     true_transcript: list[dict], uncensored_transcript
 ) -> (list[list[int]], list[dict]):

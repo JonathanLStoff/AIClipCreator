@@ -58,7 +58,13 @@ class TTSModelKokoro:
             selection = voice
 
         self.speaker, self.speed = selection[0], selection[1]
-
+    def stop(self):
+        """
+        Stops the text-to-speech pipeline if it is running.
+        """
+        del self.kp
+        del self.speaker
+        del self.speed
     def text_to_speech(self, text, sample_rate=24000):
         """
         Generates speech from text using a VITS model.

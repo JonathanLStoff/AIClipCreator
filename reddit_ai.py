@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import math
+import time
 import uuid
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
@@ -47,13 +48,13 @@ from clip_creator.tts.ai import TTSModelKokoro
 from clip_creator.utils.caption_img import (
     render_html_to_png,
 )
-from clip_creator.utils.forcealign import force_align
+from clip_creator.utils.forcealign import force_align_aiyt
 from clip_creator.utils.math_things import get_88_percentile, start_times_per_chunk
 from clip_creator.utils.path_setup import check_and_create_dirs
 from clip_creator.utils.scan_text import (
     dirty_remove_cuss,
     get_id_from_vfile,
-    get_top_posts_coms,
+    get_top_posts_aiyt,
     reddit_acronym,
     reddit_remove_bad_words,
     remove_non_letters,
@@ -156,26 +157,26 @@ def main_reddit_coms_orch():
     #####################################
     # Add posts to database
     #####################################
-    for vid, v_data in found_videos:
-            
-        if v_data.get("not_in_db"):
-            
-            LOGGER.info(f"Adding post to DB: {vid}")
-            add_reddit_post_clip_ai(
-                vid_id=vid,
-                title=v_data["title"],
-                posted_at=v_data["posted_at"],
-                descr=v_data["description"],
-                likes=v_data["likes"],
-                views=v_data["views"],
-                nsfw=v_data.get("nsfw"),
-                author=v_data["author"],
-                yttranscript=v_data["yttranscript"],
-                updated_at=datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000"),
-            )
-        else:
-            LOGGER.error(f"Invalid URL: {vid}")
-    # TODO: get length of video after completing the audio, also add number of parts which is length/10
+    if not args.noretrieve:
+        for vid, v_data in found_videos.items():
+                
+            if v_data.get("not_in_db"):
+                
+                LOGGER.info(f"Adding post to DB: {vid}")
+                add_reddit_post_clip_ai(
+                    vid_id=vid,
+                    title=v_data["title"].replace("FULL STORY", "").strip(),
+                    posted_at=v_data["posted_at"],
+                    descr=v_data["description"],
+                    likes=v_data["likes"],
+                    views=v_data["views"],
+                    nsfw=v_data.get("nsfw"),
+                    author=v_data["author"],
+                    yttranscript=v_data["yttranscript"],
+                    updated_at=datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000"),
+                )
+            else:
+                LOGGER.error(f"Invalid URL: {vid}")
     #####################################
     # get the current list of vids that dont have created clips
     #####################################
@@ -183,7 +184,7 @@ def main_reddit_coms_orch():
     posts_to_use = {}
     with open("clip_creator/utils/banned.txt") as f:
         banned_words = f.read().split(",")
-        for post in unused_posts:
+        for pid, post in unused_posts.items():
             post['content'] = ""
             for section in post['yttranscript']:
                 post['content'] += section.get("text", "").strip() + " "
@@ -193,13 +194,14 @@ def main_reddit_coms_orch():
                     if word.strip() == "" or word.strip() == " ":
                         continue
                     if word in post["title"] or word in post["content"]:
-                        LOGGER.info("Post %s has banned word %s", post["post_id"], word)
+                        LOGGER.info("Post %s has banned word %s", pid, word)
                         banned_q = True
                         break
-                if "reddit" in post['title'].lower():
-                    banned_q = True
+                
                 if not banned_q:
-                    posts_to_use[post["post_id"]] = post
+                    # TODO: Create a function that has more robust checks for the title
+                    post['title'] = post['title'].replace("FULL STORY", "").strip()
+                    posts_to_use[pid] = post
     
     #####################################
     # Exit if fetch only
@@ -211,9 +213,14 @@ def main_reddit_coms_orch():
     # Compile script
     #####################################
     new_content = {}
+    posts_to_rm = []
     for pid, post in posts_to_use.items():
         # Get Number of words
-
+        yt_len = post['yttranscript'][-1].get("start", 0)
+        if yt_len < 300: #5 min minium
+            LOGGER.info("Post %s has less than 5 minutes of content, removing", pid)
+            posts_to_rm.append(pid)
+            continue
         post['content'] = ""
         for section in post['yttranscript']:
             post['content'] += section.get("text", "").strip() + " "
@@ -226,7 +233,9 @@ def main_reddit_coms_orch():
                 )
         )
         new_content[pid] = ht_text
-            
+    for pid in posts_to_rm:
+        LOGGER.info("Removing post %s", pid)
+        posts_to_use.pop(pid, None)      
     for pid, content  in new_content.items():
         posts_to_use[pid]["content"] = content
 
@@ -239,7 +248,7 @@ def main_reddit_coms_orch():
 
     # rand_posts = sample(list(posts_to_use.keys()), len(day_sched))
     if not args.usevids:
-        best_posts = get_top_posts_coms(posts_to_use, len(day_sched))
+        best_posts = get_top_posts_aiyt(posts_to_use, len(day_sched))
 
     else:
         LOGGER.info("Using created videos")
@@ -290,49 +299,80 @@ def main_reddit_coms_orch():
     #####################################
 
     if not args.usevids:
-        tts_model = TTSModelKokoro()
+        
         LOGGER.info("Creating audio using TTS")
         LOGGER.info("There are %s posts to use", len(posts_to_use.keys()))
         for pid, post in posts_to_use.items():
             posts_to_use[pid]["auFile"] = f"tmp/audios/{pid}.wav"
+            tts_model = TTSModelKokoro()
             if not os.path.exists(posts_to_use[pid]["auFile"]):
+                LOGGER.info("Creating audio for script starting with %s ....", posts_to_use[pid]["content"][0:50])
                 tts_model.run_it(
                     posts_to_use[pid]["auFile"], posts_to_use[pid]["content"]
                 )
-                posts_to_use[pid]["audio_length"] = get_audio_duration(
-                    posts_to_use[pid]["auFile"]
-                )
-            
+            else:
+                LOGGER.info("Audio file %s already exists, skipping TTS", posts_to_use[pid]["auFile"])
+            posts_to_use[pid]["audio_length"] = get_audio_duration(
+                posts_to_use[pid]["auFile"]
+            )
+            time.sleep(1)
+            tts_model.stop()
+            del tts_model
         # Create Audio for other languages
 
         for lang in POSSIBLE_TRANSLATE_LANGS:
-            tts_model_lang = TTSModelKokoro(
-                voice=choice(POSSIBLE_TRANSLATE_LANGS_TTS[lang]["tts"]),
-                lang_code=POSSIBLE_TRANSLATE_LANGS_TTS[lang][lang],
-            )
+            
             for pid, post in posts_to_use.items():
+                tts_model_lang = TTSModelKokoro(
+                    voice=choice(POSSIBLE_TRANSLATE_LANGS_TTS[lang]["tts"]),
+                    lang_code=POSSIBLE_TRANSLATE_LANGS_TTS[lang][lang],
+                )
                 posts_to_use[pid][f"auFile_{lang}"] = f"tmp/audios/{pid}_{lang}.wav"
                 if not os.path.exists(posts_to_use[pid][f"auFile_{lang}"]):
                     tts_model_lang.run_it(
                         posts_to_use[pid][f"auFile_{lang}"], posts_to_use[pid][f"content_{lang}"]
                     )
-                    posts_to_use[pid][f"audio_length_{lang}"] = get_audio_duration(
-                        posts_to_use[pid][f"auFile_{lang}"]
-                    )
+                else:
+                    LOGGER.info("Audio file %s already exists, skipping TTS", posts_to_use[pid][f"auFile_{lang}"])
+                posts_to_use[pid][f"audio_length_{lang}"] = get_audio_duration(
+                    posts_to_use[pid][f"auFile_{lang}"]
+                )
+                time.sleep(1)
+                tts_model_lang.stop()
+                del tts_model_lang
 
     #####################################
     # Force align text to audio
     #####################################
-    device = "cpu"
-    if torch.cuda.is_available():
-        device = "cuda:0"
-        torch.cuda.empty_cache()
-
+    
+    
     for pid, post in posts_to_use.items():
-        posts_to_use[pid]["mytranscript"] = force_align(
-            device=device, file=post["auFile"], yt_ft_transcript=post["content"]
-        )
-        posts_to_use[pid]["parts"] = math.ceil(posts_to_use[pid]["audio_length"]/10)
+        device = "cpu"
+        if torch.cuda.is_available():
+            device = "cuda"
+            torch.cuda.empty_cache()
+            time.sleep(2)
+        LOGGER.info("Using device: %s", device)
+        try:
+            posts_to_use[pid]["mytranscript"] = force_align_aiyt(
+                device=device, file=post["auFile"], yt_ft_transcript=post["content"]
+            )
+        except Exception as e:
+            LOGGER.error("Error in force_align for %s: %s", pid, e)
+            if "CUDA out of memory" in str(e):
+                LOGGER.error("Out of memory error, trying to free up memory")
+                torch.cuda.empty_cache()
+                time.sleep(2)
+                device = "cpu"
+                posts_to_use[pid]["mytranscript"] = force_align_aiyt(
+                    device=device, file=post["auFile"], yt_ft_transcript=post["content"]
+                )
+        if isinstance(posts_to_use[pid]["mytranscript"], str):
+            posts_to_use[pid]["mytranscript"] = json.loads(posts_to_use[pid]["mytranscript"])
+        if posts_to_use[pid]["audio_length"]/60 > 9: # check if audio is longer than 9 minutes
+            posts_to_use[pid]["parts"] = math.ceil((posts_to_use[pid]["audio_length"]/60)/9) # 9 minutes per part max but will split the time into equal parts
+        else:
+            posts_to_use[pid]["parts"] = 1
         update_reddit_post_clip_aiyt(
             post_id=pid,
             transcript=json.dumps(posts_to_use[pid]["mytranscript"]), 
@@ -341,9 +381,27 @@ def main_reddit_coms_orch():
             )
     for lang in POSSIBLE_TRANSLATE_LANGS:
         for pid, post in posts_to_use.items():
-            posts_to_use[pid][f"mytranscript_{lang}"] = force_align(
-                device=device, file=post[f"auFile_{lang}"], yt_ft_transcript=post[f"content_{lang}"]
-            )
+            if torch.cuda.is_available():
+                device = "cuda"
+                torch.cuda.empty_cache()
+                time.sleep(2)
+            LOGGER.info("Using device: %s", device)
+            try:
+                posts_to_use[pid][f"mytranscript_{lang}"] = force_align_aiyt(
+                    device=device, file=post[f"auFile_{lang}"], yt_ft_transcript=post[f"content_{lang}"]
+                )
+            except Exception as e:
+                LOGGER.error("Error in force_align for %s: %s", pid, e)
+                if "CUDA out of memory" in str(e):
+                    LOGGER.error("Out of memory error, trying to free up memory")
+                    torch.cuda.empty_cache()
+                    time.sleep(2)
+                    device = "cpu"
+                    posts_to_use[pid][f"mytranscript_{lang}"] = force_align_aiyt(
+                        device=device, file=post[f"auFile_{lang}"], yt_ft_transcript=post[f"content_{lang}"]
+                    )
+            if isinstance(posts_to_use[pid][f"mytranscript_{lang}"], str):
+                posts_to_use[pid][f"mytranscript_{lang}"] = json.loads(posts_to_use[pid][f"mytranscript_{lang}"])
     
     #####################################
     # Create video
@@ -360,21 +418,18 @@ def main_reddit_coms_orch():
                 
             sub_name = "r/RedditCity"
             LOGGER.info("Subreddit: %s", sub_name)
-            for part_num in range(post["parts"]):
-            # Create img for post
+            for part_num in range(int(post["parts"])):
+                # Create img for post
+                LOGGER.info("Creating image for post %s, part %s", pid, part_num)
                 image_file = render_html_to_png(
                         post_id=pid,
-                        title=swap_words_numbers(
-                            reddit_acronym(
-                                reddit_remove_bad_words(posts_to_use[pid]["title"])
-                            )
-                        ) + ("Part " + str(part_num + 1) if part_num >= 1 else ""),
+                        title=posts_to_use[pid]["title"] + ("Part " + str(part_num + 1) if part_num >= 1 else ""),
                         subreddit=sub_name,
                         subreddit_id=sub_name,
                         user_id="reddit",
                         user_name=dirty_remove_cuss(post.get("author", "Unknown")),
                         time_ago=datetime.fromisoformat(
-                            post["posted_at"][:-2] + ":" + post["posted_at"][-2:]
+                            post["posted_at"].replace('Z', '+00:00')
                         ),
                         score_int=post["views"],
                         comment_int=post["likes"],
@@ -443,8 +498,8 @@ def main_reddit_coms_orch():
                             )
                         ),
                     )
-                if not os.path.exists(posts_to_use[pid]["vfile"]):
-                    LOGGER.error("Video not created %s", posts_to_use[pid]["vfile"])
+                if not os.path.exists(posts_to_use[pid][f"vfile_{part_num}"]):
+                    LOGGER.error("Video not created %s", posts_to_use[pid][f"vfile_{part_num}"])
                     continue
             update_reddit_post_clip_tt_aiyt(
                 post_id=pid,
@@ -534,7 +589,7 @@ def main_reddit_coms_orch():
                                 )
                             )),
                         )
-                    if not os.path.exists(posts_to_use[pid]["vfile"]):
+                    if not os.path.exists(posts_to_use[pid][f"vfile_{part_num}_{lang}"]):
                         LOGGER.error("Video not created %s", posts_to_use[pid][f"vfile_{part_num}_{lang}"])
                         continue
                 update_reddit_post_clip_tt_aiyt(
@@ -586,18 +641,20 @@ def main_reddit_coms_orch():
     # Clean up
     #####################################
     for pid, post in posts_to_use.items():
-        shutil.copyfile(post["vfile"], f"{CLIPS_FOLDER}/reddit_{pid}.mp4")
-        os.remove(post["vfile"])
-        for uid, chunk in post["chunks"].items():
-            os.remove(chunk["auFile"])
+        for part_num in range(post["parts"]):
+            shutil.copyfile(post[f"vfile_{part_num}"], f"{CLIPS_FOLDER}/reddit_{pid}_{part_num}.mp4")
+            os.remove(post["vfile"])
+            os.remove(post["auFile"])
+            
 
-        for lang in POSSIBLE_TRANSLATE_LANGS:
-            shutil.copyfile(
-                post[f"vfile_{lang}"], f"{CLIPS_FOLDER}/reddit{lang}_{pid}.mp4"
-            )
-            os.remove(post[f"vfile_{lang}"])
-            for uid, chunk in post[f"chunks_{lang}"].items():
-                os.remove(chunk["auFile"])
+            for lang in POSSIBLE_TRANSLATE_LANGS:
+                shutil.copyfile(
+                    post[f"vfile_{part_num}_{lang}"], f"{CLIPS_FOLDER}/reddit{lang}_{pid}.mp4"
+                )
+                os.remove(post[f"vfile_{part_num}_{lang}"])
+                os.remove(post[f"auFile_{lang}"])
+                
+        
 
 
     LOGGER.info("Reddit posts done")

@@ -203,7 +203,11 @@ class ADBUploader:
                 ad_y / self.d.info.get("displayHeight", 1),
             )
             LOGGER.info("Clicked on vid and adjusted for no create")
+        
         sleep(2)  # Give it a moment to load the video
+        
+        if self.d(text="Select").exists(timeout=5):
+        
         if self.d(text="Next").exists(timeout=5):
             self.click_with_random_offset(self.d(text="Next"))
         LOGGER.info("Clicked on next")
@@ -769,6 +773,17 @@ class ADBUploader:
                         LOGGER.info("Clicked on Upload")
                         post_button_y = yi / self.d.info.get("displayHeight", 1)
                         LOGGER.info("Post button y: %s", post_button_y)
+                        
+                        # Make sure we are on 60s mode so no sound is added
+                        if sess(text="60s").exists(timeout=5):
+                            if not sess(text="60s").info["selected"]:
+                                LOGGER.info("Selecting 60s mode")
+                                sess(text="60s").click()
+                                
+                        # Remove sound if it exists
+                        if not sess(text="Add sound").exists(timeout=5):
+                            sess(descriptionContains="Remove sound").click()
+                            
                         # Click on the gallery button
                         sess(description="Flash").wait()
                         if sess(text="TEXT").exists(timeout=5):

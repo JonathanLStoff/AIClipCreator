@@ -23,7 +23,7 @@ from clip_creator.utils.caption_img import (
     create_caption_images_aiyt,
     create_caption_images_reddit_com,
 )
-from clip_creator.utils.scan_text import remove_non_letters, swap_words_numbers
+from clip_creator.utils.scan_text import remove_non_letters, swap_words_numbers, remove_non_numbers
 
 
 def get_clip_duration(video_path):
@@ -228,9 +228,10 @@ def create_postimg_clip_aiyt(post_png_file, transcript, title, th=1920, tw=1080,
     if first_part:
         for _i, section in enumerate(transcript):
             start = section["start"]
-            if section["text"] not in title.upper():
-                LOGGER.info("section text: [%s] not in [%s]", section["text"], title)
-                break
+            if section["text"].upper() not in title.upper():
+                if not remove_non_numbers(section["text"].upper()).isdigit():
+                    LOGGER.info("section text: [%s] not in [%s]", section["text"], title)
+                    break
         if transcript[-1]["start"] == start:
             start = len(title) * (160 / 60)
     else:
@@ -244,6 +245,7 @@ def create_postimg_clip_aiyt(post_png_file, transcript, title, th=1920, tw=1080,
         .with_effects([Resize(0.90)])
     )
     LOGGER.info("POST SIZE: %s", clip.size)
+    
     return clip, start
 def create_reddit_video_aiyt(
     video_path,
@@ -282,7 +284,8 @@ def create_reddit_video_aiyt(
                 .subclipped(0, (part_end - part_start))
                 .with_start(0),
             ])
-
+            LOGGER.info("temp_audio: %s", temp_audio.duration)
+            LOGGER.info("temp_audio: start %s, end %s", part_start, part_end)
             temp_audio.write_audiofile(
                 f"tmp/audios/{pid}_aud.mp3", codec="libmp3lame"
             )
@@ -693,8 +696,11 @@ def create_captions_aiyt(
             LOGGER.error("Error fixing image size: %s", e)
         # LOGGER.info("file_path: %s", file_path)
         caption_clip = ImageClip(file_path, duration=duration)
-        if (section["start"]-adjust) < end_image_time:
-            continue
+        LOGGER.info("caption_clip duration: %s", duration)
+        #if (section["start"]-adjust) < end_image_time:
+            #LOGGER.info("Skipping caption clip for section: %s", section)
+            #continue
+        LOGGER.info("caption_clip start: %s", section["start"] - adjust)
         caption_clip = (
             caption_clip.with_start(section["start"] - adjust)
             .with_position(("center", pos_y))
@@ -702,6 +708,7 @@ def create_captions_aiyt(
         )
         if (section["start"] - adjust) + duration > ending:
             ending = section["start"] + duration
+        
         if caption_clip.w > target_size[0]:
             widthy = target_size[0] * 0.95
             widthy = int(widthy)

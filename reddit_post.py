@@ -209,7 +209,7 @@ def main_reddit_posts_orch():
                 else:
                     post_dt = str_to_datetime(post.get("posted_at", ""))
                 LOGGER.debug("Post dt: %s", post_dt)
-                if (datetime.now(UTC) - post_dt) > timedelta(days=7):
+                if (datetime.now(UTC) - post_dt) > timedelta(days=7) and str_to_datetime(post.get("posted_at", "")) > datetime.now(UTC) - timedelta(days=14):
                     posty = straight_update_reddit(post.get("url", ""))
                     num_updates += 1
                     LOGGER.debug("Posty: %s",  posty.get("title"))

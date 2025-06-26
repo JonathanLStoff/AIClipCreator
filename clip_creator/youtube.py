@@ -129,21 +129,27 @@ def get_latest_videos_v2(channel_id, current_data, max_results=10):
     next_page_token = None
     list_videos = []
     while True:
-        yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
-        request = yt.search().list(
-            part="snippet", channelId=channel_id, order="date", maxResults=max_results, pageToken=next_page_token
-        )
-        response = request.execute()
-        if response.get("items"):
-            break
-        else:
-            api_inx += 1
-            if api_inx == len(API_KEY):
+        while True:
+            LOGGER.info("API Index: %s", api_inx)
+            yt = build("youtube", "v3", developerKey=API_KEY[api_inx])
+            request = yt.search().list(
+                part="snippet", channelId=channel_id, order="date", maxResults=max_results, pageToken=next_page_token
+            )
+            
+            response = request.execute()
+            LOGGER.info("Request items: %s", len(response.get("items", [])))
+            if response.get("items"):
                 break
+            else:
+                LOGGER.info("Request: %s", response)
+                api_inx += 1
+                if api_inx == len(API_KEY):
+                    break
         
-        LOGGER.info("Response: %s", response)
+        LOGGER.info("Response next page: %s", response.get("nextPageToken"))
         next_page_token = response.get("nextPageToken")
         for entry in response.get("items", []):
+            LOGGER.info("Entry: %s", entry)
             time.sleep(0.5)
             if entry == []:
                 continue
@@ -305,7 +311,10 @@ def get_video_info(video_id):
             request = yt.videos().list(part="snippet,statistics", id=video_id)
             response = request.execute()
             if response.get("items"):
-                LOGGER.info("Response: %s", response)
+                try:
+                    LOGGER.info("Response: %s", response)
+                except Exception as e:
+                    LOGGER.info("Error logging response: %s", e)
                 break
             else:
                 LOGGER.info("API key %s failed", API_KEY[api_inx])

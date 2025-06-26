@@ -8,7 +8,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
 google-api-python-client = "^2.160.0"
-youtube-transcript-api = "^0.6.3"
+youtube-transcript-api = "1.1.0"
 isodate = "^0.7.2"
 ollama = "^0.4.7"
 moviepy = "^2.1.2"
