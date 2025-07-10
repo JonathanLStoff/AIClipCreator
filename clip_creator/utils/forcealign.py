@@ -7,28 +7,37 @@ from forcealign.utils import alphabetical, get_breath_idx
 from clip_creator.conf import LOGGER
 from clip_creator.tts.audio_edit import split_audio_at_timestamps, find_splits_each_sm, audio_length
 
-def force_align_aiyt(file: str, yt_ft_transcript: str, device: str):
+def force_align_aiyt(file: list, yt_ft_transcript: list, device: str):
     '''
     This version of force_align is used for AIYT, which splits the audio file into smaller segments so the gpu can handle it.
     '''
-    LOGGER.debug("Force aligning audio %s, %s", file, yt_ft_transcript)
+    LOGGER.info("Force aligning audio %s", file)
     
-    number_of_splits = find_splits_each_sm(file, length=2)  # Get split points in the audio file
-    files_list = split_audio_at_timestamps(file, number_of_splits)
+    
+    
     full_transcript = []
-    running_offset = 0  # Initialize running offset for timestamps
-    for split_file in files_list:
-        
-        align = ForceAlignFix(audio_file=split_file, transcript=yt_ft_transcript, device=device)
-
+    running_offset = 0.0  # Initialize running offset for timestamps
+    for i, split_file in enumerate(file):
+        if not os.path.exists(split_file):
+            LOGGER.error("File %s does not exist, skipping alignment for this segment", split_file)
+            continue
+        try:
+            tmp_running_offset = audio_length(split_file)  # Update running offset
+        except Exception as e:
+            LOGGER.error("Error getting audio length for %s: %s", split_file, e)
+            tmp_running_offset = 0.0
+            continue
+        align = ForceAlignFix(audio_file=split_file, transcript=yt_ft_transcript[i], device=device)
+        LOGGER.info("Aligning file: %s", split_file)
         # Run prediction and return alignment results
         words = align.inference()
-
+        LOGGER.info("Alignment complete for file: %s", split_file)
         # Show predicted word-level alignments
         ts_trans = []
         for word in words:
             LOGGER.debug(
-                f"Word: {word.word}, Start: {word.time_start}s, End: {word.time_end}s"
+                "Word: %s, Start: %s, End: %s",
+                word.word, word.time_start, word.time_end
             )
             ts_trans.append({
                 "text": word.word,
@@ -38,9 +47,8 @@ def force_align_aiyt(file: str, yt_ft_transcript: str, device: str):
             })
         del align  # Clean up to free memory
         del words
-        os.remove(split_file)  # Remove the split file after processing
         full_transcript.extend(ts_trans)
-        running_offset += audio_length(split_file)  # Update running offset
+        running_offset += tmp_running_offset  # Update running offset for the next segment
     return full_transcript
 def force_align(file: str, yt_ft_transcript: str, device: str):
     # Provide path to audio file and corresponding transcript

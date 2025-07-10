@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from clip_creator.conf import LOGGER, WK_SCHED
+from clip_creator.conf import LOGGER, WK_SCHED, WK_SCHED_COM, WK_SCHED_AIYT
 
 
 def round_to_nearest_5(minutes: float) -> int:
@@ -65,7 +65,7 @@ def none_old_timestamps() -> list:
 
 def none_old_timestamps_com() -> list:
     today_index = datetime.today().weekday()  # Monday is 0, Sunday is 6
-    schedule = WK_SCHED[today_index]
+    schedule = WK_SCHED_COM[today_index]
     now = datetime.now()
     updated = []
     for t in schedule:
@@ -79,7 +79,22 @@ def none_old_timestamps_com() -> list:
         scheduled_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         updated.append(None if scheduled_dt < now else t)
     return updated
-
+def none_old_timestamps_aiyt() -> list:
+    today_index = datetime.today().weekday()  # Monday is 0, Sunday is 6
+    schedule = WK_SCHED_AIYT[today_index]
+    now = datetime.now()
+    updated = []
+    for t in schedule:
+        if ":" not in t:
+            updated.append(t)
+            continue
+        hour, minute = map(int, t.split(":"))
+        if minute > 59:
+            minute = 59
+        LOGGER.info("sched: %s, %s, %s, %s", hour, minute, now.hour, now.minute)
+        scheduled_dt = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        updated.append(None if scheduled_dt < now else t)
+    return updated
 
 # Example usage:
 if __name__ == "__main__":

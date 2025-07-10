@@ -135,16 +135,28 @@ def get_latest_videos_v2(channel_id, current_data, max_results=10):
             request = yt.search().list(
                 part="snippet", channelId=channel_id, order="date", maxResults=max_results, pageToken=next_page_token
             )
-            
-            response = request.execute()
-            LOGGER.info("Request items: %s", len(response.get("items", [])))
-            if response.get("items"):
-                break
-            else:
-                LOGGER.info("Request: %s", response)
-                api_inx += 1
-                if api_inx == len(API_KEY):
+            try:
+                response = request.execute()
+                LOGGER.info("Request items: %s", len(response.get("items", [])))
+                if response.get("items"):
                     break
+                else:
+                    LOGGER.info("Request: %s", response)
+                    api_inx += 1
+                    if api_inx == len(API_KEY):
+                        LOGGER.info("No more API keys available")
+                        
+                        break
+            except Exception as e:
+                if "403" in str(e):
+                    LOGGER.info("API key %s failed", API_KEY[api_inx])
+                    api_inx += 1
+                    if api_inx == len(API_KEY):
+                        LOGGER.info("No more API keys available")
+                        break
+                else:
+                    LOGGER.info("Unexpected error: %s", e)
+                
         
         LOGGER.info("Response next page: %s", response.get("nextPageToken"))
         next_page_token = response.get("nextPageToken")

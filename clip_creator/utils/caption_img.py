@@ -524,7 +524,7 @@ def create_caption_images_aiyt(
                 # Key fix: Use k instead of i for word_widths index
                 x += word_widths[k] + word_spacing
 
-            filename = f"{prefix}_line{j}_word{word_index}-{part}.png"
+            filename = f"{prefix}_line{j}_word{word_index}.png"
             file_path = os.path.join(output_dir, filename)
 
             final_img.save(file_path, "PNG")

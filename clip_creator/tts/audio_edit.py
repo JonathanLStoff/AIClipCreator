@@ -1,6 +1,13 @@
 import librosa
+from pydub.utils import mediainfo
+from pydub import AudioSegment
+from pathlib import Path
 import numpy as np
 import soundfile as sf
+import os
+import wave
+
+from clip_creator.conf import LOGGER
 
 def find_silence(audio_file, silence_threshold=40, min_silence_length=10):
     """
@@ -42,18 +49,73 @@ def find_splits_each_sm(audio_file, length=2):
                 clip_parts.append((start + end)/2)  # Average of start and end times
                 break  # Stop after the first silence found in this run
     return clip_parts
-def audio_length(audio_file):
+def find_splits_each_trans(transcript:list[dict], length=5):
     """
-    Returns the length of the audio file in milliseconds.
+    Finds split points in an transcript based on period detection.
+    """
+    audio_length = transcript[-1]["duration"] +  transcript[-1]["start"] # Assuming the last entry has the total duration
+    runs_count = audio_length / (length*60) # number of runs in 2 minutes
+    clip_parts:list[list[dict]] = []
+    for i in range(0,int(runs_count)):
+        tmp_clip_parts: list[dict] = []
+        start_run = i * length * 60
+        end_run = (i + 1) * length * 60
+        if end_run > audio_length or i == runs_count - 1:
+            end_run = audio_length
+        for idx, section in enumerate(transcript):
+            if section["start"] < start_run:
+                continue
+            elif section["start"] >= start_run and section["start"] < end_run and tmp_clip_parts==[] and idx!=0:
+                tmp_clip_parts.append(transcript[idx-1])  # Add the previous section if it exists
+                tmp_clip_parts.append(section)
+            elif section["start"] > start_run and section["start"] < end_run:
+                tmp_clip_parts.append(section)
+            elif section["start"] >= end_run and section["start"] - end_run > length*5 and end_run != audio_length: # Avoid adding sections that are too far from the end of the run
+                tmp_clip_parts.append(section)  # Average of start and end times
+                break
+            elif section["start"] >= end_run and end_run != audio_length:
+                for end_of_word in [".", "!", "?"]:
+                    if end_of_word in section['text']:
+                        tmp_clip_parts.append(section)
+                        break
+                break  # Stop after the first silence found in this run
+            else:
+                tmp_clip_parts.append(section)
+        clip_parts.append(tmp_clip_parts)
 
+    return clip_parts
+def combine_audio_files(audio_files: list, output_file: str):
+    """
+    Combines multiple audio files into a single audio file.
+    """
+    combined = AudioSegment.empty()
+    for audio_file in audio_files:
+        if os.path.exists(audio_file):
+            LOGGER.debug(f"Combining audio file: {audio_file}")
+            segment = AudioSegment.from_file(audio_file)
+            combined += segment
+        else:
+            LOGGER.warning(f"Audio file {audio_file} does not exist. Skipping.")
+    combined.export(output_file, format="wav")
+    for audio_file in audio_files:
+        try:
+            os.remove(audio_file)  # Clean up individual files after combining
+        except Exception as e:
+            LOGGER.error(f"Error removing file {audio_file}: {e}")
+
+def audio_length(audio_file: str) -> float:
+    """
+    Returns the length of the audio file in seconds.
     Args:
-        audio_file (str): Path to the audio file.
-
+        audio_file (str): Path to the audio file that is a wav.
     Returns:
-        float: Length of the audio file in milliseconds.
+        float: Length of the audio file in seconds.
     """
-    y, sr = librosa.load(audio_file, sr=None)
-    return (len(y) / sr * 1000)/1000  # Convert to milliseconds
+    with wave.open(audio_file, 'rb') as wf:
+        frames = wf.getnframes()
+        framerate = wf.getframerate()
+        duration = frames / float(framerate)
+        return duration
 def split_audio_at_timestamps(audio_file, timestamps_ms:list):
     """
     Splits the audio file at the given list of millisecond timestamps.

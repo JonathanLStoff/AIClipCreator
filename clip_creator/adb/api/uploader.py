@@ -207,7 +207,7 @@ class ADBUploader:
         sleep(2)  # Give it a moment to load the video
         
         if self.d(text="Select").exists(timeout=5):
-        
+            pass
         if self.d(text="Next").exists(timeout=5):
             self.click_with_random_offset(self.d(text="Next"))
         LOGGER.info("Clicked on next")
@@ -809,7 +809,10 @@ class ADBUploader:
                             ]
                         ):
                             self.click_with_random_offset(select_multiple)
-
+                        if sess(descriptionContains="Remove sound").exists(timeout=5):
+                            LOGGER.info("Removing sound")
+                            sess(descriptionContains="Remove sound").click()
+                            sleep(2)
                         sleep(1)
                         LOGGER.info("Clicking on video")
                         tx, ty = sess(
@@ -823,7 +826,10 @@ class ADBUploader:
                         LOGGER.info("Location of video: %s, %s", tx, ty)
 
                         self.touch(tx, ty)
-
+                        if sess(descriptionContains="Remove sound").exists(timeout=5):
+                            LOGGER.info("Removing sound")
+                            sess(descriptionContains="Remove sound").click()
+                            sleep(2)
                         # Press Next
                         sleep(10)
                         if sess(textContains="Next").exists(timeout=5) and not sess(
@@ -833,6 +839,12 @@ class ADBUploader:
                             self.click_with_random_offset(sess(textContains="Next"))
                     
                         next_button = sess(text="Next").wait()
+                        
+                        if sess(descriptionContains="Remove sound").exists(timeout=5):
+                            LOGGER.info("Removing sound")
+                            sess(descriptionContains="Remove sound").click()
+                            sleep(2)
+                        
                         LOGGER.info("Next button")
                         if not next_button:
                             next_button = sess(text=f"Next ({1})")
@@ -844,6 +856,11 @@ class ADBUploader:
                                     break
                         else:
                             sess(text="Next").click()
+                            
+                        if sess(descriptionContains="Remove sound").exists(timeout=5):
+                            LOGGER.info("Removing sound")
+                            sess(descriptionContains="Remove sound").click()
+                            sleep(2)
 
                         if sound:
                             self.add_sound_tt()
@@ -853,7 +870,11 @@ class ADBUploader:
                         if sess(text="Next").exists(timeout=5):
                             LOGGER.info("Clicking on next")
                             self.click_with_random_offset(sess(text="Next"))
-                
+                            
+                        if sess(descriptionContains="Remove sound").exists(timeout=5):
+                            LOGGER.info("Removing sound")
+                            sess(descriptionContains="Remove sound").click()
+                            sleep(2)
                         LOGGER.info("Clicked on next")
                         if description:
                             # Description

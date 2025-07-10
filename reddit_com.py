@@ -206,37 +206,34 @@ def main_reddit_coms_orch():
     #####################################
     # possibly update database
     #####################################
-    href_list = []
-    if (
-        (args.noretrieve and args.doupdate)
-        or (not args.noretrieve and not args.doupdate and False)
-    ) and not args.usevids:
-        for pid, post in posts_to_use.items():
-            if post.get("updated_at") is not None and post.get("updated_at") != "":
-                post_dt = str_to_datetime(post.get("updated_at", ""))
-            else:
-                post_dt = str_to_datetime(post.get("posted_at", ""))
-            LOGGER.debug("Post dt: %s", post_dt)
-            if (datetime.now(UTC) - post_dt) > timedelta(days=7) and str_to_datetime(post.get("posted_at", "")) > datetime.now(UTC) - timedelta(days=14):
-                posty = straight_update_reddit_coms(post.get("url", ""))
-                LOGGER.debug("Posty: %s", posty)
-                if posty.get("title"):
-                    LOGGER.debug("Updating Post %s", posty["url"])
-                    updatey_reddit_post_clip_com(
-                        post_id=post["post_id"],
-                        title=post["title"],
-                        posted_at=post["posted_at"],
-                        content=post["content"],
-                        url=post["url"],
-                        upvotes=post["upvotes"],
-                        comments=post["comments"],
-                        nsfw=post["nsfw"],
-                        author=post["author"],
-                        comments_json=post[
-                            "comments_list"
-                        ],  # a list[dict] of comments where dict is {author, text, score}
-                        updated_at=datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000"),
-                    )
+    
+    # href_list = []
+    # if (
+    #     (args.noretrieve and args.doupdate)
+    #     or (not args.noretrieve and not args.doupdate and False)
+    # ) and not args.usevids:
+    #     number_of_updates = 0
+    #     for pid, post in posts_to_use.items():
+    #         if number_of_updates > 5:
+    #             LOGGER.info("Number of updates exceeded 5, stopping updates")
+    #             break
+    #         if post.get("updated_at") is not None and post.get("updated_at") != "":
+    #             post_dt = str_to_datetime(post.get("updated_at", ""))
+    #         else:
+    #             post_dt = str_to_datetime(post.get("posted_at", ""))
+    #         LOGGER.info("Post dt: %s", post_dt)
+    #         if (datetime.now(UTC) - post_dt) > timedelta(days=7) and str_to_datetime(post.get("posted_at", "")) > datetime.now(UTC) - timedelta(days=14):
+    #             posty = straight_update_reddit_coms(post.get("url", ""))
+    #             LOGGER.debug("Posty: %s", posty)
+    #             if posty.get("title"):
+    #                 number_of_updates += 1
+    #                 LOGGER.info("Number of updates: %s", number_of_updates)
+    #                 LOGGER.debug("Updating Post %s", posty["url"])
+    #                 post["updated_at"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f+0000")
+    #                 p_failed = updatey_reddit_post_clip_com(
+    #                     post_data=post,
+    #                 )
+            
     #####################################
     # Exit if fetch only
     #####################################

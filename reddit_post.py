@@ -202,7 +202,7 @@ def main_reddit_posts_orch():
             or (not args.noretrieve and not args.doupdate and False)
         ) and not args.usevids:
             for pid, post in posts_to_use.items():
-                if num_updates > 5:
+                if num_updates > 15:
                     break
                 if post.get("updated_at") is not None and post.get("updated_at") != "":
                     post_dt = str_to_datetime(post.get("updated_at", ""))
@@ -212,10 +212,10 @@ def main_reddit_posts_orch():
                 if (datetime.now(UTC) - post_dt) > timedelta(days=7) and str_to_datetime(post.get("posted_at", "")) > datetime.now(UTC) - timedelta(days=14):
                     posty = straight_update_reddit(post.get("url", ""))
                     num_updates += 1
-                    LOGGER.debug("Posty: %s",  posty.get("title"))
+                    LOGGER.info("Posty: %s",  posty.get("title"))
                     if posty.get("title"):
-                        LOGGER.debug("Updating Post %s", posty["url"])
-                        
+                        LOGGER.debug("Updating Post on time %s", posty["url"])
+                        LOGGER.info("number of updates: %s", num_updates)
                         update_reddit_post_clip_old(
                             post_id=pid,
                             title=posty["title"],
@@ -240,31 +240,31 @@ def main_reddit_posts_orch():
                     found_urls:list[str] = url_finder.find_urls(post["content"])
                     for url in found_urls:
                         post["content"] = remove_markdown_links_images(post.get("content", "")).replace(url, "")
-                        if "reddit" in str(url):
-                            found_pid = False
-                            for pid in posts_to_use.keys():
-                                if pid in url:
-                                    found_pid = True
-                                    break
-                            if not found_pid:
-                                posty = straight_update_reddit(url)
-                                if posty.get("title"):
-                                    LOGGER.info("Updating Post %s", posty["url"])
-                                    add_reddit_post_clip(
-                                        post_id=post_id,
-                                        title=post["title"],
-                                        posted_at=post["posted_at"],
-                                        content=post["content"],
-                                        url=post["url"],
-                                        upvotes=post["upvotes"],
-                                        comments=post["comments"],
-                                        nsfw=post["nsfw"],
-                                        parent_id=pid,
-                                        author=post["author"],
-                                        updated_at=datetime.now().strftime(
-                                            "%Y-%m-%dT%H:%M:%S.%f+0000"
-                                        ),
-                                    )
+                        # if "reddit" in str(url):
+                        #     found_pid = False
+                        #     for pid in posts_to_use.keys():
+                        #         if pid in url:
+                        #             found_pid = True
+                        #             break
+                            # if not found_pid:
+                            #     posty = straight_update_reddit(url)
+                            #     if posty.get("title"):
+                            #         LOGGER.info("Updating Post %s", posty["url"])
+                            #         add_reddit_post_clip(
+                            #             post_id=post_id,
+                            #             title=post["title"],
+                            #             posted_at=post["posted_at"],
+                            #             content=post["content"],
+                            #             url=post["url"],
+                            #             upvotes=post["upvotes"],
+                            #             comments=post["comments"],
+                            #             nsfw=post["nsfw"],
+                            #             parent_id=pid,
+                            #             author=post["author"],
+                            #             updated_at=datetime.now().strftime(
+                            #                 "%Y-%m-%dT%H:%M:%S.%f+0000"
+                            #             ),
+                            #         )
                     if "update" in post.get("title", "").lower() and (found_urls == [] or not found_urls):
                         #TODO: Do something to collect the updates from user account
                         pass

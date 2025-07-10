@@ -1045,6 +1045,12 @@ def update_reddit_post_clip_old(
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
+        # Check if the post_id exists first
+        cursor.execute("SELECT 1 FROM reddit_posts_clips WHERE post_id = ?", (post_id,))
+        if not cursor.fetchone():
+            LOGGER.warning(f"Post clip with post_id '{post_id}' not found. Skipping update.")
+            return
+
         if parent_id:
             cursor.execute(
                 """
@@ -1062,8 +1068,8 @@ def update_reddit_post_clip_old(
                     url,
                     author,
                     parent_id,
-                    post_id,
                     updated_at,
+                    post_id,
                 ),
             )
         else:
@@ -1082,8 +1088,8 @@ def update_reddit_post_clip_old(
                     posted_at,
                     url,
                     author,
-                    post_id,
                     updated_at,
+                    post_id,
                 ),
             )
 
@@ -1091,11 +1097,12 @@ def update_reddit_post_clip_old(
         LOGGER.info(f"Post clip with post_id '{post_id}' updated successfully.")
 
     except sqlite3.Error as e:
-        LOGGER.error(f"An error occurred: {e}")
+        LOGGER.error(f"An error occurredd: {e}")
 
     finally:
         if conn:
             conn.close()
+
 
 
 def get_reddit_post_clip_by_id(post_id, db_path="aiclipcreator.db"):
@@ -1576,53 +1583,66 @@ def add_reddit_post_clip_ai(
             conn.close()
 
 def updatey_reddit_post_clip_com(
-    post_id: str,
-    title: str,
-    content: str,
-    upvotes: int,
-    comments: int,
-    comments_json: dict | list,
-    nsfw: bool,
-    author: str,
-    posted_at: str,
-    url: str,
-    updated_at: str,
+    post_data: dict,
     db_path="aiclipcreator.db",
 ):
-    """Updates an existing Reddit post clip in the database."""
+    """
+    Updates an existing Reddit post clip in the database.
+    Expects post_data to be a dictionary with keys:
+    'post_id', 'title', 'content', 'upvotes', 'comments',
+    'comments_json', 'nsfw', 'author', 'posted_at', 'url', 'updated_at'
+    """
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         cursor.execute(
-            """
-            UPDATE reddit_coms_clips
-            SET title = ?, content = ?, upvotes = ?, comments = ?, comments_json = ?, nsfw = ?, posted_at = ?, url = ?, author = ?, updated_at = ?
-            WHERE post_id = ?
-            """,
             (
-                title,
-                content,
-                upvotes,
-                comments,
-                json.dumps(comments_json),
-                nsfw,
-                posted_at,
-                url,
-                author,
-                post_id,
-                updated_at,
+                "UPDATE reddit_coms_clips "
+                "SET title = ?, "
+                "content = ?, "
+                "upvotes = ?, "
+                "comments = ?, "
+                "comments_json = ?, "
+                "nsfw = ?, "
+                "posted_at = ?, "
+                "url = ?, "
+                "author = ?, "
+                "updated_at = ? "
+                "WHERE post_id = ?"
+            ),
+            (
+                post_data["title"],
+                post_data["content"],
+                post_data["upvotes"],
+                post_data["comments"],
+                json.dumps(post_data["comments_list"]),
+                post_data["nsfw"],
+                post_data["posted_at"],
+                post_data["url"],
+                post_data["author"],
+                post_data["updated_at"],
+                post_data["post_id"],
             ),
         )
 
         conn.commit()
         if cursor.rowcount > 0:
-            print(f"Post clip with post_id '{post_id}' updated successfully.")
+            print(
+                f"Post clip with post_id '{post_data['post_id']}' updated successfully."
+            )
         else:
-            print(f"No post clip found with post_id '{post_id}'.")
+            print(
+                f"No post clip found with post_id '{post_data['post_id']}'."
+            )
 
     except sqlite3.Error as e:
-        print(f"An error occurred: {e}")
+        LOGGER.error(
+            "An error occurred reddit update: %s", e
+        )
+        if "UNIQUE constraint" in str(e):
+            return "FAILED"
+        return None
 
     finally:
         if conn:
@@ -1682,8 +1702,9 @@ def update_reddit_post_clip_com(
             print(f"Post clip with post_id '{post_id}' not found.")
 
     except sqlite3.Error as e:
-        print(f"An error occurred: {e}")
-
+        LOGGER.error(f"An error occurred reddit update: {e}")
+        if "UNIQUE constraint" in str(e):
+            return "FAILED"
     finally:
         if conn:
             conn.close()

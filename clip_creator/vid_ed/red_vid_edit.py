@@ -222,22 +222,12 @@ def create_reddit_video(
                 break
         break
 
-def create_postimg_clip_aiyt(post_png_file, transcript, title, th=1920, tw=1080, adjust=0, first_part=False):
+def create_postimg_clip_aiyt(post_png_file, transcript, title, th=1920, tw=1080, adjust=0, first_part=False, title_len=0):
     start = 0
     title = swap_words_numbers(remove_non_letters(title.upper()))
-    if first_part:
-        for _i, section in enumerate(transcript):
-            start = section["start"]
-            if section["text"].upper() not in title.upper():
-                if not remove_non_numbers(section["text"].upper()).isdigit():
-                    LOGGER.info("section text: [%s] not in [%s]", section["text"], title)
-                    break
-        if transcript[-1]["start"] == start:
-            start = len(title) * (160 / 60)
-    else:
-        start = 5
+
     clip = (
-        ImageClip(post_png_file, duration=start)
+        ImageClip(post_png_file, duration=title_len)
         .with_position("center", "center")
         .with_layer_index(4)
         .with_start(0)
@@ -263,6 +253,7 @@ def create_reddit_video_aiyt(
     first_part=False,
     post_png_file=None,
     title="",
+    title_len=0,
 ):
     if part_start is None:
         part_start = []
@@ -272,7 +263,7 @@ def create_reddit_video_aiyt(
 
         try:
             clip_pt_img, end_image_time = create_postimg_clip_aiyt(
-                post_png_file, transcript, title, th, tw, adjust, first_part
+                post_png_file, transcript, title, th, tw, adjust, first_part, title_len
             )
 
             
@@ -305,10 +296,12 @@ def create_reddit_video_aiyt(
                 target_size=(tw, th),
                 end_image_time=end_image_time,
                 adjust=adjust,
+                title_len=title_len,
             )
             LOGGER.info("Pvideo: %s", video.size)
             final_clip = CompositeVideoClip([video, clip_pt_img, *cap_clips])
             LOGGER.info("Pfinal_clip: %s", final_clip.size)
+            
             final_clip.write_videofile(
                 output_path,
                 pixel_format="yuv420p",
@@ -339,7 +332,9 @@ def create_reddit_video_aiyt(
                 use_hi = not use_hi
                 continue
             else:
+                LOGGER.error("Error: %s", traceback.format_exc())
                 break
+            
         break
 
 
@@ -635,6 +630,7 @@ def create_captions_aiyt(
     part=0,
     end_image_time=0,
     adjust=0,
+    title_len=0,
 ):
     """
     Creates caption image clips from a transcript and overlays them onto a video clip.
@@ -657,30 +653,33 @@ def create_captions_aiyt(
     Returns:
         VideoFileClip: The modified video clip with the caption image clips composited on top.
     """
-    file_to_check = f"word{len(transcript)-5}-{part}.png"
-    LOGGER.info("file_to_check and pre: %s %s", file_to_check, prefix)
-    not_found = True
-    for file in os.listdir(output_dir):
-        if file_to_check in file and prefix in file:
-            not_found = False
-            break
-    if not_found:
-        create_caption_images_aiyt(
-            prefix, transcript, int(target_size[0] * 0.9), output_dir, adjust=adjust
-        )
+    file_to_check = f"word{len(transcript)-5}.png"
+    # LOGGER.info("file_to_check and pre: %s %s", file_to_check, prefix)
+    # not_found = True
+    # for file in os.listdir(output_dir):
+    #     if file_to_check in file and prefix in file:
+    #         not_found = False
+    #         break
+    # if not_found:
+    create_caption_images_aiyt(
+        prefix, transcript, int(target_size[0] * 0.9), output_dir, adjust=adjust
+    )
 
     clip_list = []
     files_to_remove = []
     ending = 0
     for i, section in enumerate(transcript):
         file_name = ""
+        # skip if during the title part
+        if title_len > section["start"] - adjust:
+            continue
         for file in os.listdir(output_dir):
-            if f"word{i}-{part}.png" in file and prefix in file:
+            if f"word{i}.png" in file and prefix in file:
                 file_name = file
                 files_to_remove.append(file)
                 break
         if file_name == "":
-            LOGGER.error("file_name not found: %s", f"word{i}-{part}.png")
+            LOGGER.error("file_name not found: %s", f"word{i}.png")
             continue
         if i + 1 >= len(transcript):
             duration = section["duration"] + 0.5
@@ -696,11 +695,11 @@ def create_captions_aiyt(
             LOGGER.error("Error fixing image size: %s", e)
         # LOGGER.info("file_path: %s", file_path)
         caption_clip = ImageClip(file_path, duration=duration)
-        LOGGER.info("caption_clip duration: %s", duration)
+        #LOGGER.info("caption_clip duration: %s", duration)
         #if (section["start"]-adjust) < end_image_time:
             #LOGGER.info("Skipping caption clip for section: %s", section)
             #continue
-        LOGGER.info("caption_clip start: %s", section["start"] - adjust)
+        #LOGGER.info("caption_clip start: %s", section["start"] - adjust)
         caption_clip = (
             caption_clip.with_start(section["start"] - adjust)
             .with_position(("center", pos_y))

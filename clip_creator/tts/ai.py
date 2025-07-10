@@ -42,8 +42,10 @@ class TTSModel:
             LOGGER.error(f"An error occurred: {e}")
 
         # Example of saving the audio to a file
-
-        sf.write(filename, waveform, sample_rate)
+        if ".wav" in filename:
+            sf.write(filename, waveform, sample_rate , format="wav")
+        else:
+            sf.write(filename, waveform, sample_rate)
         LOGGER.debug(f"Audio saved to {filename}")
 
 
@@ -98,5 +100,8 @@ class TTSModelKokoro:
 
         # Example of saving the audio to a file
 
-        sf.write(filename, waveform, sample_rate)
+        if ".wav" in filename:
+            sf.write(filename, waveform, sample_rate , format="wav")
+        else:
+            sf.write(filename, waveform, sample_rate)
         LOGGER.debug(f"Audio saved to {filename}")

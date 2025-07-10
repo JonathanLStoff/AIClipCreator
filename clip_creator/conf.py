@@ -313,6 +313,15 @@ WK_SCHED_COM = [
     ["23:50", "23:50", "23:50", "23:50"],  # Saturday
     ["23:50", "23:50", "23:50", "23:50"],  # Sunday
 ]
+WK_SCHED_AIYT = [
+    ["23:50"],  # Monday
+    ["23:50"],  # Tuesday
+    ["23:50"],  # Wednesday
+    ["23:50"],  # Thursday
+    ["23:50"],  # Friday
+    ["23:50"],  # Saturday
+    ["23:50"],  # Sunday
+]
 RED_COM_DELAY = 0.2
 # Find and replace all text.
 REPLACE_CURSE_WORDS_DIRT = {
